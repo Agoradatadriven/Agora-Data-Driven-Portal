@@ -1,0 +1,17 @@
+.git/
+.gitignore
+.gcloudignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+ingest/windsor_data_pull/*/_run/
+*.log
+*.ndjson
+# Local-only secrets vault + stray secret material (defense in depth)
+agora-data-driven-vault/
+*.p8
+*.pem
+*.key
+*credentials*.json
+.env

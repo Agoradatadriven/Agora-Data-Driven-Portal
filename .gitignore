@@ -1,0 +1,32 @@
+# Secrets / keys (NEVER commit)
+*.p8
+*.pub
+*.pem
+*.key
+*-key.json
+*credentials*.json
+service-account*.json
+.env
+# Bare-named private keys (no extension)
+*_key
+mirror_key
+id_rsa
+id_ecdsa
+id_ed25519
+# Local data & logs
+chunks/
+*.log
+clients/*/data/
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.ndjson
+_run/
+# Claude Code harness / session state
+.claude/

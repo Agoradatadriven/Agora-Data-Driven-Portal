@@ -1,0 +1,11 @@
+# WEB (portal / platform-dash) pins -- this unit pins its OWN dependencies.
+# NOTE: like the per-client dash, this deliberately pins google-cloud-storage 2.18.2 (a possibly
+# different version from the export job's 3.10.1). That divergence is WHY the dev .venv excludes
+# the web requirements -- the two storage client versions would otherwise fight.
+# `anthropic` is intentionally NOT pinned here: feedback_ai is OPTIONAL and imports it lazily, so
+# the portal deploys and runs with no AI wired. Add anthropic only if you enable enrichment.
+Flask==3.0.3
+gunicorn==23.0.0
+google-cloud-storage==2.18.2
+google-cloud-secret-manager==2.28.0
+requests==2.34.2

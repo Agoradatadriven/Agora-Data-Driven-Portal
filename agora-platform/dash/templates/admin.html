@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agora Data Driven &mdash; Admin</title>
+  <style>
+    /* Agora Data Driven brand palette (placeholder branding, themed via CSS vars). */
+    :root {
+      --ag-bg:#0b1020; --ag-surface:#141b33; --ag-ink:#eaf0ff; --ag-muted:#9aa7c7;
+      --ag-accent:#5b8cff; --ag-accent-2:#27d3a2; --ag-danger:#ff5c7a; --ag-border:#26314f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ag-ink);
+      background: var(--ag-bg);
+      min-height: 100vh;
+    }
+    header.topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 18px 28px; border-bottom: 1px solid var(--ag-border);
+      background: rgba(20,27,51,0.6);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand .dot { width: 12px; height: 12px; border-radius: 50%;
+      background: var(--ag-accent); box-shadow: 0 0 0 4px rgba(91,140,255,0.18); }
+    .brand h1 { font-size: 16px; margin: 0; }
+    .nav { display: flex; align-items: center; gap: 12px; }
+    .pill {
+      display: inline-block; padding: 7px 14px; border-radius: 999px;
+      border: 1px solid var(--ag-border); color: var(--ag-ink);
+      text-decoration: none; font-size: 13px; background: var(--ag-surface);
+    }
+    .pill:hover { border-color: var(--ag-accent); }
+    .pill.logout { color: var(--ag-danger); border-color: rgba(255,92,122,0.4); }
+
+    main { max-width: 980px; margin: 0 auto; padding: 28px; }
+    h2.section { font-size: 14px; color: var(--ag-muted); text-transform: uppercase;
+      letter-spacing: 0.8px; margin: 8px 0 16px; }
+
+    .panel {
+      background: var(--ag-surface); border: 1px solid var(--ag-border);
+      border-radius: 14px; padding: 20px; margin-bottom: 24px;
+    }
+    .flash {
+      border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 16px;
+      border: 1px solid var(--ag-border); background: rgba(39,211,162,0.10);
+    }
+    .flash.error { background: rgba(255,92,122,0.12); border-color: var(--ag-danger); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--ag-border); font-size: 14px; }
+    th { color: var(--ag-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+    td.key { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ag-muted); }
+    .tablewrap { overflow-x: auto; }
+
+    label { display: block; font-size: 12px; color: var(--ag-muted); margin: 0 0 6px;
+      text-transform: uppercase; letter-spacing: 0.6px; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 11px 12px; background: var(--ag-bg); color: var(--ag-ink);
+      border: 1px solid var(--ag-border); border-radius: 10px; font-size: 14px; outline: none;
+    }
+    input:focus { border-color: var(--ag-accent); }
+    .formgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 640px) { .formgrid { grid-template-columns: 1fr; } }
+    .actions { margin-top: 16px; }
+    .btn {
+      padding: 11px 16px; border: 0; border-radius: 10px; font-size: 13px;
+      font-weight: 700; cursor: pointer; background: var(--ag-accent); color: #06122e;
+    }
+    .btn:hover { filter: brightness(1.05); }
+    .btn.inline { padding: 7px 12px; font-size: 12px; }
+    .muted { color: var(--ag-muted); font-size: 13px; }
+    .inlineform { display: flex; gap: 8px; align-items: center; }
+    .inlineform input { max-width: 200px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Agora Data Driven &middot; Admin</h1>
+    </div>
+    <nav class="nav">
+      <a class="pill" href="/">Portal</a>
+      {% if is_superadmin %}<a class="pill" href="/superadmin">Super admin</a>{% endif %}
+      <a class="pill logout" href="/logout">Log out</a>
+    </nav>
+  </header>
+
+  <main>
+    {% if message %}
+      <div class="flash {{ 'error' if message_is_error else '' }}">{{ message }}</div>
+    {% endif %}
+
+    <h2 class="section">Clients</h2>
+    <div class="panel">
+      {% if clients and clients|length > 0 %}
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Client key</th>
+                <th>Subdomain</th>
+                <th>Set password</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in clients %}
+                <tr>
+                  <td>{{ c.name|default(c.key, true) }}</td>
+                  <td class="key">{{ c.key }}</td>
+                  <td class="muted">{{ c.key }}.agoradatadriven.com</td>
+                  <td>
+                    <!-- Set (overwrite) this client's dashboard password. The server adds a new
+                         version to the <c>-dash-password secret in Secret Manager. -->
+                    <form class="inlineform" method="post" action="/admin/set-password">
+                      <input type="hidden" name="key" value="{{ c.key }}">
+                      <input type="password" name="password" placeholder="New password" autocomplete="new-password">
+                      <button class="btn inline" type="submit">Set</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No clients in the registry yet. Add the first one below.</p>
+      {% endif %}
+    </div>
+
+    <h2 class="section">Add a client</h2>
+    <div class="panel">
+      <!-- Registers a new client in the portal registry (platform.json in GCS). The client key
+           is the lowercase slug used to DERIVE every resource name: dataset client_<key>, bucket
+           agora-data-driven-<key>-dash, service <key>-dash, etc. Keep it short and a-z0-9 only. -->
+      <form method="post" action="/admin/add-client">
+        <div class="formgrid">
+          <div>
+            <label for="key">Client key</label>
+            <input id="key" name="key" type="text" placeholder="acme" pattern="[a-z0-9][a-z0-9-]*"
+                   title="lowercase letters, digits and hyphens only" required>
+          </div>
+          <div>
+            <label for="name">Display name</label>
+            <input id="name" name="name" type="text" placeholder="Acme Pty Ltd" required>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit">Add client</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

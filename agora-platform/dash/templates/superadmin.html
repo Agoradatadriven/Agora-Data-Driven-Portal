@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agora Data Driven &mdash; Super Admin</title>
+  <style>
+    /* Agora Data Driven brand palette (placeholder branding, themed via CSS vars). */
+    :root {
+      --ag-bg:#0b1020; --ag-surface:#141b33; --ag-ink:#eaf0ff; --ag-muted:#9aa7c7;
+      --ag-accent:#5b8cff; --ag-accent-2:#27d3a2; --ag-danger:#ff5c7a; --ag-border:#26314f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ag-ink);
+      background: var(--ag-bg);
+      min-height: 100vh;
+    }
+    header.topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 18px 28px; border-bottom: 1px solid var(--ag-border);
+      background: rgba(20,27,51,0.6);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand .dot { width: 12px; height: 12px; border-radius: 50%;
+      background: var(--ag-danger); box-shadow: 0 0 0 4px rgba(255,92,122,0.18); }
+    .brand h1 { font-size: 16px; margin: 0; }
+    .nav { display: flex; align-items: center; gap: 12px; }
+    .pill {
+      display: inline-block; padding: 7px 14px; border-radius: 999px;
+      border: 1px solid var(--ag-border); color: var(--ag-ink);
+      text-decoration: none; font-size: 13px; background: var(--ag-surface);
+    }
+    .pill:hover { border-color: var(--ag-accent); }
+    .pill.logout { color: var(--ag-danger); border-color: rgba(255,92,122,0.4); }
+
+    main { max-width: 1040px; margin: 0 auto; padding: 28px; }
+    h2.section { font-size: 14px; color: var(--ag-muted); text-transform: uppercase;
+      letter-spacing: 0.8px; margin: 8px 0 8px; }
+    .warn {
+      border: 1px solid var(--ag-danger); background: rgba(255,92,122,0.10);
+      color: var(--ag-ink); border-radius: 12px; padding: 12px 14px; font-size: 13px;
+      margin: 0 0 20px;
+    }
+    .panel {
+      background: var(--ag-surface); border: 1px solid var(--ag-border);
+      border-radius: 14px; padding: 8px 8px; margin-bottom: 24px;
+    }
+    .tablewrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--ag-border); font-size: 14px; vertical-align: middle; }
+    th { color: var(--ag-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+    td.key { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ag-muted); }
+    .secret {
+      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px;
+      color: var(--ag-ink); background: var(--ag-bg); border: 1px solid var(--ag-border);
+      border-radius: 8px; padding: 6px 10px; display: inline-block; min-width: 160px;
+    }
+    .secret.masked { letter-spacing: 2px; color: var(--ag-muted); }
+    .btn {
+      padding: 7px 12px; border: 0; border-radius: 8px; font-size: 12px;
+      font-weight: 700; cursor: pointer; margin-right: 6px;
+    }
+    .btn.reveal { background: var(--ag-bg); color: var(--ag-ink); border: 1px solid var(--ag-border); }
+    .btn.rotate { background: var(--ag-danger); color: #2a0010; }
+    .btn:hover { filter: brightness(1.08); }
+    .rowstatus { color: var(--ag-muted); font-size: 12px; }
+    .muted { color: var(--ag-muted); font-size: 13px; padding: 16px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Agora Data Driven &middot; Super Admin</h1>
+    </div>
+    <nav class="nav">
+      <a class="pill" href="/">Portal</a>
+      <a class="pill" href="/admin">Admin</a>
+      <a class="pill logout" href="/logout">Log out</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2 class="section">God-mode console</h2>
+    <div class="warn">
+      You are viewing the super-admin console. Revealing a password fetches its current value from
+      Secret Manager; rotating generates a NEW value and adds a new secret version. Both actions are
+      logged. Handle revealed credentials with care.
+    </div>
+
+    <!-- One row per managed credential: every client dashboard password PLUS the portal's own
+         super-admin password. The <c>-dash-password secrets follow the resource-naming derivation;
+         the portal's own credential is the platform super-admin password. -->
+    <div class="panel">
+      {% if accounts and accounts|length > 0 %}
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Secret</th>
+                <th>Password</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in accounts %}
+                <tr data-key="{{ a.key }}">
+                  <td>{{ a.name|default(a.key, true) }}</td>
+                  <td class="key">{{ a.secret }}</td>
+                  <td>
+                    <span class="secret masked" data-secret-cell>&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span>
+                  </td>
+                  <td>
+                    <button type="button" class="btn reveal" data-reveal data-key="{{ a.key }}">Reveal</button>
+                    <button type="button" class="btn rotate" data-rotate data-key="{{ a.key }}">Rotate</button>
+                    <span class="rowstatus" data-status></span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No managed credentials found.</p>
+      {% endif %}
+    </div>
+  </main>
+
+  <script>
+    // esprima-4.x-safe: classic ES5/ES2015 only -- no optional chaining (?.) or nullish (??).
+    (function () {
+      // Reveal POSTs the client key to /superadmin/reveal and expects { password: "..." }.
+      // Rotate POSTs to /superadmin/rotate and expects { password: "<new value>" }.
+      var rows = document.querySelectorAll("tr[data-key]");
+
+      function cellOf(row) { return row.querySelector("[data-secret-cell]"); }
+      function statusOf(row) { return row.querySelector("[data-status]"); }
+
+      function showSecret(row, value) {
+        var cell = cellOf(row);
+        if (!cell) { return; }
+        cell.textContent = value;
+        cell.className = "secret";
+      }
+      function maskSecret(row) {
+        var cell = cellOf(row);
+        if (!cell) { return; }
+        cell.textContent = "••••••••";
+        cell.className = "secret masked";
+      }
+      function setStatus(row, msg) {
+        var s = statusOf(row);
+        if (s) { s.textContent = msg || ""; }
+      }
+
+      function postKey(url, key) {
+        var body = new FormData();
+        body.append("key", key);
+        return fetch(url, { method: "POST", body: body, credentials: "same-origin" })
+          .then(function (resp) {
+            if (!resp || !resp.ok) { throw new Error("request failed"); }
+            return resp.json();
+          });
+      }
+
+      function handleReveal(row, key, btn) {
+        // Toggle: if already revealed, re-mask without another network call.
+        var cell = cellOf(row);
+        if (cell && cell.className.indexOf("masked") === -1) {
+          maskSecret(row);
+          btn.textContent = "Reveal";
+          return;
+        }
+        setStatus(row, "Loading...");
+        postKey("/superadmin/reveal", key)
+          .then(function (data) {
+            var pw = data && data.password ? data.password : "";
+            showSecret(row, pw);
+            btn.textContent = "Hide";
+            setStatus(row, "");
+          })
+          .catch(function () {
+            setStatus(row, "Could not reveal.");
+          });
+      }
+
+      function handleRotate(row, key) {
+        if (!window.confirm("Rotate the password for '" + key + "'? The old password stops working.")) {
+          return;
+        }
+        setStatus(row, "Rotating...");
+        postKey("/superadmin/rotate", key)
+          .then(function (data) {
+            var pw = data && data.password ? data.password : "";
+            showSecret(row, pw);
+            var revealBtn = row.querySelector("[data-reveal]");
+            if (revealBtn) { revealBtn.textContent = "Hide"; }
+            setStatus(row, "Rotated. Save the new value now.");
+          })
+          .catch(function () {
+            setStatus(row, "Rotation failed.");
+          });
+      }
+
+      var i;
+      for (i = 0; i < rows.length; i++) {
+        (function (row) {
+          var key = row.getAttribute("data-key");
+          var revealBtn = row.querySelector("[data-reveal]");
+          var rotateBtn = row.querySelector("[data-rotate]");
+          if (revealBtn) {
+            revealBtn.addEventListener("click", function () { handleReveal(row, key, revealBtn); });
+          }
+          if (rotateBtn) {
+            rotateBtn.addEventListener("click", function () { handleRotate(row, key); });
+          }
+        })(rows[i]);
+      }
+    })();
+  </script>
+</body>
+</html>

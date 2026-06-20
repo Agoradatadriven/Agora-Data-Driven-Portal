@@ -1,0 +1,8 @@
+# WEB (status dash) pins -- this unit pins its OWN dependencies.
+# Same WEB pin set as a client dash. The status dashboard never imports platform_sso (it is
+# password-gated only), but the pin set is identical so the WEB build pattern stays uniform.
+Flask==3.0.3
+gunicorn==23.0.0
+google-cloud-storage==2.18.2
+google-cloud-secret-manager==2.28.0
+requests==2.34.2

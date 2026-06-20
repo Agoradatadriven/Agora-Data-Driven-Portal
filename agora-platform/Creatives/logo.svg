@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" role="img" aria-label="Agora Data Driven">
+  <title>Agora Data Driven</title>
+  <!-- Placeholder Agora wordmark. Self-contained: no external refs, system font fallback only.
+       Brand accent #5b8cff; secondary accent #27d3a2. Replace with final artwork when ready. -->
+  <desc>Placeholder brand wordmark for Agora Data Driven.</desc>
+
+  <!-- Mark: a stylised "A" formed from a triangle plus accent dot. -->
+  <g fill="none" stroke="#5b8cff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M12 50 L30 14 L48 50" />
+    <line x1="20" y1="40" x2="40" y2="40" />
+  </g>
+  <circle cx="30" cy="14" r="5" fill="#27d3a2" />
+
+  <!-- Wordmark -->
+  <text x="66" y="33" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="700" fill="#eaf0ff" letter-spacing="0.5">Agora</text>
+  <text x="66" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="13" font-weight="500" fill="#9aa7c7" letter-spacing="3.5">DATA DRIVEN</text>
+</svg>
