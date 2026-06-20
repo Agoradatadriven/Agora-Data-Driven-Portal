@@ -186,7 +186,13 @@
     /* Campaign / strategy */
     .ax-camphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
     .ax-camphead h2 { font-size: 20px; font-weight: 800; margin: 4px 0 0; letter-spacing: -.4px; }
-    .ax-select { font: inherit; font-size: 13px; font-weight: 600; color: var(--ax-ink); padding: 9px 12px; border: 1px solid var(--ax-line); border-radius: 10px; background: var(--ax-white); }
+    .ax-select { font: inherit; font-size: 13px; font-weight: 700; color: var(--ax-ink); padding: 9px 32px 9px 12px; border: 1px solid var(--ax-violet); border-radius: 10px; background: var(--ax-white); cursor: pointer; box-shadow: 0 1px 2px rgba(92,75,208,.12); }
+    .ax-select:hover { background: var(--ax-violet-bg); }
+    /* Campaign switcher (so the client knows the dropdown views specific campaigns) */
+    .ax-campswitch { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .ax-campswitch-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-violet-d); display: inline-flex; align-items: center; gap: 5px; }
+    .ax-campswitch-label .ax-ic { width: 15px; height: 15px; }
+    .ax-campswitch-hint { font-size: 12px; color: var(--ax-sub); width: 100%; text-align: right; }
     .ax-strategy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; padding: 0; overflow: hidden; }
     @media (max-width: 820px) { .ax-strategy { grid-template-columns: 1fr; } }
     .ax-strat-col { padding: 18px; border-left: 1px solid var(--ax-line); }
@@ -571,9 +577,13 @@
               <h2 data-camptitle="{{ tab }}">{{ camps[0].name }}</h2>
             </div>
             {% if camps|length > 1 %}
-            <select class="ax-select" data-campfilter="{{ tab }}">
-              {% for c in camps %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-            </select>
+            <div class="ax-campswitch">
+              <span class="ax-campswitch-label">{{ ic('arrow') }} Viewing campaign</span>
+              <select class="ax-select" data-campfilter="{{ tab }}" aria-label="Switch to view a specific campaign">
+                {% for c in camps %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+              </select>
+              <span class="ax-campswitch-hint">You have {{ camps|length }} campaigns &mdash; switch to view another.</span>
+            </div>
             {% endif %}
           </div>
 
