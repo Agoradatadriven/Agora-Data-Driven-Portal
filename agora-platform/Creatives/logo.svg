@@ -1,19 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" role="img" aria-label="Agora Data Driven">
-  <title>Agora Data Driven</title>
-  <!-- Placeholder Agora wordmark. Self-contained: no external refs, system font fallback only.
-       Brand accent #5b8cff; secondary accent #27d3a2. Replace with final artwork when ready. -->
-  <desc>Placeholder brand wordmark for Agora Data Driven.</desc>
-
-  <!-- Mark: a stylised "A" formed from a triangle plus accent dot. -->
-  <g fill="none" stroke="#5b8cff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
-    <path d="M12 50 L30 14 L48 50" />
-    <line x1="20" y1="40" x2="40" y2="40" />
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 150 40" role="img" aria-label="AGORA Data Driven">
+  <g fill="none" stroke="#1A1B1E" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 37 L19 4 L35 37" stroke-width="1.8"/>
+    <path d="M12 37 L24 12" stroke-width="1.1" opacity="0.5"/>
+    <path d="M11.5 24 L26.5 24" stroke-width="1.6"/>
   </g>
-  <circle cx="30" cy="14" r="5" fill="#27d3a2" />
-
-  <!-- Wordmark -->
-  <text x="66" y="33" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-        font-size="22" font-weight="700" fill="#eaf0ff" letter-spacing="0.5">Agora</text>
-  <text x="66" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-        font-size="13" font-weight="500" fill="#9aa7c7" letter-spacing="3.5">DATA DRIVEN</text>
+  <text x="48" y="24.5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="500" letter-spacing="3.2" fill="#1A1B1E">AGORA</text>
+  <text x="49.5" y="35" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="7.3" font-weight="600" letter-spacing="4.2" fill="#353535">DATA DRIVEN</text>
 </svg>

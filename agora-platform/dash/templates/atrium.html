@@ -38,12 +38,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ ws.display_name }} &mdash; {{ workspace_name }}</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
   <style>
     .atrium {
-      --ax-green:#41B54A; --ax-green-d:#2F7D33; --ax-green-bg:#E9F6EB;
-      --ax-violet:#6F61E8; --ax-violet-d:#5246B8; --ax-violet-bg:#F0EEFE;
-      --ax-ink:#16181D; --ax-sub:#5E6573; --ax-line:#E7E8EE; --ax-canvas:#F6F7F9; --ax-white:#fff;
-      --ax-ok:#41B54A; --ax-warn:#F2820C; --ax-bad:#E5413E;
+      --ax-green:#4FAB4A; --ax-green-d:#347A30; --ax-green-bg:#EAF6E9;
+      --ax-violet:#9484FB; --ax-violet-d:#5C4BD0; --ax-violet-bg:#F1EFFE;
+      --ax-ink:#1A1B1E; --ax-sub:#5E6573; --ax-line:#E7E8EE; --ax-canvas:#F6F7F9; --ax-white:#fff;
+      --ax-ok:#4FAB4A; --ax-warn:#F2820C; --ax-bad:#E5413E;
       --ax-radius:14px; --ax-pill:999px;
       --ax-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
     }
@@ -70,7 +71,7 @@
     .ax-brand svg { display: block; }
     .ax-badge {
       margin-top: 2px; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
-      color: var(--ax-violet); background: var(--ax-violet-bg); padding: 2px 8px; border-radius: var(--ax-pill);
+      color: var(--ax-violet-d); background: var(--ax-violet-bg); padding: 2px 8px; border-radius: var(--ax-pill);
     }
     .ax-nav { display: flex; flex-direction: column; gap: 3px; }
     .ax-nav a {
@@ -78,7 +79,7 @@
       color: var(--ax-sub); font-size: 14px; font-weight: 600; transition: background .12s, color .12s;
     }
     .ax-nav a:hover { background: var(--ax-canvas); color: var(--ax-ink); }
-    .ax-nav a.is-active { background: var(--ax-green); color: #fff; box-shadow: 0 6px 16px rgba(65,181,74,.32); }
+    .ax-nav a.is-active { background: var(--ax-green); color: #fff; box-shadow: 0 6px 16px rgba(79,171,74,.34); }
     .ax-nav a.is-active .ax-ic { color: #fff; }
     .ax-nav .ax-count {
       margin-left: auto; font-size: 11px; font-weight: 800; min-width: 20px; text-align: center;
@@ -110,7 +111,7 @@
     .ax-iconbtn .ax-bdot { position: absolute; top: 8px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--ax-warn); border: 2px solid var(--ax-white); }
     .ax-avatar {
       width: 38px; height: 38px; border-radius: var(--ax-pill); display: grid; place-items: center;
-      background: var(--ax-violet); color: #fff; font-size: 13px; font-weight: 800; cursor: pointer;
+      background: var(--ax-violet-d); color: #fff; font-size: 13px; font-weight: 800; cursor: pointer;
     }
     .ax-signout {
       display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: var(--ax-pill);
@@ -174,7 +175,7 @@
     .ax-spark { width: 100%; height: 84px; display: block; }
     .ax-split-bar { display: flex; height: 30px; border-radius: var(--ax-pill); overflow: hidden; margin: 8px 0 14px; }
     .ax-split-bar > span { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; }
-    .ax-split-bar .paid { background: var(--ax-violet); }
+    .ax-split-bar .paid { background: var(--ax-violet-d); }
     .ax-split-bar .organic { background: var(--ax-green); }
     .ax-split-legend { display: flex; gap: 18px; font-size: 13px; color: var(--ax-sub); }
     .ax-split-legend b { color: var(--ax-ink); }
@@ -202,8 +203,8 @@
     .ax-content { display: grid; grid-template-columns: 150px 1fr; gap: 16px; padding: 16px; margin-bottom: 14px; }
     @media (max-width: 720px) { .ax-content { grid-template-columns: 1fr; } }
     .ax-thumb { border-radius: 11px; min-height: 132px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; position: relative; overflow: hidden; }
-    .ax-thumb.paid { background: linear-gradient(140deg, #7d71ef, #5246B8); }
-    .ax-thumb.organic { background: linear-gradient(140deg, #5cc465, #2F7D33); }
+    .ax-thumb.paid { background: linear-gradient(140deg, #8C7BF8, #5C4BD0); }
+    .ax-thumb.organic { background: linear-gradient(140deg, #5FBE57, #347A30); }
     .ax-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 11px; position: absolute; inset: 0; }
     .ax-thumb .ax-thumb-k { font-size: 11px; font-weight: 700; opacity: .9; text-transform: uppercase; letter-spacing: .6px; }
     .ax-thumb .ax-thumb-r { font-size: 17px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; }
@@ -221,16 +222,16 @@
     .ax-btn.approve:hover { background: var(--ax-green-d); }
     .ax-btn.ghost { background: var(--ax-white); color: var(--ax-sub); border-color: var(--ax-line); }
     .ax-btn.ghost:hover { color: var(--ax-bad); border-color: rgba(229,65,62,.4); }
-    .ax-btn.violet { background: var(--ax-violet); color: #fff; }
-    .ax-btn.violet:hover { background: var(--ax-violet-d); }
+    .ax-btn.violet { background: var(--ax-violet-d); color: #fff; }
+    .ax-btn.violet:hover { background: #4A3BB4; }
     .ax-btn[disabled] { opacity: .55; cursor: default; }
     .ax-savehint { font-size: 12px; color: var(--ax-green-d); font-weight: 600; }
     .ax-confirm { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 13px; background: var(--ax-green-bg); color: var(--ax-green-d); border-radius: 10px; font-size: 12.5px; font-weight: 700; }
     .ax-confirm .ax-ic { width: 16px; height: 16px; }
 
     /* AI summary */
-    .ax-ai { background: var(--ax-violet-bg); border: 1px solid #ddd7fb; border-radius: var(--ax-radius); padding: 16px 18px; display: flex; gap: 13px; margin-top: 6px; }
-    .ax-ai .ax-ai-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--ax-violet); color: #fff; display: grid; place-items: center; flex: 0 0 auto; }
+    .ax-ai { background: var(--ax-violet-bg); border: 1px solid #E1DBFB; border-radius: var(--ax-radius); padding: 16px 18px; display: flex; gap: 13px; margin-top: 6px; }
+    .ax-ai .ax-ai-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--ax-violet-d); color: #fff; display: grid; place-items: center; flex: 0 0 auto; }
     .ax-ai .ax-ai-label { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ax-violet-d); margin-bottom: 3px; }
     .ax-ai p { margin: 0; font-size: 13.5px; color: #2b2740; }
 
@@ -281,7 +282,7 @@
     .ax-set-row:first-of-type { border-top: 0; }
     .ax-set-row .ax-set-t { font-size: 14px; font-weight: 700; }
     .ax-set-row .ax-set-d { font-size: 12.5px; color: var(--ax-sub); }
-    .ax-set-master { background: var(--ax-green-bg); border: 1px solid #cdeccf; border-radius: 12px; padding: 6px 16px; margin-bottom: 8px; }
+    .ax-set-master { background: var(--ax-green-bg); border: 1px solid #CDE9CC; border-radius: 12px; padding: 6px 16px; margin-bottom: 8px; }
     .ax-switch { position: relative; width: 46px; height: 27px; flex: 0 0 auto; cursor: pointer; }
     .ax-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
     .ax-switch .ax-track { position: absolute; inset: 0; background: #cdd2db; border-radius: var(--ax-pill); transition: background .15s; }
@@ -363,7 +364,7 @@
               <div class="ax-val">{{ view.awaiting_total }}</div>
             </div>
             <div class="ax-card ax-kpi">
-              <div class="ax-kpi-top"><span class="ax-kpi-ic" style="background:#F0EEFE;color:#5246B8">{{ ic('leadgen') }}</span>Campaigns live</div>
+              <div class="ax-kpi-top"><span class="ax-kpi-ic" style="background:#F1EFFE;color:#5C4BD0">{{ ic('leadgen') }}</span>Campaigns live</div>
               <div class="ax-val">{{ view.campaigns_live }}</div>
             </div>
             <div class="ax-card ax-kpi">
@@ -383,7 +384,7 @@
                 <div class="ax-list">
                   {% for a in view.attention %}
                   <div class="ax-row ax-attn" data-goto="{{ a.tab }}">
-                    <span class="ax-row-ic" style="background:{{ '#F0EEFE' if a.channel=='paid' else '#E9F6EB' }};color:{{ '#5246B8' if a.channel=='paid' else '#2F7D33' }}">{{ ic('check') }}</span>
+                    <span class="ax-row-ic" style="background:{{ '#F1EFFE' if a.channel=='paid' else '#EAF6E9' }};color:{{ '#5C4BD0' if a.channel=='paid' else '#347A30' }}">{{ ic('check') }}</span>
                     <div class="ax-row-main">
                       <div class="ax-row-t">{{ a.type_tag }} &middot; {{ a.ref }}</div>
                       <div class="ax-row-s">
@@ -441,11 +442,11 @@
               <h2 class="ax-h2">New leads — last 14 days</h2>
               <svg class="ax-spark" viewBox="0 0 {{ view.spark.w }} {{ view.spark.h }}" preserveAspectRatio="none" aria-hidden="true">
                 <defs><linearGradient id="axsparkfill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#41B54A" stop-opacity="0.22"/><stop offset="100%" stop-color="#41B54A" stop-opacity="0"/>
+                  <stop offset="0%" stop-color="#4FAB4A" stop-opacity="0.22"/><stop offset="100%" stop-color="#4FAB4A" stop-opacity="0"/>
                 </linearGradient></defs>
                 <path d="{{ view.spark.area }}" fill="url(#axsparkfill)"/>
-                <polyline points="{{ view.spark.line }}" fill="none" stroke="#41B54A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="{{ view.spark.lastx }}" cy="{{ view.spark.lasty }}" r="3.6" fill="#2F7D33"/>
+                <polyline points="{{ view.spark.line }}" fill="none" stroke="#4FAB4A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="{{ view.spark.lastx }}" cy="{{ view.spark.lasty }}" r="3.6" fill="#347A30"/>
               </svg>
             </div>
             <div class="ax-panel">
@@ -455,8 +456,8 @@
                 <span class="organic" style="width:{{ view.split.organic_pct }}%">{{ view.split.organic }}</span>
               </div>
               <div class="ax-split-legend">
-                <span><span class="ax-dot-i" style="background:#6F61E8"></span>Paid <b>{{ view.split.paid }}</b></span>
-                <span><span class="ax-dot-i" style="background:#41B54A"></span>Organic <b>{{ view.split.organic }}</b></span>
+                <span><span class="ax-dot-i" style="background:#9484FB"></span>Paid <b>{{ view.split.paid }}</b></span>
+                <span><span class="ax-dot-i" style="background:#4FAB4A"></span>Organic <b>{{ view.split.organic }}</b></span>
                 <span style="margin-left:auto">Total <b>{{ view.split.total }}</b> leads</span>
               </div>
               <p class="ax-lede" style="margin:14px 0 0;font-size:13px">
@@ -565,8 +566,8 @@
           <h1 class="ax-greet">{{ view.calendar.label }}</h1>
           <p class="ax-lede">Everything planned and published this month.</p>
           <div class="ax-cal-legend">
-            <span><span class="ax-dot-i" style="background:#6F61E8"></span>Paid</span>
-            <span><span class="ax-dot-i" style="background:#41B54A"></span>Organic</span>
+            <span><span class="ax-dot-i" style="background:#9484FB"></span>Paid</span>
+            <span><span class="ax-dot-i" style="background:#4FAB4A"></span>Organic</span>
             <span><span class="ax-dot-i" style="background:#F2820C"></span>Due</span>
             <span><span class="ax-dot-i" style="background:#98a0b0"></span>Milestone</span>
           </div>
@@ -903,7 +904,7 @@
       saveBtn.setAttribute("disabled", "disabled");
       post("/save-notify", fields)
         .then(function () {
-          if (savedHint) { savedHint.textContent = "Saved ✓"; savedHint.style.color = "#2F7D33"; savedHint.hidden = false; }
+          if (savedHint) { savedHint.textContent = "Saved ✓"; savedHint.style.color = "#347A30"; savedHint.hidden = false; }
           saveBtn.removeAttribute("disabled");
         })
         .catch(function () {

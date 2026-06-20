@@ -4,62 +4,87 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ workspace_name }} &mdash; Team management</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
   <style>
-    /* Operator console: matches the portal's dark chrome (portal.html / admin.html). */
+    /* Operator console: the Agora light brand (mirrors portal.html / Creatives/brand.json). */
     :root {
-      --ag-bg:#0b1020; --ag-surface:#141b33; --ag-ink:#eaf0ff; --ag-muted:#9aa7c7;
-      --ag-accent:#5b8cff; --ag-accent-2:#27d3a2; --ag-danger:#ff5c7a; --ag-border:#26314f;
-      --ag-green:#41B54A; --ag-violet:#6F61E8;
+      --ag-green:#4FAB4A; --ag-green-d:#347A30; --ag-green-bg:#EAF6E9;
+      --ag-purple:#9484FB; --ag-purple-d:#5C4BD0; --ag-purple-bg:#F1EFFE;
+      --ag-ink:#1A1B1E; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-canvas:#F6F7F9; --ag-white:#fff; --ag-danger:#E5413E;
+      --ag-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: var(--ag-ink); background: radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,0.16), transparent 60%), var(--ag-bg); min-height: 100vh; }
-    header.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-bottom: 1px solid var(--ag-border); background: rgba(20,27,51,0.6); }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ag-green); box-shadow: 0 0 0 4px rgba(65,181,74,0.18); }
-    .brand h1 { font-size: 16px; margin: 0; }
-    .nav { display: flex; align-items: center; gap: 12px; }
-    .pill { display: inline-block; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--ag-border); color: var(--ag-ink); text-decoration: none; font-size: 13px; background: var(--ag-surface); }
-    .pill:hover { border-color: var(--ag-accent); }
-    .pill.logout { color: var(--ag-danger); border-color: rgba(255,92,122,0.4); }
+      color: var(--ag-ink);
+      background:
+        radial-gradient(820px 460px at 6% -12%, rgba(79,171,74,0.08), transparent 60%),
+        radial-gradient(760px 460px at 104% 4%, rgba(148,132,251,0.09), transparent 56%),
+        var(--ag-canvas);
+      min-height: 100vh; -webkit-font-smoothing: antialiased; }
+    header.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 14px 28px; border-bottom: 1px solid var(--ag-line); background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand svg { display: block; height: 30px; width: auto; }
+    .brand .brand-sub { font-size: 12px; font-weight: 700; color: var(--ag-purple-d);
+      background: var(--ag-purple-bg); padding: 3px 10px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .6px; }
+    .nav { display: flex; align-items: center; gap: 10px; }
+    .who { color: var(--ag-muted); font-size: 13px; }
+    .pill { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--ag-line);
+      color: var(--ag-charcoal); text-decoration: none; font-size: 13px; font-weight: 600; background: var(--ag-white);
+      transition: border-color .12s, color .12s; }
+    .pill:hover { border-color: var(--ag-green); color: var(--ag-ink); }
+    .pill.logout { color: var(--ag-danger); }
+    .pill.logout:hover { border-color: rgba(229,65,62,0.4); }
     main { max-width: 1000px; margin: 0 auto; padding: 28px; }
-    a { color: var(--ag-accent); }
-    h2.section { font-size: 14px; color: var(--ag-muted); text-transform: uppercase; letter-spacing: 0.8px; margin: 28px 0 14px; }
-    .panel { background: var(--ag-surface); border: 1px solid var(--ag-border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
-    .panel h3 { margin: 0 0 12px; font-size: 15px; }
+    a { color: var(--ag-purple-d); }
+    h2.section { font-size: 12px; color: var(--ag-muted); text-transform: uppercase; letter-spacing: 0.9px;
+      font-weight: 700; margin: 28px 0 14px; }
+    .panel { background: var(--ag-white); border: 1px solid var(--ag-line); border-radius: 14px; padding: 18px;
+      margin-bottom: 16px; box-shadow: var(--ag-shadow); }
+    .panel h3 { margin: 0 0 12px; font-size: 15px; font-weight: 800; }
     .panel .meta { color: var(--ag-muted); font-size: 12px; margin: 0 0 12px; }
-    .flash { background: rgba(39,211,162,0.12); border: 1px solid rgba(39,211,162,0.4); color: var(--ag-accent-2); border-radius: 10px; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; }
-    label { display: block; font-size: 12px; color: var(--ag-muted); margin: 10px 0 4px; }
-    input[type=text], textarea, select { width: 100%; padding: 9px 11px; background: var(--ag-bg); color: var(--ag-ink); border: 1px solid var(--ag-border); border-radius: 9px; font: inherit; font-size: 13px; outline: none; }
-    input[type=text]:focus, textarea:focus, select:focus { border-color: var(--ag-accent); }
+    .flash { background: var(--ag-green-bg); border: 1px solid #CDE9CC; color: var(--ag-green-d);
+      border-radius: 10px; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; font-weight: 600; }
+    label { display: block; font-size: 11px; color: var(--ag-muted); margin: 10px 0 4px;
+      text-transform: uppercase; letter-spacing: .5px; font-weight: 700; }
+    input[type=text], textarea, select { width: 100%; padding: 10px 12px; background: var(--ag-white);
+      color: var(--ag-ink); border: 1px solid var(--ag-line); border-radius: 10px; font: inherit; font-size: 13px;
+      outline: none; transition: border-color .12s, box-shadow .12s; }
+    input[type=text]:focus, textarea:focus, select:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,171,74,.14); }
     textarea { min-height: 64px; resize: vertical; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    .btn { margin-top: 12px; padding: 9px 16px; border: 0; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--ag-accent); color: #06122e; }
+    .btn { margin-top: 12px; padding: 10px 16px; border: 0; border-radius: 10px; font-size: 13px; font-weight: 700;
+      cursor: pointer; background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.22); }
     .btn.green { background: var(--ag-green); color: #fff; }
-    .btn.violet { background: var(--ag-violet); color: #fff; }
-    .btn:hover { filter: brightness(1.06); }
-    .chk { display: inline-flex; align-items: center; gap: 7px; color: var(--ag-muted); font-size: 13px; margin-top: 10px; }
+    .btn.violet { background: var(--ag-purple-d); color: #fff; box-shadow: 0 6px 14px rgba(92,75,208,.22); }
+    .btn:hover { filter: brightness(1.05); }
+    .chk { display: inline-flex; align-items: center; gap: 7px; color: var(--ag-charcoal); font-size: 13px; margin-top: 10px; }
     .chk input { width: auto; }
     .tag { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
-    .tag.paid { background: rgba(111,97,232,0.18); color: #b3a9ff; }
-    .tag.organic { background: rgba(65,181,74,0.18); color: #8fe49a; }
+    .tag.paid { background: var(--ag-purple-bg); color: var(--ag-purple-d); }
+    .tag.organic { background: var(--ag-green-bg); color: var(--ag-green-d); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-    a.card { display: block; text-decoration: none; color: var(--ag-ink); background: var(--ag-surface); border: 1px solid var(--ag-border); border-radius: 14px; padding: 18px; }
-    a.card:hover { border-color: var(--ag-accent); }
-    a.card .name { font-weight: 700; }
+    a.card { display: block; text-decoration: none; color: var(--ag-ink); background: var(--ag-white);
+      border: 1px solid var(--ag-line); border-radius: 14px; padding: 18px; box-shadow: var(--ag-shadow);
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+    a.card:hover { transform: translateY(-2px); border-color: #d7dae3; }
+    a.card .name { font-weight: 800; }
     a.card .st { font-size: 12px; color: var(--ag-muted); margin-top: 6px; }
-    .msglist { font-size: 12px; color: var(--ag-muted); border-left: 2px solid var(--ag-border); padding-left: 12px; margin: 0 0 12px; }
-    .divider { height: 1px; background: var(--ag-border); margin: 14px 0; border: 0; }
-    fieldset { border: 1px solid var(--ag-border); border-radius: 10px; padding: 12px 14px; margin: 0 0 12px; }
-    legend { font-size: 12px; color: var(--ag-muted); padding: 0 6px; }
+    .msglist { font-size: 12px; color: var(--ag-charcoal); border-left: 2px solid var(--ag-line); padding-left: 12px; margin: 0 0 12px; }
+    .divider { height: 1px; background: var(--ag-line); margin: 14px 0; border: 0; }
+    fieldset { border: 1px solid var(--ag-line); border-radius: 10px; padding: 12px 14px; margin: 0 0 12px; }
+    legend { font-size: 12px; color: var(--ag-muted); padding: 0 6px; font-weight: 700; }
   </style>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="dot"></span><h1>{{ workspace_name }} &middot; Team management</h1></div>
+    <div class="brand">{{ agora_logo|safe }}<span class="brand-sub">{{ workspace_name }} &middot; Team</span></div>
     <nav class="nav">
-      {% if user %}<span style="color:var(--ag-muted);font-size:13px">{{ user }}</span>{% endif %}
+      {% if user %}<span class="who">{{ user }}</span>{% endif %}
       <a class="pill" href="/">Portal</a>
       <a class="pill" href="/admin">Admin</a>
       <a class="pill logout" href="/logout">Log out</a>

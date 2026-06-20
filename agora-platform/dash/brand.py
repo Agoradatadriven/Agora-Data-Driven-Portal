@@ -1,0 +1,119 @@
+"""Agora Data Driven brand kit, bundled into the deployed container.
+
+This is the ONE place the platform's runtime keeps the AGORA mark and the official brand palette,
+so the portal, login, and Atrium all render the SAME logo and the SAME colours without any runtime
+read of the Creatives/ folder (the deployed image only bundles dash/, never Creatives/).
+
+Relationship to Creatives/ (the operator-facing brand kit):
+  * Creatives/brand.json     -- machine-readable brand board; the COLOURS below mirror it.
+  * Creatives/logo.svg        -- the master AGORA artwork; the SAME mark as AGORA_LOGO_LIGHT (the file
+                                 is pretty-printed, the constant is one line -- they render identically).
+                                 seed_workspace.py prefers that file (so an operator can drop in final
+                                 vector art) and falls back to AGORA_LOGO_LIGHT here when it is absent.
+  If you replace Creatives/logo.svg with new artwork, update AGORA_LOGO_LIGHT here too so the portal
+  and login chrome stay in step with the Atrium sidebar.
+
+The logos are self-contained SVG (no external font/image refs): the wordmark uses the system font
+stack, which the brand-kit guidelines explicitly allow, so it renders identically everywhere.
+"""
+
+import base64
+
+# System font stack -- a self-contained stand-in for the brand fonts (After Display / Lato), which
+# cannot be web-loaded in the locked-down runtime. Double-quoted so the inner 'Segoe UI' stays literal.
+_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+
+# --- Official brand palette (mirrors Creatives/brand.json) -------------------------------------
+GREEN = "#4FAB4A"          # Data Green -- primary CTA / positive
+GREEN_DARK = "#347A30"     # deeper green -- text on light, hovers, accents
+GREEN_TINT = "#EAF6E9"     # soft green wash -- tints / chips
+PURPLE = "#9484FB"         # Accent Purple -- subtle accent, dots, light tints
+PURPLE_DEEP = "#5C4BD0"    # deeper violet -- solid fills with white text, hovers
+PURPLE_TINT = "#F1EFFE"    # soft violet wash
+GRAPHITE = "#000000"       # Graphite Black
+INK = "#1A1B1E"            # near-black ink for bold type
+CHARCOAL = "#353535"       # Charcoal Text -- body copy
+SOFT_GREY = "#EEEEEE"      # Soft Grey -- hairlines / surfaces
+CANVAS = "#F6F7F9"         # app canvas (off-white)
+
+
+def _logo(ink, sub):
+    """Build the master AGORA lockup (mountain mark + wordmark) in the given ink/sub-ink colours."""
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 150 40" '
+        'role="img" aria-label="AGORA Data Driven">'
+        '<g fill="none" stroke="%s" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M3 37 L19 4 L35 37" stroke-width="1.8"/>'
+        '<path d="M12 37 L24 12" stroke-width="1.1" opacity="0.5"/>'
+        '<path d="M11.5 24 L26.5 24" stroke-width="1.6"/>'
+        '</g>'
+        '<text x="48" y="24.5" font-family="%s" font-size="21" font-weight="500" '
+        'letter-spacing="3.2" fill="%s">AGORA</text>'
+        '<text x="49.5" y="35" font-family="%s" font-size="7.3" font-weight="600" '
+        'letter-spacing="4.2" fill="%s">DATA DRIVEN</text>'
+        '</svg>'
+    ) % (ink, _FONT, ink, _FONT, sub)
+
+
+# Master logo for LIGHT backgrounds (Atrium sidebar, portal header, login card). Monochrome graphite
+# per the brand board -- green/violet are UI accents, not part of the logo lockup.
+AGORA_LOGO_LIGHT = _logo(INK, CHARCOAL)
+
+# Reversed logo for DARK backgrounds (the chrome injected over proxied dashboards).
+AGORA_LOGO_DARK = _logo("#FFFFFF", "#C7CBD6")
+
+# Compact horizontal lockup: the mark + AGORA wordmark only (no "DATA DRIVEN" subline).
+AGORA_LOGO_HORIZONTAL = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="132" height="40" viewBox="0 0 132 40" '
+    'role="img" aria-label="AGORA">'
+    '<g fill="none" stroke="%s" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M3 37 L19 4 L35 37" stroke-width="1.8"/>'
+    '<path d="M12 37 L24 12" stroke-width="1.1" opacity="0.5"/>'
+    '<path d="M11.5 24 L26.5 24" stroke-width="1.6"/>'
+    '</g>'
+    '<text x="48" y="29" font-family="%s" font-size="22" font-weight="500" '
+    'letter-spacing="3.4" fill="%s">AGORA</text>'
+    '</svg>'
+) % (INK, _FONT, INK)
+
+# Icon mark only (square) -- the layered peak. Used as the favicon and compact contexts.
+AGORA_ICON = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 38 40" '
+    'role="img" aria-label="AGORA">'
+    '<g fill="none" stroke="#1A1B1E" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M3 37 L19 4 L35 37" stroke-width="1.9"/>'
+    '<path d="M12 37 L24 12" stroke-width="1.2" opacity="0.5"/>'
+    '<path d="M11.5 24 L26.5 24" stroke-width="1.7"/>'
+    '</g>'
+    '</svg>'
+)
+
+# A green-on-light version of the icon, for use as a favicon (reads better small / on a tab).
+_FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 40">'
+    '<g fill="none" stroke="#4FAB4A" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M3 37 L19 4 L35 37" stroke-width="2.4"/>'
+    '<path d="M12 37 L24 12" stroke-width="1.6" opacity="0.55"/>'
+    '<path d="M11.5 24 L26.5 24" stroke-width="2.2"/>'
+    '</g>'
+    '</svg>'
+)
+FAVICON_DATA_URI = "data:image/svg+xml;base64," + base64.b64encode(_FAVICON_SVG.encode("utf-8")).decode("ascii")
+
+
+def monogram(display_name):
+    """A tasteful initials monogram (rounded square, light theme) -- the client-logo fallback.
+
+    Used when a client has no Creatives/clients/<c>.svg of their own, so a workspace always renders
+    something on-brand rather than an empty box.
+    """
+    words = [w for w in (display_name or "").split() if w]
+    initials = "".join(w[0] for w in words[:2]).upper() or "?"
+    size = 13 if len(initials) > 1 else 15
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34" '
+        'role="img" aria-label="%s">'
+        '<rect x="1" y="1" width="32" height="32" rx="9" fill="%s" stroke="%s" stroke-width="1.5"/>'
+        '<text x="17" y="22" text-anchor="middle" font-family="%s" font-size="%d" '
+        'font-weight="800" fill="%s">%s</text></svg>'
+    ) % (display_name or "client", GREEN_TINT, GREEN, _FONT, size, GREEN_DARK, initials)

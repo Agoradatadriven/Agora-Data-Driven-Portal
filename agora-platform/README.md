@@ -114,10 +114,14 @@ infra/IAM/bucket/secret/service.** The product name lives in one constant, `WORK
   unconfigured deploy can never break, and **no provider key is committed**. The team inbox is
   `ATRIUM_TEAM_EMAIL` (default `info@agoradatadriven.com`). Team→client emails respect each
   recipient's Notification-settings toggles (master switch wins).
-- **The theme is scoped.** The Atrium surface is AGORA's green/violet **light** theme, every selector
-  scoped under `.atrium`, so it never bleeds into the dark portal/dashboard chrome. Inline JS is
-  esprima-4.x-safe and reads state from the DOM (no Jinja in any script block), so the pre-deploy JS
-  gate stays green.
+- **The theme follows the brand kit.** The whole front-door — login, the portal landing, and the team
+  console — uses the Agora **light** brand: a white canvas with bold black type, a green CTA, and a
+  subtle purple accent, fronted by the AGORA mark from `dash/brand.py` (`Creatives/brand.json` is the
+  brand board). The Atrium surface uses the same official palette (Data Green `#4FAB4A`, Accent Purple
+  `#9484FB`), every selector scoped under `.atrium` so it stays self-contained. The per-client
+  dashboards under `/d/<c>/` keep their own dark chrome (a small brand-coloured nav pill is injected
+  over them). Inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script
+  block), so the pre-deploy JS gate stays green.
 
 **Seed the Riverdance demo (once).** `dash/seed_workspace.py` writes `workspace/riverdance.json`
 (idempotent — refuses to clobber an existing object) and registers `riverdance` in the registry so

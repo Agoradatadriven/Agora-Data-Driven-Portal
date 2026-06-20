@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="40" viewBox="0 0 132 40" role="img" aria-label="AGORA">
+  <g fill="none" stroke="#1A1B1E" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 37 L19 4 L35 37" stroke-width="1.8"/>
+    <path d="M12 37 L24 12" stroke-width="1.1" opacity="0.5"/>
+    <path d="M11.5 24 L26.5 24" stroke-width="1.6"/>
+  </g>
+  <text x="48" y="29" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="22" font-weight="500" letter-spacing="3.4" fill="#1A1B1E">AGORA</text>
+</svg>

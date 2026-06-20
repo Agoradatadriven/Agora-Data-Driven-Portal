@@ -24,6 +24,7 @@ first; this script intentionally has no --force flag.
 import os
 import sys
 
+import brand
 import workspace
 
 CLIENT = "riverdance"
@@ -32,22 +33,11 @@ DISPLAY_NAME = "Riverdance RV Resort"
 # Brand assets live in agora-platform/Creatives/ (the brand kit). The seed runs from the REPO, so it
 # READS those files and INLINES them into workspace/<c>.json (brand.agora_logo / brand.client_logo).
 # The deployed container only bundles dash/, so it cannot read Creatives/ at runtime -- logos must be
-# embedded, self-contained (no external refs). Sources, with graceful fallbacks:
-#   * AGORA master logo : Creatives/logo.svg          (shared across every client; light-theme)
-#   * Per-client logo   : Creatives/clients/<c>.svg   (one per client -- changes per client)
+# embedded, self-contained (no external refs). Sources, with graceful fallbacks to brand.py (which IS
+# bundled in the container, so the fallback art matches what the portal/login chrome renders):
+#   * AGORA master logo : Creatives/logo.svg          -> brand.AGORA_LOGO_LIGHT
+#   * Per-client logo   : Creatives/clients/<c>.svg   -> brand.monogram(display_name)
 _CREATIVES = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "Creatives"))
-
-# Fallback AGORA wordmark (green/violet, light-theme) used ONLY if Creatives/logo.svg is absent.
-_AGORA_LOGO_FALLBACK = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="132" height="32" viewBox="0 0 132 32" '
-    'role="img" aria-label="AGORA Data Driven">'
-    '<g fill="none" stroke="#41B54A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M6 26 L15 7 L24 26"/><line x1="10.5" y1="19" x2="19.5" y2="19"/></g>'
-    '<circle cx="15" cy="7" r="3.2" fill="#6F61E8"/>'
-    '<text x="34" y="22" font-family="-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,'
-    'Helvetica,Arial,sans-serif" font-size="18" font-weight="800" fill="#16181D" '
-    'letter-spacing="1.5">AGORA</text></svg>'
-)
 
 
 def _read_svg(path):
@@ -59,30 +49,14 @@ def _read_svg(path):
         return None
 
 
-def _monogram(display_name):
-    """A tasteful initials monogram (rounded square, light theme) -- the client-logo fallback."""
-    words = [w for w in (display_name or "").split() if w]
-    initials = "".join(w[0] for w in words[:2]).upper() or "?"
-    size = 13 if len(initials) > 1 else 15
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34" '
-        'role="img" aria-label="%s">'
-        '<rect x="1" y="1" width="32" height="32" rx="9" fill="#E9F6EB" stroke="#41B54A" '
-        'stroke-width="1.5"/>'
-        '<text x="17" y="22" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'
-        '\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif" font-size="%d" font-weight="800" '
-        'fill="#2F7D33">%s</text></svg>'
-    ) % (display_name or "client", size, initials)
-
-
 def agora_logo():
-    """The shared AGORA logo from the brand kit (Creatives/logo.svg), else the wordmark fallback."""
-    return _read_svg(os.path.join(_CREATIVES, "logo.svg")) or _AGORA_LOGO_FALLBACK
+    """The shared AGORA logo from the brand kit (Creatives/logo.svg), else the bundled master mark."""
+    return _read_svg(os.path.join(_CREATIVES, "logo.svg")) or brand.AGORA_LOGO_LIGHT
 
 
 def client_logo(client, display_name):
     """The per-client logo (Creatives/clients/<c>.svg), else a generated initials monogram."""
-    return _read_svg(os.path.join(_CREATIVES, "clients", "%s.svg" % client)) or _monogram(display_name)
+    return _read_svg(os.path.join(_CREATIVES, "clients", "%s.svg" % client)) or brand.monogram(display_name)
 
 
 def brand_for(client, display_name):

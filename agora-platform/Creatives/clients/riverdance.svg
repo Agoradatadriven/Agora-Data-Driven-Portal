@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 36 36" role="img" aria-label="Riverdance RV Resort">
+  <title>Riverdance RV Resort</title>
+  <desc>Riverdance RV Resort mark for small contexts: green mountains + river line + red asterisk
+  (the logo's signature elements). Self-contained. For the full script wordmark, drop the real export
+  as clients/riverdance.png / clients/riverdance.svg.</desc>
+  <rect x="1" y="1" width="34" height="34" rx="10" fill="#EAF6E9" stroke="#2F8A3E" stroke-width="1.4"/>
+  <g fill="none" stroke="#2F8A3E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 26 L13 15 L19 23"/>
+    <path d="M16 26 L24 13 L31 26"/>
+  </g>
+  <line x1="7" y1="27" x2="30" y2="27" stroke="#86CF7F" stroke-width="1.5" stroke-linecap="round"/>
+  <g stroke="#BE3A2B" stroke-width="1.7" stroke-linecap="round">
+    <line x1="28.5" y1="6.5" x2="28.5" y2="13.5"/>
+    <line x1="25.5" y1="8.3" x2="31.5" y2="11.7"/>
+    <line x1="31.5" y1="8.3" x2="25.5" y2="11.7"/>
+  </g>
+</svg>

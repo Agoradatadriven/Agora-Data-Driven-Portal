@@ -51,7 +51,9 @@ data object `<c>.json` + freshness sidecar `_freshness.json` in the client's buc
   `reddit`, `hubspot`, `fields`) that write `raw_windsor.*`. Scheduled API pulls, not self-gating.
 - `agora-platform/` — the portal/CRM front-door (`platform-dash`). Also hosts **Agora Atrium**
   (`dash/workspace.py`, `seed_workspace.py`, `notify.py`, `atrium_view.py`, `templates/atrium.html`
-  + `admin_atrium.html`).
+  + `admin_atrium.html`). The brand kit lives in `Creatives/` (logo set, `brand.json`/`brand.md`);
+  `dash/brand.py` is the bundled runtime copy of the AGORA mark + official palette (the container
+  can't read `Creatives/`), used by the portal/login chrome and as `seed_workspace.py`'s fallback.
 - `status_dashboard/` — meta dashboard monitoring every client's freshness (no dataset/views).
 - `scripts/` — operator tooling: `setup.ps1` (one-time laptop setup), `start_day.ps1` (per-session
   preflight), `deploy_ingest_jobs.ps1` (the one script that touches production ingest),
@@ -87,8 +89,11 @@ name is one constant: `WORKSPACE_NAME` in `agora-platform/dash/main.py`.
   records an activity entry + logs to stdout; real email only when **both** `ATRIUM_EMAIL_ENABLED=1`
   and `ATRIUM_EMAIL_API_KEY` (Secret-Manager) are set, SDK imported lazily. **No provider key
   committed.** Team inbox `ATRIUM_TEAM_EMAIL` (default `info@agoradatadriven.com`).
-- **Theme/JS:** green/violet **light** theme scoped under `.atrium` (never bleeds into the dark
-  chrome); inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script block).
+- **Theme/JS:** the official brand **light** theme — Data Green `#4FAB4A` + Accent Purple `#9484FB`
+  (deep companion `#5C4BD0` for white-text fills), on a white canvas with bold black type. The whole
+  front-door (login, portal, team console) shares it; Atrium scopes every selector under `.atrium` so
+  it stays self-contained. The logo is `ws.brand.agora_logo` (seeded) in Atrium and `dash/brand.py`
+  elsewhere. Inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script block).
 - **Ships via the SAME deploy as the portal:** `agora-platform/dash/deploy_dash_platform.ps1` (build
   as yourself → `gcloud run deploy platform-dash --no-invoker-iam-check`). Validate templates with
   `scripts/_validate_dash_js.py` first. Seed the demo once:

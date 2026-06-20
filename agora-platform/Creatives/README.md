@@ -6,11 +6,21 @@ run under a strict environment where remote asset fetches are blocked.
 
 ## Structure
 
-- `logo.svg` — the **AGORA master logo**, shared across every client. In Atrium it is the co-brand
-  mark in the **light** sidebar, so it must read on white. Replace this file with the final artwork
+- `brand.md` / `brand.json` — the **brand board**: colors, fonts, logo variations, and guidelines.
+  `brand.json` is the machine-readable source for theming the portal later.
+- `logo.svg` — the **AGORA master logo** (primary lockup), shared across every client. In Atrium it
+  is the co-brand mark in the **light** sidebar, so it must read on white. Replace with final artwork
   (keep the filename) and everything that references it picks it up.
+- `logo-horizontal.svg`, `logo-icon.svg`, `logo-reversed.svg` — the other brand-board variations
+  (compact lockup, icon mark only, white-on-black).
 - `clients/<c>.svg` — a **per-client logo**, one per client key `<c>` (e.g. `clients/riverdance.svg`).
   Shown beside the AGORA mark in that client's workspace. Add a file here and it flows into the client.
+
+> ⚠️ The shipped logo SVGs are **faithful recreations** from the brand-board image — wordmark/colours
+> faithful (system-font stand-in for the After/Lato brand fonts), **mountain mark approximated**. The
+> runtime mirrors them as `AGORA_LOGO_LIGHT` in `dash/brand.py` (so the portal/login chrome render the
+> same mark without reading this folder). Replace `logo.svg` / `logo-icon.svg` with the real vector
+> export when available, and update `brand.py` to match (see `brand.md`).
 
 ## How assets reach the app
 
@@ -36,5 +46,8 @@ if a client logo is missing, an initials monogram is generated from the client's
   (rendered ~120px wide).
 - **Client `clients/<c>.svg`:** a **square-ish mark/monogram** works best (rendered ~34px); a wide
   wordmark gets tiny.
-- Atrium light-theme palette: green `#41B54A`, violet `#6F61E8`, ink `#16181D`. (The dark portal /
-  dashboard chrome still uses `--ag-accent:#5b8cff` / `--ag-accent-2:#27d3a2`.)
+- **Official brand palette** (from `brand.json`): Data Green `#4FAB4A`, Accent Purple `#9484FB`,
+  Graphite Black `#000000`, Charcoal Text `#353535`, Soft Grey `#EEEEEE`. The portal, login, team
+  console, and Atrium **all now use this palette** — a light canvas with bold black type, a green CTA,
+  and a subtle purple accent. The deeper companion `#5C4BD0` carries white text where the pale Accent
+  Purple cannot (buttons, the avatar, the paid split bar).

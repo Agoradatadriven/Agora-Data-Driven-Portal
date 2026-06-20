@@ -40,6 +40,7 @@ from flask import (
 )
 
 import atrium_view
+import brand
 import notify
 import platform_sso
 import store
@@ -125,6 +126,15 @@ def _visible_clients():
     return [c for c in clients if c.get("key") in allowed]
 
 
+def _brand_ctx():
+    """Shared brand assets for every rendered page (the AGORA mark + favicon, from brand.py).
+
+    The deployed container only bundles dash/, so the mark lives in brand.py rather than being read
+    from Creatives/ at runtime; this keeps the portal/login chrome in step with the Atrium sidebar.
+    """
+    return {"agora_logo": brand.AGORA_LOGO_LIGHT, "favicon": brand.FAVICON_DATA_URI}
+
+
 # --- Routes: auth + landing --------------------------------------------------------------
 @app.route("/", methods=["GET"])
 def index():
@@ -136,6 +146,7 @@ def index():
         clients=_visible_clients(),
         is_admin=authed(),
         is_superadmin=is_superadmin(),
+        **_brand_ctx(),
     )
 
 
@@ -145,14 +156,14 @@ def login():
     if request.method == "GET":
         if authed():
             return redirect(next_url or "/")
-        return render_template("login.html", next=next_url, error=None)
+        return render_template("login.html", next=next_url, error=None, **_brand_ctx())
 
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
     granted = store.verify_portal_login(email, password)
     if not granted:
         return render_template("login.html", next=next_url, email=email,
-                               error="Incorrect email or password."), 401
+                               error="Incorrect email or password.", **_brand_ctx()), 401
 
     # Establish the portal session.
     session["ok"] = True
@@ -239,20 +250,22 @@ def _inject_portal_chrome(html, client_key):
     Keeps the user oriented inside the portal frame: a way back/out, and a one-line feedback box
     that posts to the portal's own /feedback. Inserted just before </body> when present.
     """
+    # Brand-aligned floating chrome: clean white pills + a green feedback CTA, readable on any
+    # dashboard background (mirrors Creatives/brand.json -- green CTA, charcoal text).
+    _pill = ("padding:7px 13px;border-radius:999px;background:#fff;border:1px solid #E7E8EE;"
+             "text-decoration:none;font-size:12px;font-weight:600;"
+             "box-shadow:0 4px 14px rgba(16,24,40,.16);")
     pill = (
         '<div id="ag-portal-chrome" style="position:fixed;top:12px;right:12px;z-index:2147483647;'
         'display:flex;gap:8px;align-items:center;font-family:-apple-system,BlinkMacSystemFont,'
         '\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">'
-        '<a href="/" style="padding:6px 12px;border-radius:999px;background:#141b33;color:#eaf0ff;'
-        'border:1px solid #26314f;text-decoration:none;font-size:12px;">All dashboards</a>'
-        '<a href="/logout" style="padding:6px 12px;border-radius:999px;background:#141b33;'
-        'color:#ff5c7a;border:1px solid rgba(255,92,122,0.4);text-decoration:none;font-size:12px;">'
-        'Log out</a>'
-        '<a href="/" title="Send feedback" style="padding:6px 12px;border-radius:999px;'
-        'background:#5b8cff;color:#06122e;text-decoration:none;font-size:12px;font-weight:700;">'
-        'Feedback</a>'
+        '<a href="/" style="%scolor:#353535;">All dashboards</a>'
+        '<a href="/logout" style="%scolor:#E5413E;">Log out</a>'
+        '<a href="/" title="Send feedback" style="padding:7px 13px;border-radius:999px;'
+        'background:#4FAB4A;color:#fff;text-decoration:none;font-size:12px;font-weight:700;'
+        'box-shadow:0 4px 14px rgba(79,171,74,.34);">Feedback</a>'
         '</div>'
-    )
+    ) % (_pill, _pill)
     marker = "</body>"
     if marker in html:
         return html.replace(marker, pill + marker, 1)
@@ -337,6 +350,7 @@ def admin():
         is_admin=True,
         is_superadmin=is_superadmin(),
         admin_message=message,
+        **_brand_ctx(),
     )
 
 
@@ -377,6 +391,7 @@ def superadmin():
         is_superadmin=True,
         superadmin_message=message,
         revealed_password=revealed,
+        **_brand_ctx(),
     )
 
 
@@ -490,6 +505,7 @@ def atrium(client, tab):
         user=user,
         user_notify=workspace.get_notify(ws, user or ""),
         is_superadmin=is_superadmin(),
+        favicon=brand.FAVICON_DATA_URI,
     )
 
 
@@ -584,7 +600,8 @@ def admin_atrium():
         clients.append({"key": c.get("key"), "name": c.get("name"),
                         "has_workspace": workspace.workspace_exists(c.get("key"))})
     return render_template("admin_atrium.html", clients=clients, client=None,
-                           user=current_user(), workspace_name=WORKSPACE_NAME)
+                           user=current_user(), workspace_name=WORKSPACE_NAME,
+                           **_brand_ctx())
 
 
 @app.route("/admin/atrium/<client>", methods=["GET"])
@@ -597,7 +614,7 @@ def admin_atrium_client(client):
     ws = workspace.load_workspace(client)
     return render_template("admin_atrium.html", clients=None, client=client, ws=ws,
                            user=current_user(), workspace_name=WORKSPACE_NAME,
-                           msg=request.args.get("msg"))
+                           msg=request.args.get("msg"), **_brand_ctx())
 
 
 @app.route("/admin/atrium/<client>/campaign", methods=["POST"])

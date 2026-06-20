@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 38 40" role="img" aria-label="AGORA">
+  <g fill="none" stroke="#1A1B1E" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 37 L19 4 L35 37" stroke-width="1.9"/>
+    <path d="M12 37 L24 12" stroke-width="1.2" opacity="0.5"/>
+    <path d="M11.5 24 L26.5 24" stroke-width="1.7"/>
+  </g>
+</svg>
