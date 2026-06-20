@@ -21,6 +21,7 @@ To force a re-seed of a genuinely broken workspace, delete the workspace/riverda
 first; this script intentionally has no --force flag.
 """
 
+import os
 import sys
 
 import workspace
@@ -28,9 +29,16 @@ import workspace
 CLIENT = "riverdance"
 DISPLAY_NAME = "Riverdance RV Resort"
 
-# Co-brand logos as compact, self-contained inline SVG (no external refs; system font stack).
-# AGORA wordmark in the green/violet brand; a small "RV" monogram for the client.
-_AGORA_LOGO = (
+# Brand assets live in agora-platform/Creatives/ (the brand kit). The seed runs from the REPO, so it
+# READS those files and INLINES them into workspace/<c>.json (brand.agora_logo / brand.client_logo).
+# The deployed container only bundles dash/, so it cannot read Creatives/ at runtime -- logos must be
+# embedded, self-contained (no external refs). Sources, with graceful fallbacks:
+#   * AGORA master logo : Creatives/logo.svg          (shared across every client; light-theme)
+#   * Per-client logo   : Creatives/clients/<c>.svg   (one per client -- changes per client)
+_CREATIVES = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "Creatives"))
+
+# Fallback AGORA wordmark (green/violet, light-theme) used ONLY if Creatives/logo.svg is absent.
+_AGORA_LOGO_FALLBACK = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="132" height="32" viewBox="0 0 132 32" '
     'role="img" aria-label="AGORA Data Driven">'
     '<g fill="none" stroke="#41B54A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'
@@ -40,15 +48,46 @@ _AGORA_LOGO = (
     'Helvetica,Arial,sans-serif" font-size="18" font-weight="800" fill="#16181D" '
     'letter-spacing="1.5">AGORA</text></svg>'
 )
-_CLIENT_LOGO = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34" '
-    'role="img" aria-label="Riverdance RV Resort">'
-    '<rect x="1" y="1" width="32" height="32" rx="9" fill="#E9F6EB" stroke="#41B54A" '
-    'stroke-width="1.5"/>'
-    '<text x="17" y="22" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'
-    '\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif" font-size="13" font-weight="800" '
-    'fill="#2F7D33">RV</text></svg>'
-)
+
+
+def _read_svg(path):
+    """Return a self-contained SVG file's text, or None if it is absent/unreadable."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return None
+
+
+def _monogram(display_name):
+    """A tasteful initials monogram (rounded square, light theme) -- the client-logo fallback."""
+    words = [w for w in (display_name or "").split() if w]
+    initials = "".join(w[0] for w in words[:2]).upper() or "?"
+    size = 13 if len(initials) > 1 else 15
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34" '
+        'role="img" aria-label="%s">'
+        '<rect x="1" y="1" width="32" height="32" rx="9" fill="#E9F6EB" stroke="#41B54A" '
+        'stroke-width="1.5"/>'
+        '<text x="17" y="22" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'
+        '\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif" font-size="%d" font-weight="800" '
+        'fill="#2F7D33">%s</text></svg>'
+    ) % (display_name or "client", size, initials)
+
+
+def agora_logo():
+    """The shared AGORA logo from the brand kit (Creatives/logo.svg), else the wordmark fallback."""
+    return _read_svg(os.path.join(_CREATIVES, "logo.svg")) or _AGORA_LOGO_FALLBACK
+
+
+def client_logo(client, display_name):
+    """The per-client logo (Creatives/clients/<c>.svg), else a generated initials monogram."""
+    return _read_svg(os.path.join(_CREATIVES, "clients", "%s.svg" % client)) or _monogram(display_name)
+
+
+def brand_for(client, display_name):
+    """Assemble the {agora_logo, client_logo} brand dict, sourcing the brand kit with fallbacks."""
+    return {"agora_logo": agora_logo(), "client_logo": client_logo(client, display_name)}
 
 
 def riverdance_workspace():
@@ -63,7 +102,7 @@ def riverdance_workspace():
         "client": CLIENT,
         "display_name": DISPLAY_NAME,
         "tagline": "Client workspace",
-        "brand": {"agora_logo": _AGORA_LOGO, "client_logo": _CLIENT_LOGO},
+        "brand": brand_for(CLIENT, DISPLAY_NAME),
 
         # Six headline KPIs (trend_up = a good change -> rendered green).
         "metrics": [
@@ -267,7 +306,29 @@ def seed(register_client=True):
     return 0
 
 
+def reapply_brand(client, display_name=None):
+    """Refresh ONLY the brand logos on an existing workspace from Creatives (no other field touched).
+
+    Run after dropping/updating Creatives/logo.svg or Creatives/clients/<c>.svg. It does not clobber
+    content, decisions, conversations, or notify prefs. Logos live in the workspace JSON and are read
+    at render time, so no redeploy is needed afterwards -- just refresh the page.
+
+        python seed_workspace.py --rebrand [<client>]   # defaults to riverdance
+    """
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        print("[seed_workspace] no workspace for '%s' to rebrand." % client)
+        return 1
+    ws["brand"] = brand_for(client, display_name or ws.get("display_name") or client)
+    workspace.save_workspace(client, ws)
+    print("[seed_workspace] rebranded workspace/%s.json from Creatives." % client)
+    return 0
+
+
 def main():
+    argv = sys.argv[1:]
+    if argv and argv[0] == "--rebrand":
+        return reapply_brand(argv[1] if len(argv) > 1 else CLIENT)
     return seed()
 
 
