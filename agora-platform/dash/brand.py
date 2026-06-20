@@ -18,6 +18,7 @@ stack, which the brand-kit guidelines explicitly allow, so it renders identicall
 """
 
 import base64
+import os
 
 # System font stack -- a self-contained stand-in for the brand fonts (After Display / Lato), which
 # cannot be web-loaded in the locked-down runtime. Double-quoted so the inner 'Segoe UI' stays literal.
@@ -55,9 +56,30 @@ def _logo(ink, sub):
     ) % (ink, _FONT, ink, _FONT, sub)
 
 
-# Master logo for LIGHT backgrounds (Atrium sidebar, portal header, login card). Monochrome graphite
-# per the brand board -- green/violet are UI accents, not part of the logo lockup.
-AGORA_LOGO_LIGHT = _logo(INK, CHARCOAL)
+def _bundled_png_logo(filename, w, h, disp_h=32):
+    """Wrap a bundled PNG (dash/assets/<filename>) as a self-contained data-URI SVG, or None.
+
+    The REAL Agora artwork ships as a PNG (not vector), so we inline it as a data URI -- still
+    self-contained (no external ref). The viewBox preserves aspect, so CSS height controls the size.
+    """
+    path = os.path.join(os.path.dirname(__file__), "assets", filename)
+    try:
+        with open(path, "rb") as fh:
+            uri = "data:image/png;base64," + base64.b64encode(fh.read()).decode("ascii")
+    except OSError:
+        return None
+    disp_w = round(w * disp_h / h)
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        'width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="AGORA Data Driven">'
+        '<image href="%s" xlink:href="%s" width="%d" height="%d"/></svg>'
+    ) % (disp_w, disp_h, w, h, uri, uri, w, h)
+
+
+# Master logo for LIGHT backgrounds (Atrium sidebar, portal header, login card). Prefer the REAL
+# Agora artwork bundled at dash/assets/agora_logo.png (420x101); fall back to the monochrome line-art
+# lockup if it is absent. Creatives/logo.svg mirrors this same data-URI wrapper for seed_workspace.
+AGORA_LOGO_LIGHT = _bundled_png_logo("agora_logo.png", 420, 101) or _logo(INK, CHARCOAL)
 
 # Reversed logo for DARK backgrounds (the chrome injected over proxied dashboards).
 AGORA_LOGO_DARK = _logo("#FFFFFF", "#C7CBD6")
