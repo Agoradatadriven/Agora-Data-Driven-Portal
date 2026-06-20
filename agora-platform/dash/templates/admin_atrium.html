@@ -27,9 +27,11 @@
       backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20; }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand svg { display: block; height: 30px; width: auto; }
-    .brand .brand-sub { font-size: 12px; font-weight: 700; color: var(--ag-purple-d);
-      background: var(--ag-purple-bg); padding: 3px 10px; border-radius: 999px;
-      text-transform: uppercase; letter-spacing: .6px; }
+    /* Brand badge: the same green→purple gradient lockup used in the client workspace (.ax-badge). */
+    .brand .brand-sub { font-size: 11px; font-weight: 800; color: #fff;
+      background: linear-gradient(120deg, #4FAB4A 0%, #4FAB4A 42%, #7E6CF6 100%);
+      padding: 3px 11px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .8px; box-shadow: 0 4px 12px rgba(92,75,208,.28); }
     .nav { display: flex; align-items: center; gap: 10px; }
     .who { color: var(--ag-muted); font-size: 13px; }
     .pill { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--ag-line);
@@ -107,8 +109,22 @@
         {% endfor %}
       </div>
       {% else %}
-      <div class="panel">No clients in the registry yet. Add one from <a href="/admin">Admin</a>.</div>
+      <div class="panel">No clients yet — create your first one below.</div>
       {% endif %}
+
+      <h2 class="section">Add a new client</h2>
+      <form class="panel" method="post" action="/admin/atrium/new">
+        <p class="meta">Creates the client, a portal login, and a <strong>blank Atrium workspace</strong>
+        to build from. The key is the short lowercase id used everywhere (e.g. <code>honeytribe</code>).
+        Tip: drop their logo at <code>Creatives/clients/&lt;key&gt;.svg</code> first, or rebrand later.</p>
+        <div class="row">
+          <div><label>Client key</label><input type="text" name="key" placeholder="honeytribe" required></div>
+          <div><label>Display name</label><input type="text" name="name" placeholder="Honey Tribe Resort"></div>
+        </div>
+        <label>Portal password (optional &mdash; blank auto-generates a strong one)</label>
+        <input type="text" name="password" placeholder="auto-generated if left blank">
+        <button class="btn violet" type="submit">Create client &amp; blank workspace</button>
+      </form>
 
     {% else %}
       <!-- ===== Manage mode: one client ===== -->

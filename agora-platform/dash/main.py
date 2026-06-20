@@ -1016,7 +1016,36 @@ def admin_atrium():
                         "has_workspace": workspace.workspace_exists(c.get("key"))})
     return render_template("admin_atrium.html", clients=clients, client=None,
                            user=current_user(), workspace_name=WORKSPACE_NAME,
-                           **_brand_ctx())
+                           msg=request.args.get("msg"), **_brand_ctx())
+
+
+def _valid_client_key(k):
+    """Strict slug for a client key: ascii lowercase a-z0-9 + hyphens, not starting with a hyphen."""
+    allowed = "abcdefghijklmnopqrstuvwxyz0123456789-"
+    return bool(k) and k[0] != "-" and all(ch in allowed for ch in k)
+
+
+@app.route("/admin/atrium/new", methods=["POST"])
+def admin_atrium_new():
+    """Onboard a brand-new client: registry entry + portal password + a BLANK Atrium workspace.
+
+    Reuses onboard_client (the same starter_workspace the CLI uses) so the new client opens to a
+    tidy, empty workspace the team then builds out via the console + in-workspace admin editing.
+    """
+    if not is_superadmin():
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    key = request.form.get("key", "").strip().lower()
+    name = request.form.get("name", "").strip()
+    if not _valid_client_key(key):
+        return redirect(url_for("admin_atrium",
+                                msg="Invalid client key '%s' -- use lowercase letters, numbers and hyphens." % key))
+    if workspace.workspace_exists(key) or store.get_client(key) is not None:
+        return _atrium_admin_redirect(key, "Client '%s' already exists -- opening it." % key)
+    import onboard_client  # lazy: reuses brand_for() + starter_workspace()
+    pw = onboard_client.onboard(key, name or None, password=request.form.get("password", "").strip() or None)
+    return _atrium_admin_redirect(key,
+        "Client '%s' created with a blank workspace. Portal password: %s  (any email + this password "
+        "logs the client in). Build out their workspace below." % (key, pw))
 
 
 @app.route("/admin/atrium/<client>", methods=["GET"])
