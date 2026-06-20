@@ -242,11 +242,11 @@ try {
         $file = $pair.file
         if (Exists { gcloud secrets describe $name --project $PROJECT }) {
             Write-Host "    adding new version to $name" -ForegroundColor Yellow
-            gcloud secrets versions add $name --project $PROJECT --data-file=$file
+            gcloud secrets versions add $name --project $PROJECT --data-file="$file"
             Must "add version to secret $name"
         } else {
             Write-Host "    creating secret $name" -ForegroundColor Yellow
-            gcloud secrets create $name --project $PROJECT --replication-policy=automatic --data-file=$file
+            gcloud secrets create $name --project $PROJECT --replication-policy=automatic --data-file="$file"
             Must "create secret $name"
         }
         # Grant the web SA read access on this secret (idempotent add-if-missing).

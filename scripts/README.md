@@ -57,6 +57,13 @@ you never have to fight Windows' script-blocking.
 If PowerShell blocks the script, either use the `.cmd` launcher or run once:
 `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1`.
 
+> **Spaces in the path (this repo lives under `…\Agora Data Driven\…`).** Run the scripts by a
+> *relative* path (`.\scripts\setup.ps1`) or, if you must use a full path with the call operator,
+> **quote it**: `& "C:\Users\you\…\Agora Data Driven\Portal\scripts\setup.ps1"`. An **unquoted**
+> absolute path — `& C:\Users\you\…\Agora Data Driven\Portal\scripts\setup.ps1` — fails with
+> *"The term 'C:\Users\you\…\Agora' is not recognized…"* because PowerShell splits the command on
+> the space before `Data`. The `.cmd` launchers and the `-File` form already quote the path for you.
+
 ## Shared Windsor ingest jobs
 
 `deploy_ingest_jobs.ps1` iterates the canonical `$JOBS` table below — it is the single source of
