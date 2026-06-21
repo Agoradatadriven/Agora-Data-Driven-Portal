@@ -1018,6 +1018,83 @@ def atrium_admin_remove_creative(client):
     return jsonify(ok=True)
 
 
+# --- Multiple images per content piece: authed serve + admin add/remove -----------------------
+@app.route("/w/<client>/creative/<content_id>/<image_id>", methods=["GET"])
+def atrium_creative_image(client, content_id, image_id):
+    """Serve ONE image of a content piece (authed proxy; the bucket stays private).
+
+    Same posture as the single-creative route: never public, served only to a session that may open
+    this client. Images are small (<=8MB) so we return them whole.
+    """
+    if not authed():
+        return redirect(url_for("login", next=request.full_path))
+    if not can_open(client):
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response("Not found", status=404, mimetype="text/plain")
+    _camp, item = workspace._find_content(ws, content_id)
+    if item is None:
+        return Response("Not found", status=404, mimetype="text/plain")
+    img = next((im for im in item.get("images", []) if im.get("id") == image_id), None)
+    if img is None:
+        return Response("Not found", status=404, mimetype="text/plain")
+    data = workspace.read_content_image_bytes(client, content_id, image_id)
+    if data is None:
+        return Response("Not found", status=404, mimetype="text/plain")
+    resp = Response(data, mimetype=img.get("mime") or "application/octet-stream")
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    return resp
+
+
+@app.route("/w/<client>/admin/add-images", methods=["POST"])
+def atrium_admin_add_images(client):
+    """Append one or more images to a content piece (the approval ticket's picture row). Field: 'files'."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    content_id = request.form.get("content_id", "").strip()
+    ws = workspace.load_workspace(client)
+    _camp, item = workspace._find_content(ws, content_id) if ws else (None, None)
+    if item is None:
+        return Response('{"error":"not_found"}', status=404, mimetype="application/json")
+    uploads = request.files.getlist("files")
+    if not uploads and "file" in request.files:
+        uploads = [request.files["file"]]
+    added = []
+    for upload in uploads:
+        if not upload or not upload.filename:
+            continue
+        mime = (upload.mimetype or "").lower()
+        if mime not in _ATRIUM_MEDIA_EXT:
+            continue
+        max_bytes = ATRIUM_VIDEO_MAX_BYTES if mime in _ATRIUM_VIDEO_EXT else ATRIUM_UPLOAD_MAX_BYTES
+        data = upload.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            continue
+        image_id = workspace._new_id("img")
+        workspace.add_content_image(client, content_id, image_id, data, mime)
+        added.append({
+            "id": image_id, "mime": mime,
+            "url": url_for("atrium_creative_image", client=client, content_id=content_id, image_id=image_id),
+        })
+    if not added:
+        return Response('{"error":"no_valid_files"}', status=400, mimetype="application/json")
+    return jsonify(ok=True, added=added)
+
+
+@app.route("/w/<client>/admin/remove-image", methods=["POST"])
+def atrium_admin_remove_image(client):
+    """Remove one image from a content piece (object + pointer)."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    content_id = request.form.get("content_id", "").strip()
+    image_id = request.form.get("image_id", "").strip()
+    workspace.remove_content_image(client, content_id, image_id)
+    return jsonify(ok=True)
+
+
 @app.route("/w/<client>/admin/metrics", methods=["POST"])
 def atrium_admin_metrics(client):
     """Edit headline counts (today + split) and the KPI metric values/trends in place."""

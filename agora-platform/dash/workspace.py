@@ -181,6 +181,48 @@ def delete_creative(client, content_id):
     _delete_object(creative_object_name(client, content_id))
 
 
+# --- Multiple images per content piece (the approval ticket's picture row) ----------------------
+# A content piece can carry SEVERAL images alongside, or instead of, the single legacy creative
+# above. Each image is its OWN private object under a distinct '<content_id>.img/' prefix (so it
+# never collides with the legacy single object at '<content_id>'); the workspace JSON records a
+# small `images: [{id, mime}]` list -- never the bytes. Served only through the authed proxy route.
+def creative_image_object_name(client, content_id, image_id):
+    """Object name for ONE image, e.g. 'workspace/creatives/riverdance/RVR-016.img/img_ab12'."""
+    return "%screatives/%s/%s.img/%s" % (_prefix(), client, content_id, image_id)
+
+
+def add_content_image(client, content_id, image_id, data, mime):
+    """Store one image (private object) and append {id, mime} to the piece's `images` list."""
+    _write_object(creative_image_object_name(client, content_id, image_id), data,
+                  content_type=mime or "application/octet-stream")
+
+    def fn(ws):
+        _camp, item = _find_content(ws, content_id)
+        if item is None:
+            raise KeyError("no content '%s'" % content_id)
+        item.setdefault("images", []).append({"id": image_id, "mime": mime or ""})
+        return item["images"]
+    return _mutate(client, fn)
+
+
+def read_content_image_bytes(client, content_id, image_id):
+    """Raw bytes of one image, or None if it does not exist."""
+    return _read_object(creative_image_object_name(client, content_id, image_id))
+
+
+def remove_content_image(client, content_id, image_id):
+    """Delete one image (object + pointer). Returns the remaining list, or None if absent."""
+    _delete_object(creative_image_object_name(client, content_id, image_id))
+
+    def fn(ws):
+        _camp, item = _find_content(ws, content_id)
+        if item is None:
+            return None
+        item["images"] = [im for im in item.get("images", []) if im.get("id") != image_id]
+        return item["images"]
+    return _mutate(client, fn)
+
+
 def signed_upload_url(client, content_id, mime, ttl_minutes=15):
     """A V4 signed PUT URL so the browser uploads a creative DIRECTLY to GCS, bypassing the app's
     request-size cap (Cloud Run caps requests at ~32 MiB; GCS has no such limit).
