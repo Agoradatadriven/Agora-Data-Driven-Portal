@@ -38,6 +38,11 @@ sys.modules["google.cloud.storage"] = _gs
 # 2. Point the workspace store at a temp dir and sign the session.
 _TMP = tempfile.mkdtemp(prefix="atrium_smoke_")
 os.environ["WORKSPACE_LOCAL_DIR"] = _TMP
+# The admin console (admin_atrium_client) reveals a client's portal password via store.py, which
+# reads the registry. Point that at the same local dir so the registry layer also stays off GCS
+# (an absent file -> empty registry skeleton; reveal_password degrades to None). Without this the
+# stubbed GCS client raises and GET /admin/atrium/<c> 500s under test.
+os.environ["REGISTRY_LOCAL_DIR"] = _TMP
 os.environ["SESSION_SECRET"] = "test-secret"
 # Keep the test hermetic: never make the keyless public-doc fetch reach out to docs.google.com.
 os.environ["ATRIUM_DOCS_NO_PUBLIC_FETCH"] = "1"
