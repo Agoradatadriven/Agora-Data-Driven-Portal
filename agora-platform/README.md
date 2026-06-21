@@ -153,6 +153,29 @@ its **Open workspace** card appears:
 *(TODO: later derive the Dashboard metrics/series from the client's live `<c>.json` produced by the
 dashboard pipeline, once the metric-taxonomy mapping is agreed — see the `# CRM:`/TODO marker.)*
 
+## Local preview (no password) — for developers
+
+To work on the portal/Atrium **without touching the live site**, double-click **`Preview Portal.cmd`**
+at the repo root. It runs the whole front-door on your laptop and opens a browser tab at
+`http://localhost:8080` with **no login** — you are auto-signed-in as a super-admin, so you can click
+every client and edit every Atrium workspace in place. Edit the files under `agora-platform/dash/`
+and refresh; nothing is pushed anywhere.
+
+How it stays safe and self-contained (see `dash/run_local.ps1`, which the `.cmd` just launches):
+
+- It builds an **isolated** venv (`.venv-portal`, Flask + requests only) and points the data layer at
+  a throwaway folder (`.local_portal_data`) via `REGISTRY_LOCAL_DIR` / `WORKSPACE_LOCAL_DIR`. It
+  **never touches the real GCS bucket**, ADC, or any deployed service. Delete `.local_portal_data` to
+  reset; the prod `.venv` is left untouched.
+- It seeds demo clients + workspaces (`dash/seed_local.py`, idempotent) so there is real content to
+  click into.
+- The "no password" comes from `PORTAL_DEV_NOAUTH=1`, which a `@app.before_request` hook in `main.py`
+  honors **only when `PORTAL_SECURE_COOKIES=0`** (the relaxed local-http posture). Production always
+  serves https with secure cookies ON, so the no-auth mode **cannot activate in a deploy** even if the
+  env var leaked. The launcher sets both together; deploys set neither.
+
+No-shell alternative: run `agora-platform\dash\run_local.ps1` from a terminal — same thing.
+
 ## Deploying
 
 Two scripts, both **run as yourself** from the repo root (never Cloud Build from a laptop — the

@@ -78,6 +78,14 @@ app.config.update(
     SESSION_COOKIE_SECURE=_secure_cookies,
     SESSION_COOKIE_SAMESITE="None" if _secure_cookies else "Lax",
 )
+
+# Local preview ("no password") mode. When PORTAL_DEV_NOAUTH=1 every request is auto-signed-in as a
+# super-admin, so a developer can double-click a launcher and click straight through the whole portal
+# -- all clients, all Atrium workspaces, and the in-place admin edit affordances -- with no login.
+# It is DELIBERATELY tied to `not _secure_cookies` (i.e. the local http posture, PORTAL_SECURE_COOKIES=0):
+# production always serves over https with secure cookies ON, so even if this env var ever leaked into
+# a deploy it would stay inert. Only the local launcher (run_local.ps1) ever sets it.
+DEV_NOAUTH = os.environ.get("PORTAL_DEV_NOAUTH", "") == "1" and not _secure_cookies
 # Cap request bodies. The largest legitimate POST is a voice feedback note; keep it bounded.
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32 MiB (Cloud Run's request cap; fits short video creatives)
 
@@ -120,6 +128,21 @@ def can_open(client_key):
 def is_superadmin():
     """A "*" grant marks a super-admin (the operator console)."""
     return "*" in allowed_clients()
+
+
+@app.before_request
+def _dev_auto_login():
+    """In local preview mode (DEV_NOAUTH), establish a super-admin session for every request.
+
+    This is what turns the double-click launcher into a "no password" portal: the session looks
+    exactly like a real super-admin login (`clients == ["*"]`), so all the normal auth checks
+    (authed / can_open / is_superadmin) pass and the in-place admin edit affordances render. It is a
+    no-op unless DEV_NOAUTH is on, which only happens locally (see the DEV_NOAUTH definition above).
+    """
+    if DEV_NOAUTH and not session.get("ok"):
+        session["ok"] = True
+        session["user"] = "dev@localhost"
+        session["clients"] = ["*"]
 
 
 def _visible_clients():

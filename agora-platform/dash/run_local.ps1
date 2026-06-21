@@ -1,13 +1,16 @@
-# Run the portal LOCALLY for click-through testing -- no GCP, no ADC, no deploy.
+# Run the portal LOCALLY for click-through testing -- no GCP, no ADC, no deploy, NO PASSWORD.
 #
 # It stands up an isolated venv (.venv-portal) with just Flask + requests, points the data layer at
-# a throwaway local folder (.local_portal_data), seeds a demo portal you can log into, and serves it
-# at http://localhost:8080. The production .venv is deliberately left untouched (it excludes the web
-# deps on purpose -- see agora-platform/dash/requirements.txt).
+# a throwaway local folder (.local_portal_data), seeds a demo portal full of clients/workspaces, and
+# serves it at http://localhost:8080 with auto-login as a super-admin so you click straight in with
+# no password and can edit every workspace in place. The production .venv is deliberately left
+# untouched (it excludes the web deps on purpose -- see agora-platform/dash/requirements.txt).
 #
-#   From anywhere:  agora-platform\dash\run_local.ps1
+#   Double-click:   Preview Portal.cmd  (at the repo root)
+#   From a shell:   agora-platform\dash\run_local.ps1
 #
-# Stop with Ctrl+C. Delete .local_portal_data to reset the demo. This NEVER touches the real bucket.
+# Stop with Ctrl+C. Delete .local_portal_data to reset the demo. This NEVER touches the real bucket,
+# and the no-password mode can ONLY activate locally (it is tied to the relaxed-cookie local posture).
 
 $ErrorActionPreference = "Stop"
 
@@ -32,17 +35,27 @@ New-Item -ItemType Directory -Force -Path $data | Out-Null
 $env:REGISTRY_LOCAL_DIR = $data
 $env:WORKSPACE_LOCAL_DIR = $data
 
-# 3. Local-dev app config: a dummy session secret, and relaxed cookies so login works over http.
+# 3. Local-dev app config: a dummy session secret, relaxed cookies so it works over http, and the
+#    no-password preview mode (DEV_NOAUTH). PORTAL_SECURE_COOKIES=0 is what gates DEV_NOAUTH on, so
+#    these two MUST stay together -- it can never activate in the https production deploy.
 $env:SESSION_SECRET = "local-dev-secret-not-for-production"
 $env:PORTAL_SECURE_COOKIES = "0"
+$env:PORTAL_DEV_NOAUTH = "1"
 $env:PORT = "8080"
 
-# 4. Seed the demo clients (idempotent) and print the logins.
+# 4. Seed the demo clients + workspaces (idempotent). No passwords are needed to log in (DEV_NOAUTH
+#    auto-signs you in as super-admin), but seeding gives you real clients/workspaces to click into.
 & $py (Join-Path $dash "seed_local.py")
 
 Write-Host ""
-Write-Host "[run_local] starting portal at http://localhost:8080  (Ctrl+C to stop)" -ForegroundColor Green
+Write-Host "[run_local] starting portal at http://localhost:8080  (no password -- Ctrl+C to stop)" -ForegroundColor Green
+Write-Host "[run_local] you are auto-signed-in as super-admin: every client + in-place editing." -ForegroundColor Green
 Write-Host ""
 
-# 5. Serve.
+# 5. Open the browser once the server is up (a detached helper waits a moment, then opens the URL),
+#    then serve in the foreground (this call blocks until Ctrl+C).
+Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+    "-NoProfile", "-Command",
+    "Start-Sleep -Seconds 3; Start-Process 'http://localhost:8080/'"
+)
 & $py (Join-Path $dash "main.py")

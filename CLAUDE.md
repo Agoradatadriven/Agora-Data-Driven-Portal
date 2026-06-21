@@ -139,6 +139,13 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   `.\.venv\Scripts\python.exe agora-platform\dash\seed_workspace.py` (idempotent; writes
   `workspace/riverdance.json`, refuses to clobber). Local tests: `dash/_workspace_localtest.py`
   (data) and `dash/_atrium_smoketest.py` (full route+template, stubs GCS).
+- **Local preview (no-password, for devs):** double-click `Preview Portal.cmd` (repo root) — or run
+  `agora-platform/dash/run_local.ps1`. It serves the whole front-door at `http://localhost:8080` from
+  an isolated `.venv-portal` + throwaway `.local_portal_data` (never the real bucket/ADC), seeds demo
+  clients (`dash/seed_local.py`), and auto-signs-in as super-admin so there is NO login and every
+  workspace is editable in place. The no-auth is `PORTAL_DEV_NOAUTH=1`, honored by a `before_request`
+  hook in `main.py` **only when `PORTAL_SECURE_COOKIES=0`** — so it can never activate in the https
+  deploy (deploys set neither var).
 
 ## The data contract (three stages, matched BY NAME)
 
