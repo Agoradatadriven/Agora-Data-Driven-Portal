@@ -30,8 +30,6 @@ import hmac
 import json
 import os
 
-from google.cloud import storage
-
 # --- Fixed locations ----------------------------------------------------------------------------
 # Env var names match what deploy_dash_platform.ps1 sets (REGISTRY_BUCKET / REGISTRY_OBJECT); the
 # defaults are the literal standup values so the module is correct even if the env is unset.
@@ -43,8 +41,28 @@ PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "agora-data-driven")
 _PBKDF2_ITERATIONS = 200_000
 _PBKDF2_ALGO = "sha256"
 
-# Reused clients (thread-safe for the reads/writes we do).
-_storage_client = storage.Client()
+
+# --- Storage backend (GCS by default; local filesystem when REGISTRY_LOCAL_DIR is set) ----------
+# Mirrors workspace.py: google-cloud-storage is imported LAZILY (only when the GCS backend is
+# actually used) and the client is built on first use, so importing this module never needs the
+# package or ADC. Set REGISTRY_LOCAL_DIR=<dir> to read/write platform.json as a plain file under
+# that directory instead of GCS -- this is what lets the portal run on a laptop with no GCP access
+# (see seed_registry / onboard_client / run_local.ps1).
+_storage_client = None
+
+
+def _local_dir():
+    """The local-filesystem backend root, or "" to use GCS."""
+    return os.environ.get("REGISTRY_LOCAL_DIR", "")
+
+
+def _gcs_blob():
+    """Lazily construct the GCS client and return the registry blob handle."""
+    global _storage_client
+    if _storage_client is None:
+        from google.cloud import storage  # lazy: only the GCS backend needs the package
+        _storage_client = storage.Client()
+    return _storage_client.bucket(REGISTRY_BUCKET).blob(REGISTRY_OBJECT)
 
 
 # --- Registry I/O -------------------------------------------------------------------------------
@@ -54,7 +72,14 @@ def load_registry():
     An absent object is normal BEFORE seed_registry.py has run; callers should treat the empty
     skeleton (no agencies, no clients) as "not seeded yet".
     """
-    blob = _storage_client.bucket(REGISTRY_BUCKET).blob(REGISTRY_OBJECT)
+    local = _local_dir()
+    if local:
+        path = os.path.join(local, REGISTRY_OBJECT)
+        if not os.path.isfile(path):
+            return {"version": 1, "agencies": [], "clients": []}
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.loads(fh.read())
+    blob = _gcs_blob()
     if not blob.exists():
         return {"version": 1, "agencies": [], "clients": []}
     return json.loads(blob.download_as_bytes().decode("utf-8"))
@@ -62,9 +87,17 @@ def load_registry():
 
 def save_registry(registry):
     """Persist the registry dict back to platform.json (private; never made public)."""
-    blob = _storage_client.bucket(REGISTRY_BUCKET).blob(REGISTRY_OBJECT)
     body = json.dumps(registry, indent=2, sort_keys=True).encode("utf-8")
-    blob.upload_from_string(body, content_type="application/json")
+    local = _local_dir()
+    if local:
+        path = os.path.join(local, REGISTRY_OBJECT)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(body)
+        return
+    _gcs_blob().upload_from_string(body, content_type="application/json")
 
 
 # --- Client registry CRUD -----------------------------------------------------------------------

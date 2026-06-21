@@ -1,0 +1,59 @@
+name: CI
+
+# Runs the repo's own gates on every pull request (and pushes to main) so a merge can never
+# silently break the portal. This is what makes a 4-developer Claude Code team safe: conflicts
+# surface at PR time and broken code is caught before it reaches main.
+#
+# To make these checks REQUIRED before merge (do this once in the GitHub UI):
+#   Settings -> Branches -> Add branch protection rule for `main`:
+#     * Require a pull request before merging   (and at least 1 approval)
+#     * Require status checks to pass           -> select the "test" check
+#     * Require branches to be up to date before merging
+#   After that, nobody (human or AI) can merge red or stale code into main.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # esprima -> the inline-JS gate. Flask + requests -> the Atrium route smoke test.
+      # google-cloud-storage is deliberately NOT installed: the smoke test stubs it, and the
+      # data-layer test uses the local-filesystem backend -- so CI never needs GCP credentials.
+      - name: Install test dependencies
+        run: python -m pip install --quiet esprima "Flask==3.0.3" "requests==2.34.2"
+
+      - name: Validate inline JS (esprima gate)
+        run: |
+          set -e
+          for f in \
+            agora-platform/dash/templates/atrium.html \
+            agora-platform/dash/templates/portal.html \
+            agora-platform/dash/templates/login.html \
+            agora-platform/dash/templates/admin_atrium.html \
+            clients/client_template/dash/dashboard.html ; do
+            if [ -f "$f" ]; then
+              echo "== validating $f =="
+              python scripts/_validate_dash_js.py "$f"
+            fi
+          done
+
+      - name: Compile all dash modules
+        run: python -m py_compile agora-platform/dash/*.py
+
+      - name: Atrium data-layer test (off-cloud, no GCS)
+        working-directory: agora-platform/dash
+        run: python _workspace_localtest.py
+
+      - name: Atrium route + template smoke test (stubs GCS)
+        working-directory: agora-platform/dash
+        run: python _atrium_smoketest.py

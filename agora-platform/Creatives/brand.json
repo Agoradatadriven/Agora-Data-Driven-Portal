@@ -1,0 +1,35 @@
+{
+  "name": "Agora Data Driven",
+  "identity": "Clean, analytical, performance-focused marketing identity.",
+  "voice": ["confident", "clear", "analytical", "helpful", "action-oriented"],
+  "positioning": "Performance marketing agency that turns data into action.",
+  "design_formula": "white space + bold black type + green CTA + subtle purple accent",
+  "colors": {
+    "data_green":    { "hex": "#4FAB4A", "role": "primary / CTA / positive" },
+    "green_dark":    { "hex": "#347A30", "role": "deeper green: text on light, hovers" },
+    "green_tint":    { "hex": "#EAF6E9", "role": "soft green wash: tints, chips" },
+    "accent_purple": { "hex": "#9484FB", "role": "subtle accent, dots, light tints" },
+    "purple_deep":   { "hex": "#5C4BD0", "role": "solid violet fills with white text, hovers" },
+    "purple_tint":   { "hex": "#F1EFFE", "role": "soft violet wash" },
+    "graphite_black":{ "hex": "#000000", "role": "graphite black" },
+    "ink":           { "hex": "#1A1B1E", "role": "near-black ink for bold type / the logo" },
+    "charcoal_text": { "hex": "#353535", "role": "body copy" },
+    "soft_grey":     { "hex": "#EEEEEE", "role": "hairlines / surfaces" },
+    "canvas":        { "hex": "#F6F7F9", "role": "app canvas (off-white)" }
+  },
+  "fonts": {
+    "display": { "name": "After Display Bold", "use": "headlines, section titles, case-study titles" },
+    "body":    { "name": "Lato Regular",       "use": "body copy, navigation, insights, reports" },
+    "fallback_stack": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+  },
+  "logo": {
+    "master": "logo.svg",
+    "variations": {
+      "horizontal": "logo-horizontal.svg",
+      "icon": "logo-icon.svg",
+      "reversed": "logo-reversed.svg"
+    },
+    "lockup": "monochrome graphite mark + AGORA wordmark + DATA DRIVEN subline; green/purple are UI accents, not part of the logo",
+    "clearspace": "keep at least the height of the mark clear on all sides"
+  }
+}

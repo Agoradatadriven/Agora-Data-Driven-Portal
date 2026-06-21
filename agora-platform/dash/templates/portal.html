@@ -4,11 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agora Data Driven &mdash; Portal</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
   <style>
-    /* Agora Data Driven brand palette (placeholder branding, themed via CSS vars). */
+    /* Agora Data Driven brand: light, clean -- white space + bold black type + green CTA + purple
+       accent (mirrors Creatives/brand.json). */
     :root {
-      --ag-bg:#0b1020; --ag-surface:#141b33; --ag-ink:#eaf0ff; --ag-muted:#9aa7c7;
-      --ag-accent:#5b8cff; --ag-accent-2:#27d3a2; --ag-danger:#ff5c7a; --ag-border:#26314f;
+      --ag-green:#4FAB4A; --ag-green-d:#347A30; --ag-green-bg:#EAF6E9;
+      --ag-purple:#9484FB; --ag-purple-d:#5C4BD0; --ag-purple-bg:#F1EFFE;
+      --ag-ink:#1A1B1E; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-canvas:#F6F7F9; --ag-white:#fff; --ag-danger:#E5413E;
+      --ag-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
     }
     * { box-sizing: border-box; }
     body {
@@ -16,98 +21,115 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       color: var(--ag-ink);
       background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,0.16), transparent 60%),
-        var(--ag-bg);
+        radial-gradient(900px 480px at 8% -12%, rgba(79,171,74,0.10), transparent 60%),
+        radial-gradient(820px 480px at 104% 6%, rgba(148,132,251,0.10), transparent 56%),
+        var(--ag-canvas);
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
     }
+    a { color: inherit; }
     header.topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      padding: 18px 28px;
-      border-bottom: 1px solid var(--ag-border);
-      background: rgba(20,27,51,0.6);
+      padding: 15px 28px;
+      border-bottom: 1px solid var(--ag-line);
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 20;
     }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .brand .dot {
-      width: 12px; height: 12px; border-radius: 50%;
-      background: var(--ag-accent);
-      box-shadow: 0 0 0 4px rgba(91,140,255,0.18);
-    }
-    .brand h1 { font-size: 16px; margin: 0; letter-spacing: 0.2px; }
-    .nav { display: flex; align-items: center; gap: 12px; }
+    .brand svg { display: block; height: 32px; width: auto; }
+    .nav { display: flex; align-items: center; gap: 10px; }
     .nav .who { color: var(--ag-muted); font-size: 13px; }
     .pill {
       display: inline-block;
-      padding: 7px 14px;
+      padding: 8px 14px;
       border-radius: 999px;
-      border: 1px solid var(--ag-border);
-      color: var(--ag-ink);
+      border: 1px solid var(--ag-line);
+      color: var(--ag-charcoal);
       text-decoration: none;
       font-size: 13px;
-      background: var(--ag-surface);
+      font-weight: 600;
+      background: var(--ag-white);
+      transition: border-color .12s, color .12s;
     }
-    .pill:hover { border-color: var(--ag-accent); }
-    .pill.logout { color: var(--ag-danger); border-color: rgba(255,92,122,0.4); }
+    .pill:hover { border-color: var(--ag-green); color: var(--ag-ink); }
+    .pill.logout { color: var(--ag-danger); border-color: var(--ag-line); }
+    .pill.logout:hover { border-color: rgba(229,65,62,0.4); }
 
-    main { max-width: 1100px; margin: 0 auto; padding: 28px; }
-    h2.section { font-size: 14px; color: var(--ag-muted); text-transform: uppercase;
-      letter-spacing: 0.8px; margin: 8px 0 16px; }
+    main { max-width: 1100px; margin: 0 auto; padding: 36px 28px 28px; }
+    .lede h2 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin: 0 0 4px; }
+    .lede p { color: var(--ag-muted); margin: 0 0 24px; font-size: 14px; }
+    h2.section { font-size: 12px; color: var(--ag-muted); text-transform: uppercase;
+      letter-spacing: 0.9px; font-weight: 700; margin: 30px 0 14px; }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
       gap: 16px;
     }
-    a.dashcard {
-      display: block;
-      text-decoration: none;
+    .dashcard {
+      display: flex; flex-direction: column;
       color: var(--ag-ink);
-      background: var(--ag-surface);
-      border: 1px solid var(--ag-border);
-      border-radius: 14px;
-      padding: 18px;
-      transition: border-color .12s ease, transform .12s ease;
+      background: var(--ag-white);
+      border: 1px solid var(--ag-line);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: var(--ag-shadow);
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
     }
-    a.dashcard:hover { border-color: var(--ag-accent); transform: translateY(-2px); }
-    .dashcard .name { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+    .dashcard:hover { transform: translateY(-2px); border-color: #d7dae3;
+      box-shadow: 0 2px 4px rgba(16,24,40,.05), 0 16px 36px rgba(16,24,40,.10); }
+    .dashcard .name { font-size: 16px; font-weight: 800; margin: 0 0 2px; letter-spacing: -.2px; }
     .dashcard .key { color: var(--ag-muted); font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
-    .dashcard .go { margin-top: 14px; color: var(--ag-accent); font-size: 13px; }
+    .dashcard .go-row { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+    .go {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
+      text-decoration: none; border: 1px solid transparent;
+    }
+    .go.workspace { background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.24); }
+    .go.workspace:hover { background: var(--ag-green-d); }
+    .go.dashboard { background: var(--ag-white); color: var(--ag-charcoal); border-color: var(--ag-line); }
+    .go.dashboard:hover { border-color: var(--ag-purple); color: var(--ag-purple-d); }
 
     .empty {
-      background: var(--ag-surface);
-      border: 1px dashed var(--ag-border);
-      border-radius: 14px;
-      padding: 28px;
+      background: var(--ag-white);
+      border: 1px dashed var(--ag-line);
+      border-radius: 16px;
+      padding: 32px;
       color: var(--ag-muted);
       text-align: center;
+      box-shadow: var(--ag-shadow);
     }
 
     /* Feedback widget */
     .feedback {
       margin-top: 36px;
-      background: var(--ag-surface);
-      border: 1px solid var(--ag-border);
-      border-radius: 14px;
-      padding: 20px;
+      background: var(--ag-white);
+      border: 1px solid var(--ag-line);
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: var(--ag-shadow);
     }
-    .feedback h3 { margin: 0 0 4px; font-size: 15px; }
-    .feedback p.hint { margin: 0 0 12px; color: var(--ag-muted); font-size: 13px; }
+    .feedback h3 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+    .feedback p.hint { margin: 0 0 14px; color: var(--ag-muted); font-size: 13px; }
     .feedback textarea {
       width: 100%;
-      min-height: 84px;
+      min-height: 88px;
       resize: vertical;
-      padding: 11px 12px;
-      background: var(--ag-bg);
+      padding: 12px 13px;
+      background: var(--ag-white);
       color: var(--ag-ink);
-      border: 1px solid var(--ag-border);
-      border-radius: 10px;
+      border: 1px solid var(--ag-line);
+      border-radius: 11px;
       font-size: 14px;
       font-family: inherit;
       outline: none;
+      transition: border-color .12s, box-shadow .12s;
     }
-    .feedback textarea:focus { border-color: var(--ag-accent); }
+    .feedback textarea:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,171,74,.14); }
     .feedback .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
     .btn {
       padding: 10px 16px;
@@ -117,45 +139,52 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .btn.send { background: var(--ag-accent); color: #06122e; }
+    .btn.send { background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.24); }
+    .btn.send:hover { background: var(--ag-green-d); }
     .btn.voice {
-      background: var(--ag-bg);
-      color: var(--ag-ink);
-      border: 1px solid var(--ag-border);
+      background: var(--ag-white);
+      color: var(--ag-charcoal);
+      border: 1px solid var(--ag-line);
     }
+    .btn.voice:hover { border-color: var(--ag-purple); color: var(--ag-purple-d); }
     .btn.voice.recording { border-color: var(--ag-danger); color: var(--ag-danger); }
-    .btn:hover { filter: brightness(1.05); }
     .feedback .status { color: var(--ag-muted); font-size: 12px; margin-left: auto; }
-    footer { color: var(--ag-muted); font-size: 12px; text-align: center; padding: 24px; }
+    footer { color: var(--ag-muted); font-size: 12px; text-align: center; padding: 28px; }
   </style>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="dot"></span>
-      <h1>Agora Data Driven</h1>
-    </div>
+    <div class="brand">{{ agora_logo|safe }}</div>
     <nav class="nav">
       {% if user %}<span class="who">{{ user }}</span>{% endif %}
-      {% if is_admin %}<a class="pill" href="/admin">Admin</a>{% endif %}
+      {% if is_superadmin %}<a class="pill" href="/admin/atrium">Workspaces</a>{% endif %}
+      {% if is_superadmin %}<a class="pill" href="/admin">Add client</a>{% endif %}
       {% if is_superadmin %}<a class="pill" href="/superadmin">Super admin</a>{% endif %}
       <a class="pill logout" href="/logout">Log out</a>
     </nav>
   </header>
 
   <main>
+    <div class="lede">
+      <h2>Welcome back.</h2>
+      <p>Your dashboards and co-branded workspaces, all behind one login.</p>
+    </div>
+
     <h2 class="section">Your dashboards</h2>
 
     {% if clients and clients|length > 0 %}
       <div class="grid">
         {% for c in clients %}
-          <!-- Each card links to the portal's reverse-proxy path for that dashboard. The portal
-               proxies <c>.agoradatadriven.com behind the single portal login. -->
-          <a class="dashcard" href="/d/{{ c.key }}/">
+          <!-- Each card offers the reverse-proxy dashboard (/d/<c>/) and the Atrium client
+               workspace (/w/<c>/), both behind the single portal login. -->
+          <div class="dashcard">
             <p class="name">{{ c.name|default(c.key, true) }}</p>
             <p class="key">{{ c.key }}</p>
-            <div class="go">Open dashboard &rarr;</div>
-          </a>
+            <div class="go-row">
+              <a class="go workspace" href="/w/{{ c.key }}/">Open workspace &rarr;</a>
+              <a class="go dashboard" href="/d/{{ c.key }}/">Open dashboard</a>
+            </div>
+          </div>
         {% endfor %}
       </div>
     {% else %}

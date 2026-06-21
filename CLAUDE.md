@@ -16,6 +16,8 @@ on Google Cloud Platform, fronted by a client portal that is growing into a full
 - **The portal/CRM front-door** (`agora-platform/`, served at `portal.agoradatadriven.com`) is a
   reverse proxy + single login over all dashboards, with a registry stored as one private JSON in
   GCS. It is designed to grow into a CRM (see the `# CRM:` markers in `agora-platform/dash/main.py`).
+  **Agora Atrium** — the co-branded client workspace — is built into this same `platform-dash`
+  service (see the Agora Atrium section below).
 - **Windsor.ai is the only data source.** Connector loaders in `ingest/windsor_data_pull/` land
   source data into the shared `raw_windsor` BigQuery dataset; per-client SQL views read from there.
 
@@ -47,7 +49,11 @@ data object `<c>.json` + freshness sidecar `_freshness.json` in the client's buc
   `dash/`, deploy scripts, README).
 - `ingest/windsor_data_pull/` — Windsor connector loaders (`ga4`, `google_ads`, `meta`, `tradedesk`,
   `reddit`, `hubspot`, `fields`) that write `raw_windsor.*`. Scheduled API pulls, not self-gating.
-- `agora-platform/` — the portal/CRM front-door (`platform-dash`).
+- `agora-platform/` — the portal/CRM front-door (`platform-dash`). Also hosts **Agora Atrium**
+  (`dash/workspace.py`, `seed_workspace.py`, `notify.py`, `atrium_view.py`, `atrium_docs.py`,
+  `templates/atrium.html` + `admin_atrium.html`). The brand kit lives in `Creatives/` (logo set, `brand.json`/`brand.md`);
+  `dash/brand.py` is the bundled runtime copy of the AGORA mark + official palette (the container
+  can't read `Creatives/`), used by the portal/login chrome and as `seed_workspace.py`'s fallback.
 - `status_dashboard/` — meta dashboard monitoring every client's freshness (no dataset/views).
 - `scripts/` — operator tooling: `setup.ps1` (one-time laptop setup), `start_day.ps1` (per-session
   preflight), `deploy_ingest_jobs.ps1` (the one script that touches production ingest),
@@ -60,6 +66,79 @@ Grep for the metric or label you want to change and edit in place. Theme colors 
 properties in `:root` (the `--ag-*` palette). Inline JS must stay **esprima-4.x-safe**: no optional
 chaining `?.` and no nullish coalescing `??` (the pre-deploy gate `scripts/_validate_dash_js.py`
 parses it with esprima, which predates those tokens). Use classic `&&`/`||` guards.
+
+## Agora Atrium (client workspace in the portal)
+
+Atrium is the co-branded client workspace built **into** `platform-dash` — **additive**, reusing the
+existing session auth, bucket, and runtime SA. **No new infra/IAM/bucket/secret/service** — with ONE
+opt-in exception, the Google-Doc → AI summary feature (see the strategy-doc bullet below), which stays
+dormant and infra-free unless an operator deliberately enables it. Product name is one constant:
+`WORKSPACE_NAME` in `agora-platform/dash/main.py`.
+
+- **State = one private JSON per client (no database):** `workspace/<c>.json` in the **registry
+  bucket** `agora-data-driven-platform-dash`. `dash/workspace.py` is the only reader/writer
+  (last-write-wins, mirrors `store.py`); it imports `google-cloud-storage` lazily and supports a
+  local-fs backend via `WORKSPACE_LOCAL_DIR` (+ `WORKSPACE_BUCKET`/`WORKSPACE_PREFIX`) so it is
+  testable off-cloud. Shape: `metrics`, `today`, `split`, `series`, `activity`, `campaigns[]`
+  (`strategy`/`ai_summary`/`strategy_doc` + `content[]` with status `awaiting|approved|changes`,
+  `client_note`, threaded `comments[]`, and optional uploaded-creative `image_object`/`image_mime`),
+  `calendar[]`, `conversations[]` (`client`/`agora` messages), per-user `notify` prefs.
+- **Uploaded creatives = separate private objects (NOT inline in the JSON):** an admin-uploaded
+  creative (image OR video) is stored as its own object `workspace/creatives/<c>/<content_id>` in the
+  **same registry bucket** (keeps the rewrite-in-full workspace JSON small) and is served ONLY through
+  the authed proxy `GET /w/<c>/creative/<content_id>` (mirrors the `/data.json` posture — never made
+  public). The serve route honors HTTP **Range** (a `Range` request → `206` windowed stream, 8 MiB
+  cap, for video seeking; no range → `200` **chunked** full stream with NO `Content-Length`, since
+  Cloud Run caps fixed-length responses at ~32 MiB but streams chunked ones unbounded). `workspace.py`
+  streams via `blob.open("rb")` (one seekable download), never loading the whole object into memory.
+- **Large creatives bypass the ~32 MiB request cap via a SIGNED URL (opt-in infra):** small files
+  still POST through the app (`/w/<c>/admin/upload-creative`); files >30 MiB upload **directly to GCS**.
+  The browser asks `POST /w/<c>/admin/creative-upload-url` for a V4 signed PUT URL
+  (`workspace.signed_upload_url`, **keyless** — signs via the IAM signBlob API using a cloud-platform-
+  scoped runtime-SA token; storage-scoped tokens fail with `ACCESS_TOKEN_SCOPE_INSUFFICIENT`), `PUT`s
+  the file straight to the bucket, then `POST /w/<c>/admin/creative-confirm` records it. ⚠️ Needs
+  one-time infra (run `agora-platform/dash/enable_atrium_uploads.ps1`, idempotent): the
+  `iamcredentials` API on, the runtime SA granted `roles/iam.serviceAccountTokenCreator` **on itself**,
+  and CORS on the registry bucket. If signing is unavailable the route returns `ok:false` and the UI
+  falls back to the in-app POST path (so a default deploy still serves ≤30 MiB uploads with no infra).
+- **In-workspace admin editing = the team edits the REAL `/w/<c>/` in place.** When `is_superadmin()`
+  opens a workspace, the SAME client UI renders extra edit affordances (`{% if is_superadmin %}` +
+  `data-admin="1"`), posting JSON to `/w/<c>/admin/*`: `strategy`, `strategy-doc`, `generate-summary`,
+  `summary`, `campaign`, `delete-campaign`, `content`, `edit-content`, `delete-content`,
+  `content-comment`, `upload-creative`, `creative-upload-url`, `creative-confirm`, `remove-creative`,
+  `metrics`, `calendar`, `reply`. The older
+  dark `/admin/atrium/...` console stays as a fallback. **Clients** can now re-decide a creative's
+  status anytime (`/approve` ⇄ `/request-changes`) and post threaded `/w/<c>/comment`s.
+- **Routes (all behind existing session auth):** client `GET /w/<c>/` + `/w/<c>/<tab>` (overview,
+  dashboard, leadgen, organic, calendar, conversations, settings) gated `authed()`+`can_open(<c>)`;
+  client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify}` +
+  creative GET above; admin POSTs `/w/<c>/admin/*` gated `is_superadmin()`. Team console
+  `/admin/atrium[/<c>][/campaign|content|conversation|reply|metrics]` gated `is_superadmin()`. The
+  portal landing shows **Open workspace** beside **Open dashboard**.
+- **Strategy doc → AI summary (optional, opt-in):** an admin attaches a Google Doc to a campaign and
+  clicks "Generate from doc". `dash/atrium_docs.py` reads it via the **Google Drive API** (lazy
+  `googleapiclient`, runtime-SA ADC, `drive.readonly`; gated `ATRIUM_DOCS_ENABLED=1`; the doc must be
+  shared with the runtime SA) and `feedback_ai.summarize_strategy` (Claude `claude-opus-4-8`, the
+  existing `FEEDBACK_AI_ENABLED`+`ANTHROPIC_API_KEY` gate) writes the summary; it stays hand-editable.
+  Every step degrades gracefully (no AI → doc excerpt; no doc → empty, the admin types it). ⚠️ This is
+  a **deliberate, opt-in deviation** from the "no new infra" rule below: enabling it needs the
+  Docs/Drive API on + `google-api-python-client` added to `requirements.txt` + the doc shared with the
+  runtime SA. **A default deploy stays infra-free** (`googleapiclient` is never imported unless enabled).
+- **Notifications are optional & graceful** (`dash/notify.py`, mirrors `feedback_ai.py`): default
+  records an activity entry + logs to stdout; real email only when **both** `ATRIUM_EMAIL_ENABLED=1`
+  and `ATRIUM_EMAIL_API_KEY` (Secret-Manager) are set, SDK imported lazily. **No provider key
+  committed.** Team inbox `ATRIUM_TEAM_EMAIL` (default `info@agoradatadriven.com`).
+- **Theme/JS:** the official brand **light** theme — Data Green `#4FAB4A` + Accent Purple `#9484FB`
+  (deep companion `#5C4BD0` for white-text fills), on a white canvas with bold black type. The whole
+  front-door (login, portal, team console) shares it; Atrium scopes every selector under `.atrium` so
+  it stays self-contained. The logo is `ws.brand.agora_logo` (seeded) in Atrium and `dash/brand.py`
+  elsewhere. Inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script block).
+- **Ships via the SAME deploy as the portal:** `agora-platform/dash/deploy_dash_platform.ps1` (build
+  as yourself → `gcloud run deploy platform-dash --no-invoker-iam-check`). Validate templates with
+  `scripts/_validate_dash_js.py` first. Seed the demo once:
+  `.\.venv\Scripts\python.exe agora-platform\dash\seed_workspace.py` (idempotent; writes
+  `workspace/riverdance.json`, refuses to clobber). Local tests: `dash/_workspace_localtest.py`
+  (data) and `dash/_atrium_smoketest.py` (full route+template, stubs GCS).
 
 ## The data contract (three stages, matched BY NAME)
 

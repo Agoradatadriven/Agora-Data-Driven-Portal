@@ -70,6 +70,34 @@ def summarize_text(message):
         return None
 
 
+def summarize_strategy(doc_text):
+    """Write a short, client-facing strategy summary from a strategy doc's text. Returns it, or None.
+
+    Used by Agora Atrium's "Generate AI summary from doc" action (atrium_docs.generate_summary).
+    No-op (returns None) unless enrichment is enabled, configured, and the SDK is installed -- the
+    caller then falls back to a plain excerpt of the doc.
+    """
+    client = _client()
+    if client is None or not (doc_text or "").strip():
+        return None
+    try:
+        response = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=400,
+            system=(
+                "You write the AGORA marketing team's client-facing campaign summaries. Given an "
+                "internal strategy document, write 2-3 warm, plain-English sentences a client would "
+                "read in their workspace: what we're doing and why it helps them. No jargon, no "
+                "headings, no preamble -- just the summary text."
+            ),
+            messages=[{"role": "user", "content": doc_text[:12000]}],
+        )
+        parts = [block.text for block in response.content if getattr(block, "type", "") == "text"]
+        return "".join(parts).strip() or None
+    except Exception:
+        return None
+
+
 def transcribe_voice(audio_bytes, content_type="audio/webm"):
     """Transcribe a voice feedback note to text. Returns the transcript string, or None.
 

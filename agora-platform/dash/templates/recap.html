@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Title is refined client-side once the recap #fragment is decoded. -->
+  <title>Marketing recap &mdash; {{ workspace_name }}</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
+  <style>
+    :root {
+      --green:#4FAB4A; --green-d:#347A30; --green-bg:#EAF6E9;
+      --violet:#9484FB; --violet-d:#5C4BD0; --violet-bg:#F1EFFE;
+      --ink:#1A1B1E; --sub:#5E6573; --line:#E7E8EE; --canvas:#F6F7F9; --white:#fff;
+      --radius:16px;
+      --shadow:0 1px 2px rgba(16,24,40,.04), 0 12px 32px rgba(16,24,40,.08);
+      --grad-green: linear-gradient(135deg, #57B852 0%, #347A30 100%);
+      --grad-brand: linear-gradient(120deg, #4FAB4A 0%, #4FAB4A 42%, #7E6CF6 100%);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; min-height: 100vh;
+      background:
+        radial-gradient(820px 460px at 6% -8%, rgba(79,171,74,0.08), transparent 60%),
+        radial-gradient(760px 520px at 100% -2%, rgba(148,132,251,0.09), transparent 58%),
+        var(--canvas);
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 34px 22px 60px; }
+    .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+    .topbar svg { display: block; height: 28px; width: auto; }
+    .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: #fff;
+      background: var(--grad-brand); padding: 3px 11px; border-radius: 999px; box-shadow: 0 4px 12px rgba(92,75,208,.26); }
+    .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .hero { padding: 28px 30px; margin-bottom: 18px; background: linear-gradient(180deg, var(--green-bg), var(--white) 70%); border: 1px solid #cdeccf; }
+    .hero .r-eyebrow { font-size: 12px; font-weight: 800; color: var(--green-d); text-transform: uppercase; letter-spacing: 1px; }
+    .hero h1 { margin: 6px 0 2px; font-size: 30px; font-weight: 900; letter-spacing: -.6px; }
+    .hero .month { color: var(--sub); font-size: 15px; font-weight: 600; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 620px) { .metrics { grid-template-columns: 1fr; } }
+    .r-metric { padding: 18px 18px 16px; }
+    .r-metric-label { font-size: 12.5px; font-weight: 700; color: var(--sub); }
+    .r-metric-val { font-size: 32px; font-weight: 900; letter-spacing: -1px; margin: 8px 0 2px; }
+    .r-metric-trend { font-size: 13px; font-weight: 700; color: var(--sub); }
+    .r-metric-trend.up { color: var(--green-d); }
+    .wins { padding: 22px 24px; margin-bottom: 18px; }
+    .wins h2 { font-size: 16px; font-weight: 800; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+    .wins h2 .badge { font-size: 11px; font-weight: 800; color: var(--green-d); background: var(--green-bg); padding: 2px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .6px; }
+    .r-win { display: flex; gap: 12px; padding: 12px 2px; border-top: 1px solid var(--line); }
+    .r-win:first-of-type { border-top: 0; }
+    .r-win-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto;
+      background: var(--green-bg); color: var(--green-d); font-weight: 900; }
+    .r-win-t { font-size: 14.5px; font-weight: 700; }
+    .r-win-d { font-size: 13px; color: var(--sub); }
+    .foot { text-align: center; color: var(--sub); font-size: 13px; margin-top: 24px; }
+    .foot strong { color: var(--ink); }
+    .pdf-note { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--violet-d);
+      background: var(--violet-bg); border: 1px solid #E1DBFB; padding: 4px 12px; border-radius: 999px; }
+    .empty { display: none; text-align: center; padding: 60px 24px; color: var(--sub); }
+    .empty h1 { font-size: 20px; color: var(--ink); margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">{{ agora_logo|safe }}<span class="eyebrow">{{ workspace_name }}</span></div>
+
+    <!-- Rendered client-side from the URL #fragment (the link IS the data; nothing is fetched). -->
+    <div id="recap">
+      <div class="card hero">
+        <div class="r-eyebrow">Marketing recap</div>
+        <h1 id="r-client">Your business</h1>
+        <div class="month" id="r-month"></div>
+      </div>
+
+      <div class="metrics" id="r-headline"></div>
+
+      <div class="card wins" id="r-wins-wrap">
+        <h2>Wins for the month <span class="badge">Highlights</span></h2>
+        <div id="r-wins"></div>
+      </div>
+
+      <div class="foot">
+        Shared with you by <strong id="r-foot-client">a client</strong> &middot; prepared by {{ workspace_name }}.
+        <div class="pdf-note">A downloadable PDF version is coming soon.</div>
+      </div>
+    </div>
+
+    <div class="empty" id="empty">
+      <h1>This recap link looks incomplete.</h1>
+      <p>Ask whoever shared it to send the full link again &mdash; the summary travels inside the link itself.</p>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    function decodeRecap() {
+      var h = (window.location.hash || "").replace(/^#/, "");
+      if (!h) { return null; }
+      var b64 = h.replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4 !== 0) { b64 += "="; }
+      try {
+        return JSON.parse(decodeURIComponent(escape(atob(b64))));
+      } catch (e) {
+        return null;
+      }
+    }
+
+    var data = decodeRecap();
+    var recapEl = document.getElementById("recap");
+    var emptyEl = document.getElementById("empty");
+    if (!data) {
+      if (recapEl) { recapEl.style.display = "none"; }
+      if (emptyEl) { emptyEl.style.display = "block"; }
+      return;
+    }
+
+    function setText(id, text) {
+      var el = document.getElementById(id);
+      if (el) { el.textContent = text || ""; }
+    }
+    var client = data.client || "Your business";
+    setText("r-client", client);
+    setText("r-foot-client", client);
+    setText("r-month", data.month || "");
+    document.title = client + " — Marketing recap";
+
+    var headline = data.headline || [];
+    var hl = document.getElementById("r-headline");
+    for (var i = 0; i < headline.length; i++) {
+      var m = headline[i];
+      var card = document.createElement("div"); card.className = "card r-metric";
+      var lab = document.createElement("div"); lab.className = "r-metric-label"; lab.textContent = m.label || "";
+      var val = document.createElement("div"); val.className = "r-metric-val"; val.textContent = m.value || "";
+      card.appendChild(lab); card.appendChild(val);
+      if (m.trend) {
+        var tr = document.createElement("div");
+        tr.className = "r-metric-trend" + (m.up ? " up" : "");
+        tr.textContent = (m.up ? "↑ " : "") + m.trend;
+        card.appendChild(tr);
+      }
+      if (hl) { hl.appendChild(card); }
+    }
+
+    var wins = data.wins || [];
+    if (wins.length === 0) {
+      var wrap = document.getElementById("r-wins-wrap");
+      if (wrap) { wrap.style.display = "none"; }
+    }
+    var wl = document.getElementById("r-wins");
+    for (var j = 0; j < wins.length; j++) {
+      var w = wins[j];
+      var row = document.createElement("div"); row.className = "r-win";
+      var ic = document.createElement("span"); ic.className = "r-win-ic"; ic.textContent = "✓";
+      var main = document.createElement("div");
+      var t = document.createElement("div"); t.className = "r-win-t"; t.textContent = w.title || "";
+      main.appendChild(t);
+      if (w.detail) {
+        var dd = document.createElement("div"); dd.className = "r-win-d"; dd.textContent = w.detail;
+        main.appendChild(dd);
+      }
+      row.appendChild(ic); row.appendChild(main);
+      if (wl) { wl.appendChild(row); }
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -4,6 +4,9 @@
 # the web requirements -- the two storage client versions would otherwise fight.
 # `anthropic` is intentionally NOT pinned here: feedback_ai is OPTIONAL and imports it lazily, so
 # the portal deploys and runs with no AI wired. Add anthropic only if you enable enrichment.
+# `google-api-python-client` is likewise intentionally NOT pinned: atrium_docs (the Google-Doc ->
+# AI strategy summary) imports it lazily and only when ATRIUM_DOCS_ENABLED=1. Add it (and enable the
+# Docs/Drive API + share the doc with the runtime SA) only if you turn that feature on.
 Flask==3.0.3
 gunicorn==23.0.0
 google-cloud-storage==2.18.2

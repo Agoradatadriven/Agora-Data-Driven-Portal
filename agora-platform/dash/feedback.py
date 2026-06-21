@@ -17,14 +17,24 @@ import json
 import os
 import uuid
 
-from google.cloud import storage
-
 # Same private bucket as the registry (deploy_dash_platform.ps1 sets REGISTRY_BUCKET); feedback
 # lands under the feedback/ prefix so it inherits the bucket's private ACL.
 FEEDBACK_BUCKET = os.environ.get("REGISTRY_BUCKET", "agora-data-driven-platform-dash")
 FEEDBACK_PREFIX = "feedback"
 
-_storage_client = storage.Client()
+# google-cloud-storage is imported LAZILY and the client built on first use, so importing this
+# module (and the whole app) never needs the package or ADC -- the portal can boot locally with no
+# GCP access. Feedback submission is the only path that actually touches GCS.
+_storage_client = None
+
+
+def _client():
+    """Lazily construct and cache the GCS client (so module import never needs ADC)."""
+    global _storage_client
+    if _storage_client is None:
+        from google.cloud import storage  # lazy: only feedback submission needs the package
+        _storage_client = storage.Client()
+    return _storage_client
 
 
 def _now_iso():
@@ -38,7 +48,7 @@ def _stamp():
 
 
 def _bucket():
-    return _storage_client.bucket(FEEDBACK_BUCKET)
+    return _client().bucket(FEEDBACK_BUCKET)
 
 
 def save_text_feedback(message, subject="", extra=None):

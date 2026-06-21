@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Riverdance RV Resort">
+  <rect x="16" y="16" width="224" height="224" rx="54" fill="#F1FBF1" stroke="#4FAB4A" stroke-width="9"/>
+  <g fill="none" stroke="#2E7D32" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M150 174 L188 118 L222 170"/>
+    <path d="M44 180 L96 106 L132 150 L160 120 L198 180"/>
+  </g>
+  <line x1="46" y1="188" x2="210" y2="188" stroke="#9FC79B" stroke-width="7" stroke-linecap="round"/>
+  <g stroke="#E5413E" stroke-width="12" stroke-linecap="round">
+    <line x1="200" y1="50" x2="200" y2="96"/>
+    <line x1="180" y1="61" x2="220" y2="85"/>
+    <line x1="220" y1="61" x2="180" y2="85"/>
+  </g>
+</svg>

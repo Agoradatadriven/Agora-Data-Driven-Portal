@@ -1,0 +1,1979 @@
+{#
+  Agora Atrium -- the co-branded client workspace, served inside the portal (platform-dash).
+
+  Self-contained: no CDN, no external fonts/images. All data is rendered with Jinja in HTML; every
+  inline script block is pure ES5/ES2015 (no optional-chaining / nullish operators -- esprima-4.x
+  safe) and reads state from the DOM, never from Jinja, so the pre-deploy JS gate stays green. The
+  whole surface is scoped under `.atrium` (green/violet light theme) so it cannot bleed into the
+  dark portal/dashboards.
+
+  Context: workspace_name, view (atrium_view.build), ws (raw workspace dict), user, user_notify,
+  is_superadmin. Date strings are formatted with the `atrium_dt` Jinja filter (main.py).
+#}
+{% macro ic(name) -%}
+{%- if name == 'overview' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+{%- elif name == 'dashboard' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M3 20h18"/></svg>
+{%- elif name == 'leadgen' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+{%- elif name == 'organic' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20C6 20 4 16 4 11c5 0 9 1 11 5"/><path d="M20 4c0 8-4 12-9 13"/></svg>
+{%- elif name == 'calendar' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+{%- elif name == 'conversations' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+{%- elif name == 'bell' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+{%- elif name == 'users' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.5M21 19a5 5 0 0 0-4-4.9"/></svg>
+{%- elif name == 'dollar' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M16.5 6.5C16 5 14.5 4 12 4 9 4 7.5 5.5 7.5 7.5 7.5 12 16.5 10 16.5 15c0 2.2-2 3.5-4.5 3.5-2.8 0-4.2-1.2-5-3"/></svg>
+{%- elif name == 'home' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>
+{%- elif name == 'tag' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l9 9-7 7z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>
+{%- elif name == 'trending' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>
+{%- elif name == 'check' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+{%- elif name == 'message' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a7.5 7.5 0 0 1-10.8 6.7L4 19l1-5A7.5 7.5 0 1 1 21 11.5z"/></svg>
+{%- elif name == 'sparkle' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15l-1.8-4.2L5.5 9l4.7-1.3z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+{%- elif name == 'arrow' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+{%- elif name == 'logout' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5M5 12h12"/></svg>
+{%- elif name == 'mail' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>
+{%- elif name == 'doc' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8L19 7v14.5H6z"/><path d="M14 2.5V7h4"/><path d="M9 13h6M9 17h5"/></svg>
+{%- elif name == 'trophy' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v4a6 6 0 0 1-12 0z"/><path d="M6 5H4a2 2 0 0 0 2 4.5"/><path d="M18 5h2a2 2 0 0 1-2 4.5"/><path d="M12 14v3M9 20h6M10 20c0-1.7.8-3 2-3s2 1.3 2 3"/></svg>
+{%- elif name == 'eye' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+{%- elif name == 'image' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.7"/><path d="M21 16l-5-5L5 20"/></svg>
+{%- elif name == 'target' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6"/></svg>
+{%- elif name == 'menu' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="6" x2="20.5" y2="6"/><line x1="3.5" y1="12" x2="20.5" y2="12"/><line x1="3.5" y1="18" x2="20.5" y2="18"/></svg>
+{%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
+{%- endif -%}
+{%- endmacro %}
+{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','settings':'Notification settings'} %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ ws.display_name }} &mdash; {{ workspace_name }}</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
+  <style>
+    .atrium {
+      --ax-green:#4FAB4A; --ax-green-d:#347A30; --ax-green-bg:#EAF6E9;
+      --ax-violet:#9484FB; --ax-violet-d:#5C4BD0; --ax-violet-bg:#F1EFFE;
+      --ax-ink:#1A1B1E; --ax-sub:#5E6573; --ax-line:#E7E8EE; --ax-canvas:#F6F7F9; --ax-white:#fff;
+      --ax-ok:#4FAB4A; --ax-warn:#F2820C; --ax-bad:#E5413E;
+      --ax-radius:14px; --ax-pill:999px;
+      --ax-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+      /* Premium accents: brand gradients + a deeper lift shadow for hover/feature surfaces. */
+      --ax-grad-green: linear-gradient(135deg, #57B852 0%, #347A30 100%);
+      --ax-grad-violet: linear-gradient(135deg, #9484FB 0%, #5C4BD0 100%);
+      --ax-grad-brand: linear-gradient(120deg, #4FAB4A 0%, #4FAB4A 42%, #7E6CF6 100%);
+      --ax-shadow-lg: 0 2px 6px rgba(16,24,40,.05), 0 18px 42px rgba(16,24,40,.12);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    .atrium {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ax-ink); min-height: 100vh; line-height: 1.5;
+      background:
+        radial-gradient(820px 460px at 6% -8%, rgba(79,171,74,0.07), transparent 60%),
+        radial-gradient(760px 520px at 100% -2%, rgba(148,132,251,0.08), transparent 58%),
+        var(--ax-canvas);
+      background-attachment: fixed;
+      -webkit-font-smoothing: antialiased;
+    }
+    .atrium a { color: inherit; text-decoration: none; }
+    .ax-ic { width: 20px; height: 20px; display: block; }
+
+    /* App shell */
+    .ax-app { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; }
+    .ax-side {
+      background: linear-gradient(180deg, #FFFFFF 0%, #FCFCFE 100%);
+      border-right: 1px solid var(--ax-line);
+      display: flex; flex-direction: column; gap: 14px; padding: 22px 16px; position: sticky; top: 0;
+      height: 100vh;
+    }
+    .ax-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; padding: 2px 6px 16px; position: relative; }
+    .ax-brand::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 0; height: 1px; background: linear-gradient(90deg, var(--ax-line), transparent); }
+    .ax-brand .ax-co { display: flex; align-items: center; gap: 9px; }
+    .ax-brand .ax-co svg, .ax-brand .ax-co img { display: block; height: 26px; width: auto; max-width: 150px; }
+    .ax-badge {
+      font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
+      color: #fff; background: var(--ax-grad-brand); padding: 3px 11px; border-radius: var(--ax-pill);
+      box-shadow: 0 4px 12px rgba(92,75,208,.28);
+    }
+    /* Featured client logo (sidebar crest): drop the white PNG box into the card via multiply blend. */
+    .ax-clientlogo { display: block; }
+    .ax-clientlogo svg, .ax-clientlogo img { display: block; width: 100%; height: auto; mix-blend-mode: multiply; }
+    .ax-nav { display: flex; flex-direction: column; gap: 3px; }
+    .ax-nav a {
+      display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px;
+      color: var(--ax-sub); font-size: 14px; font-weight: 600; transition: background .12s, color .12s;
+    }
+    .ax-nav a:hover { background: var(--ax-canvas); color: var(--ax-ink); }
+    .ax-nav a.is-active { background: var(--ax-grad-green); color: #fff; box-shadow: 0 8px 20px rgba(79,171,74,.36); }
+    .ax-nav a.is-active .ax-ic { color: #fff; }
+    .ax-nav .ax-count {
+      margin-left: auto; font-size: 11px; font-weight: 800; min-width: 20px; text-align: center;
+      background: var(--ax-warn); color: #fff; border-radius: var(--ax-pill); padding: 1px 6px;
+    }
+    .ax-nav a.is-active .ax-count { background: rgba(255,255,255,.28); }
+    /* Client crest: features the client's own logo, blended onto a soft branded card. */
+    .ax-side-card {
+      margin-top: auto; background: linear-gradient(165deg, #FFFFFF 0%, var(--ax-canvas) 100%);
+      border: 1px solid var(--ax-line); border-radius: var(--ax-radius);
+      padding: 16px 14px 14px; display: flex; flex-direction: column; align-items: center;
+      gap: 11px; text-align: center; box-shadow: var(--ax-shadow);
+    }
+    .ax-side-card .ax-clientlogo { width: 132px; max-width: 100%; }
+    .ax-side-card .ax-crest-text { display: flex; flex-direction: column; gap: 2px; }
+    .ax-side-card .ax-name { font-size: 13.5px; font-weight: 800; letter-spacing: -.2px; }
+    .ax-side-card .ax-sub {
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--ax-violet-d);
+    }
+
+    /* Main column */
+    .ax-main { display: flex; flex-direction: column; min-width: 0; }
+    .ax-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 16px 28px; border-bottom: 1px solid var(--ax-line); background: rgba(255,255,255,.72);
+      position: sticky; top: 0; z-index: 20; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    /* Hairline brand gradient under the header for a premium finish. */
+    .ax-top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--ax-grad-brand); opacity: .85; }
+    .ax-top h1 { font-size: 18px; margin: 0; font-weight: 800; letter-spacing: -.2px; }
+    .ax-top-right { display: flex; align-items: center; gap: 12px; }
+    .ax-clock { font-size: 13px; color: var(--ax-sub); font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }
+    .ax-iconbtn {
+      width: 38px; height: 38px; display: grid; place-items: center; border-radius: var(--ax-pill);
+      border: 1px solid var(--ax-line); background: var(--ax-white); color: var(--ax-sub); cursor: pointer; position: relative;
+    }
+    .ax-iconbtn:hover { color: var(--ax-ink); border-color: #d6d8e0; }
+    .ax-iconbtn .ax-bdot { position: absolute; top: 8px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--ax-warn); border: 2px solid var(--ax-white); }
+    .ax-avatar {
+      width: 38px; height: 38px; border-radius: var(--ax-pill); display: grid; place-items: center;
+      background: var(--ax-violet-d); color: #fff; font-size: 13px; font-weight: 800; cursor: pointer;
+    }
+    .ax-signout {
+      display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: var(--ax-pill);
+      border: 1px solid var(--ax-line); background: var(--ax-white); color: var(--ax-sub); font-size: 13px; font-weight: 600;
+    }
+    .ax-signout:hover { color: var(--ax-bad); border-color: rgba(229,65,62,.35); }
+    /* Super-admin only: jump back to the workspaces console (all clients). Violet = admin accent. */
+    .ax-backadmin { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: var(--ax-pill);
+      border: 1px solid var(--ax-line); background: var(--ax-white); color: var(--ax-violet-d); font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .ax-backadmin .ax-ic { width: 16px; height: 16px; }
+    .ax-backadmin:hover { border-color: var(--ax-violet); background: var(--ax-violet-bg); }
+    /* Share recap: a premium brand-green pill; flips to violet "copied" on success. */
+    .ax-share { display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: var(--ax-pill);
+      border: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: #fff;
+      background: var(--ax-grad-green); box-shadow: 0 6px 16px rgba(79,171,74,.30);
+      transition: filter .12s, transform .12s, background .12s; white-space: nowrap; }
+    .ax-share:hover { filter: brightness(1.04); transform: translateY(-1px); }
+    .ax-share .ax-share-arrow { font-weight: 800; }
+    .ax-share.copied { background: var(--ax-violet-d); box-shadow: 0 6px 16px rgba(92,75,208,.30); }
+
+    .ax-body { padding: 26px 28px 60px; max-width: 1120px; width: 100%; }
+    .ax-pane { display: none; }
+    .ax-pane.is-active { display: block; animation: axfade .18s ease; }
+    @keyframes axfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* Typography helpers */
+    .ax-greet { font-size: 24px; font-weight: 800; letter-spacing: -.4px; margin: 0 0 4px; }
+    .ax-lede { color: var(--ax-sub); margin: 0 0 22px; }
+    .ax-h2 { font-size: 16px; font-weight: 800; margin: 0 0 14px; }
+    .ax-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--ax-sub); }
+
+    /* Cards / panels */
+    .ax-card { background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: var(--ax-radius); box-shadow: var(--ax-shadow); transition: box-shadow .18s ease, transform .18s ease; }
+    .ax-card:hover { box-shadow: var(--ax-shadow-lg); transform: translateY(-2px); }
+    .ax-panel { background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: var(--ax-radius); box-shadow: var(--ax-shadow); padding: 18px; }
+
+    /* KPI rows */
+    .ax-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
+    /* Overview hero (ROAS) + stat row + wins */
+    .ax-hero { padding: 20px 22px; margin-bottom: 14px; border: 1px solid #cdeccf; background: linear-gradient(180deg, var(--ax-green-bg), var(--ax-white) 62%); }
+    .ax-hero-top { display: flex; align-items: center; gap: 8px; color: var(--ax-green-d); font-size: 13px; font-weight: 800; }
+    .ax-hero-top .ax-ic { width: 18px; height: 18px; }
+    .ax-hero-val { font-size: 44px; font-weight: 900; letter-spacing: -1.2px; margin: 8px 0 2px; }
+    .ax-hero-cap { color: var(--ax-sub); font-size: 13.5px; }
+    /* Data freshness: a small, muted trust strip under the hero (placeholder time for now). */
+    .ax-fresh { display: flex; align-items: center; gap: 8px; margin: -4px 0 22px; font-size: 12px; color: var(--ax-sub); }
+    .ax-fresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ax-green); flex: 0 0 auto; animation: axpulse 2.4s ease-out infinite; }
+    @keyframes axpulse { 0% { box-shadow: 0 0 0 0 rgba(79,171,74,.45); } 70% { box-shadow: 0 0 0 7px rgba(79,171,74,0); } 100% { box-shadow: 0 0 0 0 rgba(79,171,74,0); } }
+    .ax-up { color: var(--ax-green-d); font-weight: 700; }
+    .ax-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+    @media (max-width: 720px) { .ax-stats { grid-template-columns: 1fr; } }
+    .ax-stat { padding: 16px; }
+    .ax-stat-top { display: flex; align-items: center; gap: 8px; color: var(--ax-sub); font-size: 12.5px; font-weight: 600; }
+    .ax-stat-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--ax-violet-bg); color: var(--ax-violet-d); flex: 0 0 auto; }
+    .ax-stat-ic .ax-ic { width: 17px; height: 17px; }
+    .ax-stat-note { font-size: 12.5px; color: var(--ax-sub); margin-top: 2px; }
+    .ax-stat-note.up { color: var(--ax-green-d); font-weight: 700; }
+    /* Monthly goal: three-tier horizontal bar (Target / Stretch / Breakthrough) */
+    .ax-goal { padding: 20px 22px; margin-bottom: 22px; }
+    .ax-goal-head { display: flex; align-items: center; gap: 8px; color: var(--ax-sub); font-size: 12.5px; font-weight: 700; margin-bottom: 12px; }
+    .ax-goal-head .ax-ic { width: 18px; height: 18px; color: var(--ax-green-d); }
+    .ax-goal-current { display: flex; align-items: baseline; gap: 8px; margin-bottom: 20px; }
+    .ax-goal-cur { font-size: 34px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
+    .ax-goal-cur-sub { font-size: 14px; color: var(--ax-sub); font-weight: 600; }
+    .ax-bar { margin: 4px 6px 8px; }
+    .ax-bar-track { position: relative; height: 16px; }
+    .ax-bar-zones { position: absolute; inset: 0; border-radius: 999px; overflow: hidden; background: #F1F2F4; box-shadow: inset 0 1px 2px rgba(16,24,40,.06); }
+    .ax-zone { position: absolute; top: 0; height: 100%; }
+    .ax-zone.target { background: #F1F2F4; }
+    .ax-zone.stretch { background: #F0FDF4; }
+    .ax-zone.break { background: #DCFCE7; }
+    .ax-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: linear-gradient(90deg, var(--ax-green), #6fcf6a); box-shadow: 0 1px 4px rgba(79,171,74,.35); }
+    .ax-bar-tick { position: absolute; top: -3px; width: 2px; height: 22px; background: #AEB4C0; border-radius: 2px; transform: translateX(-1px); }
+    .ax-bar-pace { position: absolute; top: -8px; width: 2px; height: 32px; background: var(--ax-violet-d); border-radius: 2px; transform: translateX(-1px); z-index: 4; }
+    .ax-bar-pace-lab { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 800; color: var(--ax-violet-d); white-space: nowrap; }
+    .ax-bar-labels { position: relative; height: 32px; margin-top: 10px; }
+    .ax-bar-lab { position: absolute; top: 0; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+    .ax-bar-lab.end { transform: translateX(-100%); }
+    .ax-bar-lab b { display: block; font-size: 11px; font-weight: 800; }
+    .ax-bar-lab i { display: block; font-size: 10.5px; color: var(--ax-sub); font-style: normal; }
+    .ax-goal-status { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700; padding: 8px 13px; border-radius: 10px; margin-top: 4px; }
+    .ax-goal-status .ax-ic { width: 16px; height: 16px; }
+    .ax-goal-status.behind { color: var(--ax-warn); background: #FEF3E6; }
+    .ax-goal-status.ontrack { color: var(--ax-green-d); background: var(--ax-green-bg); }
+    .ax-goal-status.exceeding { color: #15803D; background: #DCFCE7; }
+    .ax-goal-status.breakthrough { color: #166534; background: #BBF7D0; }
+    .ax-wins { margin-bottom: 22px; }
+    .ax-row-ic.ax-win-ic { background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .ax-kpi { padding: 16px; }
+    .ax-kpi .ax-kpi-top { display: flex; align-items: center; gap: 8px; color: var(--ax-sub); font-size: 12.5px; font-weight: 600; }
+    .ax-kpi .ax-kpi-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .ax-kpi .ax-kpi-ic .ax-ic { width: 17px; height: 17px; }
+    .ax-kpi .ax-val { font-size: 26px; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.6px; }
+    .ax-trend { font-size: 12.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+    .ax-trend.up { color: var(--ax-green-d); }
+    .ax-trend.down { color: var(--ax-bad); }
+
+    /* Two-column area */
+    .ax-cols2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 880px) { .ax-cols2 { grid-template-columns: 1fr; } }
+
+    /* Lists (attention / activity) */
+    .ax-list { display: flex; flex-direction: column; }
+    .ax-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--ax-line); }
+    .ax-row:first-child { border-top: 0; }
+    .ax-row .ax-row-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; background: var(--ax-canvas); color: var(--ax-sub); }
+    .ax-row .ax-row-main { min-width: 0; }
+    .ax-row .ax-row-t { font-size: 14px; font-weight: 600; }
+    .ax-row .ax-row-s { font-size: 12px; color: var(--ax-sub); }
+    .ax-attn { cursor: pointer; border-radius: 10px; }
+    .ax-attn:hover { background: var(--ax-canvas); }
+    .ax-attn .ax-arrow { margin-left: auto; color: var(--ax-sub); }
+
+    /* Tags + status pills */
+    .ax-tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: var(--ax-pill); display: inline-flex; align-items: center; gap: 5px; }
+    .ax-tag.paid { background: var(--ax-violet-bg); color: var(--ax-violet-d); }
+    .ax-tag.organic { background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .ax-tag.plain { background: var(--ax-canvas); color: var(--ax-sub); }
+    .ax-status { font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: var(--ax-pill); text-transform: capitalize; }
+    .ax-status.approved { background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .ax-status.awaiting { background: #FEF1E2; color: var(--ax-warn); }
+    .ax-status.changes { background: #FDECEC; color: var(--ax-bad); }
+
+    /* Dashboard split bar + spark */
+    .ax-spark { width: 100%; height: 84px; display: block; }
+    .ax-split-bar { display: flex; height: 30px; border-radius: var(--ax-pill); overflow: hidden; margin: 8px 0 14px; }
+    .ax-split-bar > span { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; }
+    .ax-split-bar .paid { background: var(--ax-violet-d); }
+    .ax-split-bar .organic { background: var(--ax-green); }
+    .ax-split-legend { display: flex; gap: 18px; font-size: 13px; color: var(--ax-sub); }
+    .ax-split-legend b { color: var(--ax-ink); }
+    .ax-dot-i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: middle; }
+
+    /* Campaign / strategy */
+    .ax-camphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+    .ax-camphead h2 { font-size: 20px; font-weight: 800; margin: 4px 0 0; letter-spacing: -.4px; }
+    .ax-select { font: inherit; font-size: 13px; font-weight: 700; color: var(--ax-ink); padding: 9px 32px 9px 12px; border: 1px solid var(--ax-violet); border-radius: 10px; background: var(--ax-white); cursor: pointer; box-shadow: 0 1px 2px rgba(92,75,208,.12); }
+    .ax-select:hover { background: var(--ax-violet-bg); }
+    /* Campaign switcher (so the client knows the dropdown views specific campaigns) */
+    .ax-campswitch { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .ax-campswitch-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-violet-d); display: inline-flex; align-items: center; gap: 5px; }
+    .ax-campswitch-label .ax-ic { width: 15px; height: 15px; }
+    .ax-campswitch-hint { font-size: 12px; color: var(--ax-sub); width: 100%; text-align: right; }
+    .ax-strategy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; padding: 0; overflow: hidden; }
+    @media (max-width: 820px) { .ax-strategy { grid-template-columns: 1fr; } }
+    .ax-strat-col { padding: 18px; border-left: 1px solid var(--ax-line); }
+    .ax-strat-col:first-child { border-left: 0; }
+    .ax-strat-col h3 { font-size: 12px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; margin: 0 0 8px; }
+    .ax-strat-col.what h3 { color: var(--ax-ink); }
+    .ax-strat-col.why h3 { color: var(--ax-violet-d); }
+    .ax-strat-col.next h3 { color: var(--ax-green-d); }
+    .ax-strat-col p { margin: 0; font-size: 13.5px; color: #2b2f38; }
+
+    .ax-filter { display: flex; gap: 8px; margin: 20px 0 14px; flex-wrap: wrap; }
+    .ax-chip { font: inherit; font-size: 12.5px; font-weight: 700; padding: 7px 13px; border-radius: var(--ax-pill); border: 1px solid var(--ax-line); background: var(--ax-white); color: var(--ax-sub); cursor: pointer; }
+    .ax-chip.is-active { background: var(--ax-ink); color: #fff; border-color: var(--ax-ink); }
+
+    /* Content cards */
+    .ax-content { display: grid; grid-template-columns: 280px 1fr; gap: 16px; padding: 16px; margin-bottom: 14px; align-items: start; }
+    @media (max-width: 720px) { .ax-content { grid-template-columns: 1fr; } }
+    .ax-thumb { border-radius: 11px; min-height: 150px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; position: relative; overflow: hidden; }
+    .ax-thumb.paid { background: linear-gradient(140deg, #8C7BF8, #5C4BD0); }
+    .ax-thumb.organic { background: linear-gradient(140deg, #5FBE57, #347A30); }
+    .ax-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 11px; position: absolute; inset: 0; }
+    .ax-thumb .ax-thumb-k { font-size: 11px; font-weight: 700; opacity: .9; text-transform: uppercase; letter-spacing: .6px; }
+    .ax-thumb .ax-thumb-r { font-size: 17px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    /* When a real creative is uploaded, show it IN FULL (no crop) and let the box grow to fit it. */
+    .ax-thumb.has-img { background: var(--ax-canvas); border: 1px solid var(--ax-line); padding: 0; min-height: 0; }
+    .ax-thumb.has-img img, .ax-thumb.has-img video { position: static; width: 100%; height: auto; max-height: 480px; object-fit: contain; border-radius: 11px; display: block; background: #000; }
+    .ax-thumb.has-img .ax-thumb-k, .ax-thumb.has-img .ax-thumb-r { display: none; }
+    /* Multiple pictures per ticket: a row/grid of thumbnails, click any to enlarge. */
+    .ax-thumb.has-shots { background: var(--ax-canvas); border: 1px solid var(--ax-line); padding: 8px; min-height: 0; gap: 8px; }
+    .ax-shots { display: grid; grid-template-columns: 1fr; gap: 6px; width: 100%; }
+    .ax-shots.multi { grid-template-columns: 1fr 1fr; }
+    .ax-shot { position: relative; border-radius: 9px; overflow: hidden; background: #000; }
+    .ax-shots.multi .ax-shot { aspect-ratio: 1 / 1; }
+    .ax-shot-media { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+    .ax-shots:not(.multi) .ax-shot-media { height: auto; max-height: 460px; object-fit: contain; }
+    .ax-shot-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 15px; line-height: 1; cursor: pointer; display: grid; place-items: center; z-index: 2; }
+    .ax-shot-x:hover { background: rgba(229,65,62,.9); }
+    .ax-shots-admin { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ax-shots-admin .ax-btn { background: rgba(0,0,0,.4); color: #fff; border-color: rgba(255,255,255,.45); }
+    .ax-shots-admin .ax-btn:hover { background: rgba(0,0,0,.6); }
+    .ax-thumb.has-shots .ax-shots-admin .ax-btn { background: var(--ax-white); color: var(--ax-violet-d); border: 1px solid var(--ax-line); }
+    .ax-thumb.has-shots .ax-shots-admin .ax-btn:hover { background: var(--ax-violet-bg); }
+    /* Click-to-enlarge lightbox (shared) */
+    .ax-lightbox { position: fixed; inset: 0; z-index: 130; background: rgba(10,12,20,.92); display: grid; place-items: center; padding: 40px; }
+    .ax-lightbox[hidden] { display: none; }
+    .ax-lightbox-img { max-width: 92vw; max-height: 84vh; border-radius: 10px; box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+    .ax-lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border-radius: 50%; border: 0; background: rgba(255,255,255,.14); color: #fff; font-size: 28px; cursor: pointer; }
+    .ax-lightbox-nav.prev { left: 24px; } .ax-lightbox-nav.next { right: 24px; }
+    .ax-lightbox-close { position: absolute; top: 20px; right: 24px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255,255,255,.14); color: #fff; font-size: 24px; cursor: pointer; }
+    .ax-lightbox-count { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; font-family: ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,.12); padding: 5px 13px; border-radius: 999px; }
+    .ax-content-main { min-width: 0; }
+    .ax-tagrow { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 8px; }
+    .ax-ref { font-size: 12px; color: var(--ax-sub); margin-bottom: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .ax-caption { font-size: 14px; color: #23272f; margin: 0 0 12px; }
+    .ax-note { background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+    .ax-note .ax-note-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-sub); margin-bottom: 3px; }
+    .ax-noteinput { width: 100%; min-height: 56px; resize: vertical; font: inherit; font-size: 13px; padding: 10px 12px; border: 1px solid var(--ax-line); border-radius: 10px; background: var(--ax-white); outline: none; }
+    .ax-noteinput:focus { border-color: var(--ax-violet); }
+    .ax-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    .ax-btn { font: inherit; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+    .ax-btn.approve { background: var(--ax-green); color: #fff; }
+    .ax-btn.approve:hover { background: var(--ax-green-d); }
+    .ax-btn.ghost { background: var(--ax-white); color: var(--ax-sub); border-color: var(--ax-line); }
+    .ax-btn.ghost:hover { color: var(--ax-bad); border-color: rgba(229,65,62,.4); }
+    .ax-btn.violet { background: var(--ax-violet-d); color: #fff; }
+    .ax-btn.violet:hover { background: #4A3BB4; }
+    .ax-btn[disabled] { opacity: .55; cursor: default; }
+    .ax-savehint { font-size: 12px; color: var(--ax-green-d); font-weight: 600; }
+    .ax-confirm { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 13px; background: var(--ax-green-bg); color: var(--ax-green-d); border-radius: 10px; font-size: 12.5px; font-weight: 700; }
+    .ax-confirm .ax-ic { width: 16px; height: 16px; }
+
+    /* AI summary */
+    .ax-ai { background: var(--ax-violet-bg); border: 1px solid #E1DBFB; border-radius: var(--ax-radius); padding: 16px 18px; display: flex; gap: 13px; margin-top: 6px; }
+    .ax-ai .ax-ai-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--ax-violet-d); color: #fff; display: grid; place-items: center; flex: 0 0 auto; }
+    .ax-ai .ax-ai-label { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ax-violet-d); margin-bottom: 3px; }
+    .ax-ai p { margin: 0; font-size: 13.5px; color: #2b2740; }
+
+    /* Calendar */
+    .ax-cal-legend { display: flex; gap: 16px; margin: 0 0 14px; font-size: 12.5px; color: var(--ax-sub); flex-wrap: wrap; }
+    .ax-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .ax-cal-dow { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--ax-sub); text-align: center; padding: 4px 0; }
+    .ax-cal-cell { min-height: 86px; border: 1px solid var(--ax-line); border-radius: 10px; padding: 7px 8px; background: var(--ax-white); }
+    .ax-cal-cell.out { background: var(--ax-canvas); color: #b7bcc7; }
+    .ax-cal-cell.today { background: var(--ax-green-bg); border-color: var(--ax-green); box-shadow: 0 0 0 1px var(--ax-green) inset; }
+    /* Green-forward: past = done & faded (with a check); future-ready = ahead of schedule */
+    .ax-cal-cell.past { background: var(--ax-canvas); color: #aeb4c0; }
+    /* A past day with no scheduled content: a soft on-brand green wash (lighter than a 'done' day). */
+    .ax-cal-cell.pastempty { background: linear-gradient(165deg, #F3FAF2 0%, #E9F6E8 100%); border-color: #DCEEDB; color: #8AAE87; }
+    .ax-cal-cell.pastempty .ax-cal-day { color: var(--ax-green-d); opacity: .75; }
+    .ax-cal-cell.done { background: var(--ax-green-bg); border-color: #cdeccf; }
+    .ax-cal-cell.ahead { background: var(--ax-green-bg); border-color: var(--ax-green); box-shadow: 0 0 0 1px var(--ax-green) inset; }
+    .ax-cal-cell.past .ax-cal-day { color: #98a0b0; }
+    .ax-cal-check { color: var(--ax-green-d); font-weight: 900; }
+    /* Three-month stack: previous / current / next, current emphasised, neighbours compact. */
+    .ax-cal-stack { display: flex; flex-direction: column; gap: 14px; }
+    .ax-cal-month { padding: 14px 16px 16px; }
+    .ax-cal-month.is-current { border-color: #cdeccf; box-shadow: 0 0 0 1px var(--ax-green) inset, var(--ax-shadow); }
+    .ax-cal-month.is-side { background: linear-gradient(180deg, #FFFFFF 0%, #FCFDFC 100%); }
+    .ax-cal-month.is-side .ax-cal-cell { min-height: 60px; }
+    .ax-cal-month.is-side .ax-cal-mname { color: var(--ax-sub); }
+    .ax-cal-mhead { display: flex; align-items: center; gap: 10px; margin: 0 2px 12px; }
+    .ax-cal-mname { font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
+    .ax-cal-now { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #fff; background: var(--ax-grad-green); padding: 2px 9px; border-radius: 999px; }
+    /* Project progress header */
+    .ax-progress { padding: 16px 20px; margin-bottom: 16px; }
+    .ax-progress-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .ax-progress-end { display: flex; align-items: center; gap: 10px; }
+    .ax-progress-flag { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--ax-green-bg); color: var(--ax-green-d); flex: 0 0 auto; }
+    .ax-progress-flag .ax-ic { width: 16px; height: 16px; }
+    .ax-progress-k { font-size: 10px; font-weight: 800; letter-spacing: .6px; color: var(--ax-sub); text-transform: uppercase; }
+    .ax-progress-v { font-size: 15px; font-weight: 800; }
+    .ax-progress-day { font-size: 12px; font-weight: 800; color: var(--ax-violet-d); background: var(--ax-violet-bg); padding: 5px 12px; border-radius: 999px; }
+    .ax-progress-bar { height: 8px; border-radius: 999px; background: var(--ax-line); overflow: hidden; }
+    .ax-progress-bar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ax-green), #6fcf6a); }
+    /* Calendar + milestones two-column layout */
+    .ax-callayout { display: grid; grid-template-columns: 1fr 320px; gap: 18px; align-items: start; }
+    @media (max-width: 980px) { .ax-callayout { grid-template-columns: 1fr; } }
+    .ax-mile-aheadkey { color: var(--ax-green-d); font-weight: 700; }
+    .ax-mile-list { position: relative; }
+    .ax-mile { display: flex; gap: 12px; padding-bottom: 18px; position: relative; }
+    .ax-mile:not(:last-child)::before { content: ""; position: absolute; left: 12px; top: 27px; bottom: 0; width: 2px; background: var(--ax-line); }
+    .ax-mile-ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; background: var(--ax-white); border: 2px solid var(--ax-line); color: var(--ax-sub); z-index: 1; }
+    .ax-mile-ic .ax-ic { width: 15px; height: 15px; }
+    .ax-mile.done .ax-mile-ic { background: var(--ax-green); border-color: var(--ax-green); color: #fff; }
+    .ax-mile.today .ax-mile-ic { border-color: var(--ax-green); color: var(--ax-green-d); box-shadow: 0 0 0 3px var(--ax-green-bg); }
+    .ax-mile-ic.paid.upcoming { border-color: var(--ax-violet); }
+    .ax-mile-ic.organic.upcoming { border-color: var(--ax-green); }
+    .ax-mile-ic.due.upcoming { border-color: var(--ax-warn); }
+    .ax-mile-date { font-size: 11px; font-weight: 700; color: var(--ax-sub); }
+    .ax-mile-ahead { color: var(--ax-green-d); font-weight: 800; }
+    .ax-mile-title { font-size: 13.5px; font-weight: 700; margin: 1px 0 4px; }
+    .ax-cal-day { font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+    .ax-cal-cell.today .ax-cal-day { color: var(--ax-green-d); }
+    .ax-cal-ev { font-size: 11px; line-height: 1.35; display: flex; align-items: flex-start; gap: 5px; margin-bottom: 3px; }
+    .ax-cal-ev .ax-evd { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex: 0 0 auto; }
+    .ax-evd.paid { background: var(--ax-violet); } .ax-evd.organic { background: var(--ax-green); }
+    .ax-evd.due { background: var(--ax-warn); } .ax-evd.milestone { background: #98a0b0; }
+
+    /* Conversations */
+    .ax-convo { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: stretch; }
+    @media (max-width: 820px) { .ax-convo { grid-template-columns: 1fr; } }
+    .ax-threads { display: flex; flex-direction: column; gap: 8px; }
+    .ax-thread { text-align: left; font: inherit; cursor: pointer; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 12px; padding: 13px; display: block; width: 100%; }
+    .ax-thread:hover { border-color: #d4d6df; }
+    .ax-thread.is-active { border-color: var(--ax-green); box-shadow: 0 0 0 1px var(--ax-green) inset; }
+    .ax-thread .ax-th-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+    .ax-thread .ax-th-sub { font-size: 13.5px; font-weight: 700; }
+    .ax-thread .ax-th-prev { font-size: 12.5px; color: var(--ax-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ax-th-tag { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: var(--ax-pill); text-transform: uppercase; letter-spacing: .4px; flex: 0 0 auto; }
+    .ax-th-tag.awaiting_reply { background: #FEF1E2; color: var(--ax-warn); }
+    .ax-th-tag.resolved { background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .ax-chat { display: flex; flex-direction: column; min-height: 460px; }
+    .ax-chatpanel { display: none; flex-direction: column; flex: 1; }
+    .ax-chatpanel.is-active { display: flex; }
+    .ax-chat-head { padding: 14px 18px; border-bottom: 1px solid var(--ax-line); font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .ax-msgs { flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 440px; }
+    .ax-bubble { max-width: 76%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; }
+    .ax-bubble .ax-who { font-size: 11px; font-weight: 800; margin-bottom: 3px; opacity: .8; }
+    .ax-bubble .ax-when { font-size: 10.5px; opacity: .65; margin-top: 5px; }
+    .ax-bubble.client { align-self: flex-end; background: var(--ax-green); color: #fff; border-bottom-right-radius: 5px; }
+    .ax-bubble.agora { align-self: flex-start; background: var(--ax-white); border: 1px solid var(--ax-line); border-bottom-left-radius: 5px; }
+    .ax-composer { border-top: 1px solid var(--ax-line); padding: 12px; display: flex; gap: 10px; align-items: flex-end; }
+    .ax-composer textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; font: inherit; font-size: 14px; padding: 11px 13px; border: 1px solid var(--ax-line); border-radius: 12px; outline: none; }
+    .ax-composer textarea:focus { border-color: var(--ax-green); }
+
+    /* Settings */
+    .ax-set-wrap { max-width: 640px; }
+    .ax-set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid var(--ax-line); }
+    .ax-set-row:first-of-type { border-top: 0; }
+    .ax-set-row .ax-set-t { font-size: 14px; font-weight: 700; }
+    .ax-set-row .ax-set-d { font-size: 12.5px; color: var(--ax-sub); }
+    .ax-set-master { background: var(--ax-green-bg); border: 1px solid #CDE9CC; border-radius: 12px; padding: 6px 16px; margin-bottom: 8px; }
+    .ax-switch { position: relative; width: 46px; height: 27px; flex: 0 0 auto; cursor: pointer; }
+    .ax-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .ax-switch .ax-track { position: absolute; inset: 0; background: #cdd2db; border-radius: var(--ax-pill); transition: background .15s; }
+    .ax-switch .ax-knob { position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; background: #fff; border-radius: 50%; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .ax-switch input:checked + .ax-track { background: var(--ax-green); }
+    .ax-switch input:checked + .ax-track + .ax-knob { transform: translateX(19px); }
+    .ax-seg { display: inline-flex; border: 1px solid var(--ax-line); border-radius: 10px; overflow: hidden; }
+    .ax-seg button { font: inherit; font-size: 13px; font-weight: 700; padding: 8px 16px; border: 0; background: var(--ax-white); color: var(--ax-sub); cursor: pointer; }
+    .ax-seg button.is-active { background: var(--ax-ink); color: #fff; }
+    .ax-reassure { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; padding: 13px 15px; background: var(--ax-canvas); border-radius: 12px; font-size: 13px; color: var(--ax-sub); }
+    .ax-disabled { opacity: .45; pointer-events: none; }
+
+    .ax-empty {
+      color: var(--ax-sub); font-size: 13.5px; padding: 30px 22px; text-align: center; border-radius: var(--ax-radius);
+      background: linear-gradient(180deg, #FCFCFE 0%, var(--ax-canvas) 100%);
+      border: 1px solid var(--ax-line); box-shadow: inset 0 1px 0 #fff;
+    }
+    .ax-empty::before {
+      content: ""; display: block; width: 34px; height: 34px; margin: 0 auto 12px; border-radius: 50%;
+      background: var(--ax-violet-bg); border: 1px solid #E1DBFB;
+      box-shadow: inset 0 0 0 9px #fff, 0 0 0 0 transparent;
+    }
+
+    /* ---- Per-creative comment thread (client + team) ---- */
+    .ax-comments { margin-top: 14px; border-top: 1px dashed var(--ax-line); padding-top: 12px; }
+    .ax-comments .ax-com-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-sub); margin-bottom: 8px; }
+    .ax-com-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .ax-com { display: flex; flex-direction: column; max-width: 86%; padding: 8px 11px; border-radius: 11px; font-size: 13px; }
+    .ax-com.client { align-self: flex-end; background: var(--ax-green-bg); }
+    .ax-com.agora { align-self: flex-start; background: var(--ax-violet-bg); }
+    .ax-com .ax-com-who { font-size: 10.5px; font-weight: 800; opacity: .75; margin-bottom: 2px; }
+    .ax-com .ax-com-when { font-size: 10px; opacity: .6; margin-top: 4px; }
+    .ax-com-form { display: flex; gap: 8px; align-items: flex-end; }
+    .ax-com-form textarea { flex: 1; resize: vertical; min-height: 40px; font: inherit; font-size: 13px; padding: 8px 11px; border: 1px solid var(--ax-line); border-radius: 10px; outline: none; }
+    .ax-com-form textarea:focus { border-color: var(--ax-violet); }
+
+    /* ---- Super-admin inline editing ---- */
+    .ax-adminbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 16px; padding: 10px 14px; background: #1c2440; color: #eaf0ff; border-radius: 12px; font-size: 13px; }
+    .ax-adminbar .ax-adminbadge { font-size: 10.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; background: var(--ax-violet); color: #fff; padding: 2px 9px; border-radius: var(--ax-pill); }
+    .ax-adminbar .ax-adminmsg { margin-left: auto; font-size: 12.5px; color: #b9c2e6; }
+    .ax-btn.admin { background: #2b3766; color: #eaf0ff; border-color: #394680; }
+    .ax-btn.admin:hover { background: #36447e; }
+    .ax-btn.danger { background: var(--ax-white); color: var(--ax-bad); border-color: rgba(229,65,62,.4); }
+    .ax-btn.danger:hover { background: #FDECEC; }
+    .ax-btn.small { padding: 6px 11px; font-size: 12px; }
+    .ax-admin-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--ax-line); }
+    .ax-editbox { width: 100%; font: inherit; font-size: 13.5px; padding: 9px 11px; border: 1px solid var(--ax-violet); border-radius: 9px; background: #fbfbff; outline: none; margin-bottom: 8px; }
+    textarea.ax-editbox { min-height: 60px; resize: vertical; }
+    .ax-editrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ax-edit-hidden { display: none; }
+    .ax-strat-doc { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 0; padding: 12px; background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 12px; }
+    .ax-strat-doc .ax-strat-doc-in { flex: 1; min-width: 220px; font: inherit; font-size: 13px; padding: 8px 11px; border: 1px solid var(--ax-line); border-radius: 9px; outline: none; }
+    .ax-strat-doc .ax-strat-doc-in:focus { border-color: var(--ax-violet); }
+    .ax-strat-doc .ax-doc-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-violet-d); width: 100%; }
+
+    /* Strategy breakdown link (client-facing, on top of the strategy) */
+    .ax-breakdown { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 11px 15px; border-radius: 12px; background: var(--ax-violet-bg); border: 1px solid #E1DBFB; color: var(--ax-violet-d); font-size: 13.5px; font-weight: 700; }
+    .ax-breakdown:hover { background: #E9E5FE; }
+    .ax-breakdown .ax-ic { width: 17px; height: 17px; }
+    .ax-breakdown .ax-bd-arrow { margin-left: 2px; }
+
+    /* Client Communications (email + meeting summaries) */
+    .ax-comm { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 880px) { .ax-comm { grid-template-columns: 1fr; } }
+    .ax-comm-col h2 { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 800; margin: 0 0 14px; }
+    .ax-comm-col h2 .ax-ic { width: 18px; height: 18px; }
+    .ax-comm-col h2 .ax-ic { padding: 7px; border-radius: 10px; box-sizing: content-box; }
+    .ax-comm-col.email h2 { color: var(--ax-violet-d); }
+    .ax-comm-col.email h2 .ax-ic { background: var(--ax-violet-bg); }
+    .ax-comm-col.meeting h2 { color: var(--ax-green-d); }
+    .ax-comm-col.meeting h2 .ax-ic { background: var(--ax-green-bg); }
+    .ax-comm-item { padding: 15px 16px; margin-bottom: 12px; }
+    .ax-comm-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+    .ax-comm-title { font-size: 14px; font-weight: 800; }
+    .ax-comm-date { font-size: 11.5px; color: var(--ax-sub); white-space: nowrap; flex: 0 0 auto; }
+    .ax-comm-meta { font-size: 12px; color: var(--ax-sub); display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }
+    .ax-comm-meta .ax-ic { width: 14px; height: 14px; }
+    .ax-comm-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
+    .ax-thumb-upload { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; display: flex; gap: 6px; justify-content: center; }
+    .ax-thumb-upload .ax-btn { background: rgba(0,0,0,.45); color: #fff; border-color: rgba(255,255,255,.4); }
+    .ax-thumb-upload .ax-btn:hover { background: rgba(0,0,0,.62); }
+    .ax-addpanel { border: 1px dashed var(--ax-line); border-radius: var(--ax-radius); padding: 16px; margin-bottom: 14px; background: var(--ax-canvas); }
+    .ax-addpanel h3 { font-size: 14px; font-weight: 800; margin: 0 0 12px; }
+
+    /* Collapsible sidebar -- the topbar button tucks the nav away (choice persists in localStorage). */
+    .ax-top-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    /* Collapsed: ONE column so the (now only) main panel fills the width. A 0-width first track
+       would make the main content auto-place into it and squash to ~0 -- that was the bug. */
+    .atrium.nav-collapsed .ax-app { grid-template-columns: 1fr; }
+    .atrium.nav-collapsed .ax-side { display: none; }
+    @media (max-width: 720px) { .ax-app { grid-template-columns: 1fr; } .ax-side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; } .ax-side-card, .ax-nav .ax-count { display: none; } .ax-nav { flex-direction: row; flex-wrap: wrap; } .ax-editrow { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="atrium" data-base="/w/{{ view.client }}" data-tab="{{ view.active_tab }}"{% if is_superadmin %} data-admin="1" data-adminname="{{ admin_name }}"{% endif %}>
+  <div class="ax-app">
+
+    <!-- Sidebar -->
+    <aside class="ax-side">
+      <div>
+        <div class="ax-brand">
+          <span class="ax-co">
+            {{ ws.brand.agora_logo|safe }}
+          </span>
+          <span class="ax-badge">{{ workspace_name }}</span>
+        </div>
+      </div>
+
+      <nav class="ax-nav" id="ax-nav">
+        {% for key, label in [('overview','Overview'),('dashboard','Dashboard'),('leadgen','Lead Generation'),('organic','Organic Content'),('calendar','Content Calendar'),('conversations','Client Communications')] %}
+        <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
+          {{ ic(key) }}<span>{{ label }}</span>
+          {% if key in ('leadgen','organic') %}
+            {% set ac = ws.campaigns|selectattr('channel','equalto', 'paid' if key=='leadgen' else 'organic')|map(attribute='content')|sum(start=[])|selectattr('status','equalto','awaiting')|list|length %}
+            {% if ac > 0 %}<span class="ax-count">{{ ac }}</span>{% endif %}
+          {% endif %}
+        </a>
+        {% endfor %}
+      </nav>
+
+      <div class="ax-side-card">
+        <span class="ax-clientlogo">{{ ws.brand.client_logo|safe }}</span>
+        <div class="ax-crest-text">
+          <div class="ax-name">{{ ws.display_name }}</div>
+          <div class="ax-sub">{{ ws.tagline|default('Client workspace', true) }}</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="ax-main">
+      <header class="ax-top">
+        <div class="ax-top-left">
+          <button class="ax-iconbtn" type="button" id="ax-navtoggle" title="Show / hide the menu" aria-label="Show or hide the menu">{{ ic('menu') }}</button>
+          <h1 id="ax-title">{{ tab_titles[view.active_tab]|default('Overview', true) }}</h1>
+        </div>
+        <div class="ax-top-right">
+          <span class="ax-clock" id="ax-clock"></span>
+          <button class="ax-iconbtn" type="button" data-goto="settings" title="Notification settings">
+            {{ ic('bell') }}{% if view.awaiting_total > 0 %}<span class="ax-bdot"></span>{% endif %}
+          </button>
+          <button class="ax-avatar" type="button" data-goto="settings" title="{{ user }}">{{ view.initials }}</button>
+          <button class="ax-share" type="button" id="ax-sharebtn" data-recap="{{ view.recap_b64 }}"
+                  title="Copy a shareable link to this month's recap"
+                  {% if view.active_tab != 'overview' %}style="display:none"{% endif %}>Share recap <span class="ax-share-arrow">&rarr;</span></button>
+          {% if is_superadmin %}<a class="ax-backadmin" href="/admin/atrium" title="Back to all client workspaces">{{ ic('overview') }}<span>All clients</span></a>{% endif %}
+          <a class="ax-signout" href="/logout">{{ ic('logout') }}<span>Sign out</span></a>
+        </div>
+      </header>
+
+      <main class="ax-body">
+
+        {% if is_superadmin %}
+        <div class="ax-adminbar">
+          <span class="ax-adminbadge">Admin edit</span>
+          <span>You're viewing {{ ws.display_name }}'s workspace as AGORA — edits here change what the client sees.</span>
+          <span class="ax-adminmsg" id="ax-admin-msg"></span>
+        </div>
+        {% endif %}
+
+        <!-- ============ OVERVIEW ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='overview' else '' }}" data-pane="overview">
+          <h1 class="ax-greet">Good <span id="ax-greetword">morning</span>, {{ view.greeting_name }}.</h1>
+          <p class="ax-lede">Everything, visible. What's working, what's live, and what's coming next.</p>
+
+          {#- Overview headline = the SAME numbers the team manages on the admin side (ws.today /
+              ws.split / ws.metrics). Curated ws.headline / ws.wins still win when present, so a
+              hand-tuned production workspace never regresses. -#}
+          {% set roas_metric = (ws.metrics|selectattr('label','equalto','ROAS')|first) if ws.metrics else none %}
+          {% set hero_roas = ws.headline.roas if (ws.headline and ws.headline.roas) else none %}
+          {% if hero_roas or roas_metric %}
+          <div class="ax-card ax-hero">
+            <div class="ax-hero-top">{{ ic('trending') }} {{ (hero_roas.label if hero_roas else 'Return on ad spend') }}</div>
+            <div class="ax-hero-val">{{ hero_roas.value if hero_roas else roas_metric.value }}</div>
+            <div class="ax-hero-cap">
+              {% if hero_roas %}{{ hero_roas.caption }}{% if hero_roas.trend %} &middot; <span class="ax-up">&uarr; {{ hero_roas.trend }}</span>{% endif %}
+              {% else %}Your paid campaigns returned {{ roas_metric.value }} for every $1 spent.{% if roas_metric.trend %} &middot; <span class="ax-up">&uarr; {{ roas_metric.trend }}</span>{% endif %}{% endif %}
+            </div>
+          </div>
+          <!-- Data freshness: subtle trust strip under the hero. TODO(integrations): wire the time
+               to the real last sync (see atrium_view.data_freshness) once Meta/Google ingestion lands. -->
+          <div class="ax-fresh"><span class="ax-fresh-dot"></span>Synced from {{ view.freshness.sources }} &middot; updated {{ view.freshness.label }}</div>
+          {% endif %}
+
+          {% if ws.headline and ws.headline.stats %}
+          <div class="ax-stats">
+            {% for s in ws.headline.stats %}
+            <div class="ax-card ax-stat">
+              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic(s.icon|default('trending', true)) }}</span>{{ s.label }}</div>
+              <div class="ax-val">{{ s.value }}</div>
+              <div class="ax-stat-note {{ 'up' if s.note_up else '' }}">{% if s.note_up %}&uarr; {% endif %}{{ s.note }}</div>
+            </div>
+            {% endfor %}
+          </div>
+          {% elif ws.today %}
+          {#- Derived "today" snapshot — mirrors the admin console's Leads/Visitors/Bookings today. -#}
+          <div class="ax-stats">
+            <div class="ax-card ax-stat">
+              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('users') }}</span>Leads today</div>
+              <div class="ax-val">{{ ws.today.leads }}</div>
+              <div class="ax-stat-note up">&uarr; New enquiries since midnight</div>
+            </div>
+            <div class="ax-card ax-stat">
+              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('trending') }}</span>Visitors today</div>
+              <div class="ax-val">{{ ws.today.visitors }}</div>
+              <div class="ax-stat-note">Sessions across your funnel</div>
+            </div>
+            <div class="ax-card ax-stat">
+              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('calendar') }}</span>Bookings today</div>
+              <div class="ax-val">{{ ws.today.bookings }}</div>
+              <div class="ax-stat-note up">&uarr; Confirmed reservations</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if view.goal or is_superadmin %}
+          <div class="ax-card ax-goal">
+            <div class="ax-goal-head">{{ ic('target') }} Monthly goal</div>
+            {% if view.goal %}{% set g = view.goal %}
+            <div class="ax-goal-current">
+              <span class="ax-goal-cur">{{ g.current_fmt }}</span>
+              <span class="ax-goal-cur-sub">{{ g.label }} this month</span>
+            </div>
+            <div class="ax-bar">
+              <div class="ax-bar-track">
+                <div class="ax-bar-zones">
+                  <div class="ax-zone target"  style="left:0;width:{{ g.target_pct }}%"></div>
+                  <div class="ax-zone stretch" style="left:{{ g.target_pct }}%;width:{{ g.zone_stretch }}%"></div>
+                  <div class="ax-zone break"   style="left:{{ g.stretch_pct }}%;width:{{ g.zone_break }}%"></div>
+                  <div class="ax-bar-fill" style="width:{{ g.fill_pct }}%"></div>
+                </div>
+                <div class="ax-bar-tick" style="left:{{ g.target_pct }}%"></div>
+                <div class="ax-bar-tick" style="left:{{ g.stretch_pct }}%"></div>
+                <div class="ax-bar-tick" style="left:100%"></div>
+                <div class="ax-bar-pace" style="left:{{ g.pace_pct }}%"><span class="ax-bar-pace-lab">today</span></div>
+              </div>
+              <div class="ax-bar-labels">
+                <span class="ax-bar-lab"     style="left:{{ g.target_pct }}%"><b>Target</b><i>{{ g.target_fmt }}</i></span>
+                <span class="ax-bar-lab"     style="left:{{ g.stretch_pct }}%"><b>Stretch</b><i>{{ g.stretch_fmt }}</i></span>
+                <span class="ax-bar-lab end" style="left:100%"><b>Breakthrough</b><i>{{ g.breakthrough_fmt }}</i></span>
+              </div>
+            </div>
+            <div class="ax-goal-status {{ g.status.level }}">{{ ic(g.status.icon) }} {{ g.status.text }}</div>
+            {% else %}
+            <div class="ax-empty" style="margin-top:6px">No monthly goal set yet — configure the tiers below and the client will see them here.</div>
+            {% endif %}
+            {% if is_superadmin %}
+            {% set goal = ws.goal or {} %}
+            <div class="ax-admin-tools" data-goalform>
+              <span class="ax-doc-label" style="width:100%">Monthly goal — tiers &amp; settings</span>
+              <div class="ax-editrow" style="grid-template-columns:2fr 1fr">
+                <input class="ax-editbox" data-gf="goal_label" value="{{ goal.label|default('leads', true) }}" placeholder="Label / unit (leads, bookings, revenue…)">
+                <select class="ax-editbox" data-gf="goal_format">
+                  <option value="number" {{ 'selected' if (goal.format|default('number')) != 'currency' else '' }}>Number</option>
+                  <option value="currency" {{ 'selected' if (goal.format|default('number')) == 'currency' else '' }}>Currency ($)</option>
+                </select>
+              </div>
+              <div class="ax-editrow" style="grid-template-columns:1fr 1fr 1fr">
+                <input class="ax-editbox" data-gf="goal_target"       value="{{ goal.target|default('', true) }}"       placeholder="Target (e.g. 150)">
+                <input class="ax-editbox" data-gf="goal_stretch"      value="{{ goal.stretch|default('', true) }}"      placeholder="Stretch (e.g. 180)">
+                <input class="ax-editbox" data-gf="goal_breakthrough" value="{{ goal.breakthrough|default('', true) }}" placeholder="Breakthrough (e.g. 220)">
+              </div>
+              <div class="ax-editrow" style="grid-template-columns:1fr 1fr">
+                <input class="ax-editbox" data-gf="goal_current" value="{{ goal.current|default('', true) }}" placeholder="Current (if not linked)">
+                <select class="ax-editbox" data-gf="goal_source_metric">
+                  <option value="">— Current: use field at left —</option>
+                  {% for m in ws.metrics %}<option value="{{ m.label }}" {{ 'selected' if goal and goal.source_metric == m.label else '' }}>Pull from “{{ m.label }}” ({{ m.value }})</option>{% endfor %}
+                </select>
+              </div>
+              <button class="ax-btn violet small" type="button" data-goalsave>Save goal</button>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% set wins = ws.wins if ws.wins else ((ws.metrics|selectattr('trend_up')|list)[:3] if ws.metrics else []) %}
+          {% if wins %}
+          <div class="ax-panel ax-wins">
+            <h2 class="ax-h2">{{ ic('trophy') }} Wins for the week</h2>
+            <div class="ax-list">
+              {% for w in wins %}
+              <div class="ax-row">
+                <span class="ax-row-ic ax-win-ic">{{ ic(w.icon|default('check', true)) }}</span>
+                <div class="ax-row-main">
+                  <div class="ax-row-t">{{ w.title if w.title else (w.label ~ ' up ' ~ w.trend) }}</div>
+                  <div class="ax-row-s">{{ w.detail if w.detail else (w.label ~ ' is now ' ~ w.value ~ ', a ' ~ w.trend ~ ' move in your favour.') }}</div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="ax-cols2">
+            <div class="ax-panel">
+              <h2 class="ax-h2">Needs your attention</h2>
+              {% if view.attention %}
+                <div class="ax-list">
+                  {% for a in view.attention %}
+                  <div class="ax-row ax-attn" data-goto="{{ a.tab }}">
+                    <span class="ax-row-ic" style="background:{{ '#F1EFFE' if a.channel=='paid' else '#EAF6E9' }};color:{{ '#5C4BD0' if a.channel=='paid' else '#347A30' }}">{{ ic('check') }}</span>
+                    <div class="ax-row-main">
+                      <div class="ax-row-t">{{ a.type_tag }} &middot; {{ a.ref }}</div>
+                      <div class="ax-row-s">
+                        <span class="ax-tag {{ a.channel }}">{{ 'Paid / Lead Generation' if a.channel=='paid' else 'Organic' }}</span>
+                        {{ a.campaign_name }} &middot; {{ a.platform }} &middot; Awaiting review
+                      </div>
+                    </div>
+                    <span class="ax-arrow">{{ ic('arrow') }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="ax-empty">You're all caught up — nothing is waiting on you right now.</div>
+              {% endif %}
+            </div>
+
+            <div class="ax-panel">
+              <h2 class="ax-h2">Recent activity</h2>
+              {% if ws.activity %}
+                <div class="ax-list">
+                  {% for ev in ws.activity %}
+                  <div class="ax-row">
+                    <span class="ax-row-ic">{{ ic(ev.icon) }}</span>
+                    <div class="ax-row-main">
+                      <div class="ax-row-t" style="font-weight:600">{{ ev.text }}</div>
+                      <div class="ax-row-s">{{ ev.time_label }}</div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="ax-empty">No activity yet.</div>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ DASHBOARD ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='dashboard' else '' }}" data-pane="dashboard">
+          <h1 class="ax-greet">Your numbers this month</h1>
+          <p class="ax-lede">One goal, two streams. Paid and organic both feed the same results.</p>
+
+          <div class="ax-kpis">
+            {% for m in ws.metrics %}
+            <div class="ax-card ax-kpi">
+              <div class="ax-kpi-top"><span class="ax-kpi-ic">{{ ic(m.icon) }}</span>{{ m.label }}</div>
+              <div class="ax-val">{{ m.value }}</div>
+              <span class="ax-trend {{ 'up' if m.trend_up else 'down' }}">{{ '▲' if m.trend.startswith('+') else '▼' }} {{ m.trend }}</span>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="ax-cols2">
+            <div class="ax-panel">
+              <h2 class="ax-h2">New leads — last 14 days</h2>
+              <svg class="ax-spark" viewBox="0 0 {{ view.spark.w }} {{ view.spark.h }}" preserveAspectRatio="none" aria-hidden="true">
+                <defs><linearGradient id="axsparkfill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#4FAB4A" stop-opacity="0.22"/><stop offset="100%" stop-color="#4FAB4A" stop-opacity="0"/>
+                </linearGradient></defs>
+                <path d="{{ view.spark.area }}" fill="url(#axsparkfill)"/>
+                <polyline points="{{ view.spark.line }}" fill="none" stroke="#4FAB4A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="{{ view.spark.lastx }}" cy="{{ view.spark.lasty }}" r="3.6" fill="#347A30"/>
+              </svg>
+            </div>
+            <div class="ax-panel">
+              <h2 class="ax-h2">Where your leads came from</h2>
+              <div class="ax-split-bar">
+                <span class="paid" style="width:{{ view.split.paid_pct }}%">{{ view.split.paid }}</span>
+                <span class="organic" style="width:{{ view.split.organic_pct }}%">{{ view.split.organic }}</span>
+              </div>
+              <div class="ax-split-legend">
+                <span><span class="ax-dot-i" style="background:#9484FB"></span>Paid <b>{{ view.split.paid }}</b></span>
+                <span><span class="ax-dot-i" style="background:#4FAB4A"></span>Organic <b>{{ view.split.organic }}</b></span>
+                <span style="margin-left:auto">Total <b>{{ view.split.total }}</b> leads</span>
+              </div>
+              <p class="ax-lede" style="margin:14px 0 0;font-size:13px">
+                {{ view.split.total }} leads = {{ view.split.paid }} paid + {{ view.split.organic }} organic. One goal, two contributing streams.
+              </p>
+            </div>
+          </div>
+
+          {% if is_superadmin %}
+          <div class="ax-addpanel" data-metricsform style="margin-top:18px">
+            <h3>Edit headline numbers &amp; KPIs</h3>
+            <div class="ax-editrow" style="grid-template-columns:1fr 1fr 1fr">
+              <input class="ax-editbox" data-mf="today_leads" value="{{ ws.today.leads }}" placeholder="Leads today">
+              <input class="ax-editbox" data-mf="today_visitors" value="{{ ws.today.visitors }}" placeholder="Visitors today">
+              <input class="ax-editbox" data-mf="today_bookings" value="{{ ws.today.bookings }}" placeholder="Bookings today">
+            </div>
+            <div class="ax-editrow">
+              <input class="ax-editbox" data-mf="split_paid" value="{{ ws.split.paid }}" placeholder="Leads from paid">
+              <input class="ax-editbox" data-mf="split_organic" value="{{ ws.split.organic }}" placeholder="Leads from organic">
+            </div>
+            {% for m in ws.metrics %}
+            <div class="ax-editrow" style="grid-template-columns:2fr 1fr 1fr;align-items:center">
+              <input class="ax-editbox" data-mf="metric_value_{{ loop.index0 }}" value="{{ m.value }}" placeholder="{{ m.label }} value">
+              <input class="ax-editbox" data-mf="metric_trend_{{ loop.index0 }}" value="{{ m.trend }}" placeholder="Trend (e.g. +12%)">
+              <label class="ax-set-d" style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><input type="checkbox" data-mf-check="metric_up_{{ loop.index0 }}" {{ 'checked' if m.trend_up else '' }}> {{ m.label }} ↑ good</label>
+            </div>
+            {% endfor %}
+            <button class="ax-btn violet small" type="button" data-metricssave>Save numbers</button>
+          </div>
+          {% endif %}
+        </section>
+
+        <!-- ============ LEAD GEN (paid) + ORGANIC (organic) ============ -->
+        {% for stream in [('leadgen','paid'),('organic','organic')] %}
+        {% set tab = stream[0] %} {% set chan = stream[1] %}
+        {% set camps = ws.campaigns|selectattr('channel','equalto',chan)|list %}
+        <section class="ax-pane {{ 'is-active' if view.active_tab==tab else '' }}" data-pane="{{ tab }}">
+          {% if camps %}
+          <div class="ax-camphead">
+            <div>
+              <span class="ax-eyebrow">{{ camps[0].eyebrow }}</span>
+              <h2 data-camptitle="{{ tab }}">{{ camps[0].name }}</h2>
+            </div>
+            {% if camps|length > 1 %}
+            <div class="ax-campswitch">
+              <span class="ax-campswitch-label">{{ ic('arrow') }} Viewing campaign</span>
+              <select class="ax-select" data-campfilter="{{ tab }}" aria-label="Switch to view a specific campaign">
+                {% for c in camps %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+              </select>
+              <span class="ax-campswitch-hint">You have {{ camps|length }} campaigns &mdash; switch to view another.</span>
+            </div>
+            {% endif %}
+          </div>
+
+          {% for c in camps %}
+          <div data-campblock="{{ tab }}" data-campid="{{ c.id }}" data-campname="{{ c.name }}" data-eyebrow="{{ c.eyebrow }}" {% if not loop.first %}style="display:none"{% endif %}>
+            {% if c.strategy_doc %}
+            <a class="ax-breakdown" href="{{ c.strategy_doc }}" target="_blank" rel="noopener noreferrer">
+              {{ ic('doc') }}<span>View the full breakdown</span><span class="ax-bd-arrow">{{ ic('arrow') }}</span>
+            </a>
+            {% endif %}
+            <div class="ax-card ax-strategy">
+              <div class="ax-strat-col what"><h3>What happened</h3><p data-strat="what">{{ c.strategy.what }}</p></div>
+              <div class="ax-strat-col why"><h3>Why it happened</h3><p data-strat="why">{{ c.strategy.why }}</p></div>
+              <div class="ax-strat-col next"><h3>What to do next</h3><p data-strat="next">{{ c.strategy.next }}</p></div>
+            </div>
+
+            {% if is_superadmin %}
+            <div class="ax-admin-tools">
+              <button class="ax-btn admin small" type="button" data-stratedit="{{ c.id }}">Edit strategy</button>
+              <button class="ax-btn danger small" type="button" data-campdelete="{{ c.id }}" data-campname="{{ c.name }}">Delete campaign</button>
+            </div>
+            <div class="ax-edit-hidden" data-stratform="{{ c.id }}" style="margin-top:10px">
+              <div class="ax-editrow">
+                <input class="ax-editbox" data-sf="name" value="{{ c.name }}" placeholder="Campaign name">
+                <input class="ax-editbox" data-sf="eyebrow" value="{{ c.eyebrow }}" placeholder="Eyebrow">
+              </div>
+              <textarea class="ax-editbox" data-sf="what" placeholder="What happened">{{ c.strategy.what }}</textarea>
+              <textarea class="ax-editbox" data-sf="why" placeholder="Why it happened">{{ c.strategy.why }}</textarea>
+              <textarea class="ax-editbox" data-sf="next" placeholder="What to do next">{{ c.strategy.next }}</textarea>
+              <div class="ax-actions">
+                <button class="ax-btn violet small" type="button" data-stratsave="{{ c.id }}">Save strategy</button>
+                <button class="ax-btn ghost small" type="button" data-stratcancel="{{ c.id }}">Cancel</button>
+              </div>
+            </div>
+            <div class="ax-strat-doc">
+              <span class="ax-doc-label">Strategy doc → AI summary</span>
+              <input class="ax-strat-doc-in" data-docurl="{{ c.id }}" value="{{ c.strategy_doc|default('', true) }}" placeholder="Paste a Google Doc link…">
+              <button class="ax-btn admin small" type="button" data-docsave="{{ c.id }}">Save link</button>
+              <button class="ax-btn violet small" type="button" data-docgen="{{ c.id }}">{{ ic('sparkle') }} Generate summary</button>
+            </div>
+            {% endif %}
+
+            <div class="ax-filter" data-contentfilter>
+              {% set all_n = c.content|length %}
+              {% set aw_n = c.content|selectattr('status','equalto','awaiting')|list|length %}
+              {% set ap_n = c.content|selectattr('status','equalto','approved')|list|length %}
+              {% set ch_n = c.content|selectattr('status','equalto','changes')|list|length %}
+              <button class="ax-chip is-active" type="button" data-filter="all">All {{ all_n }}</button>
+              <button class="ax-chip" type="button" data-filter="awaiting">Awaiting {{ aw_n }}</button>
+              <button class="ax-chip" type="button" data-filter="approved">Approved {{ ap_n }}</button>
+              <button class="ax-chip" type="button" data-filter="changes">Changes {{ ch_n }}</button>
+            </div>
+
+            {% for p in c.content %}
+            <div class="ax-card ax-content" data-content="{{ p.id }}" data-status="{{ p.status }}">
+              {% set _shots = [] %}
+              {% if p.images %}{% for im in p.images %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id ~ '/' ~ im.id, 'mime': im.mime|default('', true), 'id': im.id}) %}{% endfor %}
+              {% elif p.image_object %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id, 'mime': p.image_mime|default('', true), 'id': ''}) %}
+              {% elif p.image %}{% set _ = _shots.append({'url': p.image, 'mime': '', 'id': ''}) %}{% endif %}
+              <div class="ax-thumb {{ chan }}{{ ' has-shots' if _shots else '' }}" data-shots>
+                {% if _shots %}
+                <div class="ax-shots{{ ' multi' if _shots|length > 1 else '' }}">
+                  {% for s in _shots %}
+                  <div class="ax-shot">
+                    {% if s.mime.startswith('video/') %}<video src="{{ s.url }}" class="ax-shot-media" controls preload="metadata"></video>{% else %}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ p.ref }} — picture {{ loop.index }}">{% endif %}
+                    {% if is_superadmin and s.id %}<button class="ax-shot-x" type="button" data-removeimg="{{ p.id }}" data-imgid="{{ s.id }}" title="Remove this picture">&times;</button>{% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <span class="ax-thumb-k">{{ p.type_tag }}</span>
+                <span class="ax-thumb-r">{{ p.ref }}</span>
+                {% endif %}
+                {% if is_superadmin %}
+                <div class="ax-shots-admin">
+                  <button class="ax-btn small" type="button" data-addimages="{{ p.id }}">＋ Add picture(s)</button>
+                  <input type="file" accept="image/*,video/*" multiple data-addinput="{{ p.id }}" style="display:none">
+                </div>
+                {% endif %}
+              </div>
+              <div class="ax-content-main">
+                <div class="ax-tagrow">
+                  <span class="ax-tag plain">{{ p.type_tag }}</span>
+                  <span class="ax-tag plain">{{ p.platform }}</span>
+                  <span class="ax-tag {{ chan }}">{{ 'Paid / Lead Generation' if chan=='paid' else 'Organic' }}</span>
+                  <span class="ax-status {{ p.status }}" data-statuspill>{{ 'Changes requested' if p.status=='changes' else p.status }}</span>
+                </div>
+                <div class="ax-ref">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</div>
+                <p class="ax-caption">{{ p.caption }}</p>
+
+                <div data-noteslot>
+                  <textarea class="ax-noteinput" data-note data-saved="{{ p.client_note }}" placeholder="＋ Add a note for the AGORA team…">{{ p.client_note }}</textarea>
+                </div>
+
+                <div data-actionslot>
+                  <div class="ax-actions">
+                    <button class="ax-btn approve" type="button" data-approve>{{ ic('check') }} Approve</button>
+                    <button class="ax-btn ghost" type="button" data-changes>Request changes</button>
+                    <span class="ax-savehint" data-savehint hidden>Saved ✓</span>
+                  </div>
+                  {% if p.status == 'approved' %}
+                  <div class="ax-confirm">{{ ic('check') }} Approved{% if p.decided_at %} &middot; {{ p.decided_at|atrium_dt }}{% endif %} &middot; you can change this anytime</div>
+                  {% elif p.status == 'changes' %}
+                  <div class="ax-confirm" style="background:#FDECEC;color:#E5413E">{{ ic('message') }} Changes requested{% if p.decided_at %} &middot; {{ p.decided_at|atrium_dt }}{% endif %} &middot; you can change this anytime</div>
+                  {% endif %}
+                </div>
+
+                <div class="ax-comments" data-comments="{{ p.id }}">
+                  <div class="ax-com-label">Comments</div>
+                  <div class="ax-com-list" data-comlist>
+                    {% for cm in p.comments|default([], true) %}
+                    <div class="ax-com {{ cm.sender }}">
+                      <div class="ax-com-who">{{ cm.sender_name }}{% if cm.sender=='agora' %} · AGORA{% endif %}</div>
+                      {{ cm.body }}
+                      <div class="ax-com-when">{{ cm.created_at|atrium_dt }}</div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <div class="ax-com-form">
+                    <textarea data-cominput placeholder="Add a comment…  (Enter to send)"></textarea>
+                    <button class="ax-btn violet small" type="button" data-comsend="{{ p.id }}">Comment</button>
+                  </div>
+                </div>
+
+                {% if is_superadmin %}
+                <div class="ax-admin-tools" data-contenttools="{{ p.id }}">
+                  <button class="ax-btn admin small" type="button" data-contentedit="{{ p.id }}">Edit details</button>
+                  <button class="ax-btn danger small" type="button" data-contentdelete="{{ p.id }}">Delete</button>
+                </div>
+                <div class="ax-edit-hidden" data-contentform="{{ p.id }}" style="margin-top:10px">
+                  <div class="ax-editrow" style="grid-template-columns:1fr 1fr 1fr">
+                    <input class="ax-editbox" data-cf="ref" value="{{ p.ref }}" placeholder="Reference">
+                    {% set types = ['Blog Post','Static Post','Quizzes','Email','Newsletter','Video Edit'] %}
+                    <select class="ax-editbox" data-cf="type_tag">
+                      <option value="" disabled hidden>Type</option>
+                      {% if p.type_tag and p.type_tag not in types %}<option value="{{ p.type_tag }}" selected>{{ p.type_tag }}</option>{% endif %}
+                      {% for t in types %}<option value="{{ t }}"{% if p.type_tag == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+                    </select>
+                    {% set plats = ['Facebook','Instagram','Google'] %}
+                    <select class="ax-editbox" data-cf="platform">
+                      <option value="" disabled hidden>Platform</option>
+                      {% if p.platform and p.platform not in plats %}<option value="{{ p.platform }}" selected>{{ p.platform }}</option>{% endif %}
+                      {% for pl in plats %}<option value="{{ pl }}"{% if p.platform == pl %} selected{% endif %}>{{ pl }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <textarea class="ax-editbox" data-cf="caption" placeholder="Caption">{{ p.caption }}</textarea>
+                  <div class="ax-actions">
+                    <button class="ax-btn violet small" type="button" data-contentsave="{{ p.id }}">Save details</button>
+                    <button class="ax-btn ghost small" type="button" data-contentcancel="{{ p.id }}">Cancel</button>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+
+            <div class="ax-ai" data-aiwrap="{{ c.id }}"{% if not c.ai_summary and not is_superadmin %} style="display:none"{% endif %}>
+              <span class="ax-ai-ic">{{ ic('sparkle') }}</span>
+              <div style="flex:1">
+                <div class="ax-ai-label">AI summary</div>
+                <p data-aitext="{{ c.id }}">{{ c.ai_summary }}</p>
+                {% if is_superadmin %}
+                <textarea class="ax-editbox ax-edit-hidden" data-aiedit="{{ c.id }}" placeholder="AI summary (client-facing)">{{ c.ai_summary }}</textarea>
+                <div class="ax-actions" style="margin-top:4px">
+                  <button class="ax-btn admin small" type="button" data-aiedittoggle="{{ c.id }}">Edit summary</button>
+                  <button class="ax-btn violet small ax-edit-hidden" type="button" data-aisave="{{ c.id }}">Save summary</button>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if is_superadmin %}
+            <div class="ax-addpanel" data-addcontent="{{ c.id }}">
+              <h3>Add content to {{ c.name }}</h3>
+              <div class="ax-editrow" style="grid-template-columns:1fr 1fr 1fr">
+                <input class="ax-editbox" data-nc="ref" placeholder="Reference (e.g. RVR-018)">
+                <select class="ax-editbox" data-nc="type_tag">
+                  <option value="" disabled selected hidden>Type (e.g. Static Post)</option>
+                  <option value="Blog Post">Blog Post</option>
+                  <option value="Static Post">Static Post</option>
+                  <option value="Quizzes">Quizzes</option>
+                  <option value="Email">Email</option>
+                  <option value="Newsletter">Newsletter</option>
+                  <option value="Video Edit">Video Edit</option>
+                </select>
+                <select class="ax-editbox" data-nc="platform">
+                  <option value="" disabled selected hidden>Platform (e.g. Instagram · Facebook)</option>
+                  <option value="Facebook">Facebook</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Google">Google</option>
+                </select>
+              </div>
+              <textarea class="ax-editbox" data-nc="caption" placeholder="Caption the client will review…"></textarea>
+              <button class="ax-btn green small" type="button" data-addcontentbtn="{{ c.id }}">{{ ic('check') }} Add content &amp; notify client</button>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="ax-empty">No {{ 'paid' if chan=='paid' else 'organic' }} campaigns yet.</div>
+          {% endif %}
+
+          {% if is_superadmin %}
+          <div class="ax-addpanel" data-addcampaign="{{ chan }}">
+            <h3>Add a {{ 'paid / lead-gen' if chan=='paid' else 'organic' }} campaign</h3>
+            <div class="ax-editrow">
+              <input class="ax-editbox" data-ac="name" placeholder="Campaign name">
+              <input class="ax-editbox" data-ac="eyebrow" placeholder="Eyebrow (e.g. PAID ADS · RETARGETING)">
+            </div>
+            <textarea class="ax-editbox" data-ac="what" placeholder="What happened"></textarea>
+            <textarea class="ax-editbox" data-ac="why" placeholder="Why it happened"></textarea>
+            <textarea class="ax-editbox" data-ac="next" placeholder="What to do next"></textarea>
+            <button class="ax-btn violet small" type="button" data-addcampaignbtn="{{ chan }}">Add campaign</button>
+          </div>
+          {% endif %}
+        </section>
+        {% endfor %}
+
+        <!-- ============ CALENDAR ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='calendar' else '' }}" data-pane="calendar">
+          <h1 class="ax-greet">{{ ws.project.name if (ws.project and ws.project.name) else view.calendar.label }}</h1>
+          <p class="ax-lede">Tracking the work from kickoff to delivered — paid and organic publish dates included.</p>
+
+          {% if view.progress %}
+          <div class="ax-card ax-progress">
+            <div class="ax-progress-row">
+              <div class="ax-progress-end">
+                <span class="ax-progress-flag">{{ ic('check') }}</span>
+                <div><div class="ax-progress-k">Project start</div><div class="ax-progress-v">{{ view.progress.start_label }}</div></div>
+              </div>
+              <span class="ax-progress-day">Day {{ view.progress.day }} of {{ view.progress.total }}</span>
+              <div class="ax-progress-end" style="text-align:right">
+                <div><div class="ax-progress-k">{{ 'Accomplished' if view.progress.done else 'Target' }}</div><div class="ax-progress-v">{{ view.progress.end_label }}</div></div>
+                <span class="ax-progress-flag">{{ ic('trophy') }}</span>
+              </div>
+            </div>
+            <div class="ax-progress-bar"><span style="width:{{ view.progress.pct }}%"></span></div>
+          </div>
+          {% endif %}
+
+          <div class="ax-cal-legend">
+            <span><span class="ax-dot-i" style="background:#98a0b0"></span>Milestone</span>
+            <span><span class="ax-dot-i" style="background:#9484FB"></span>Paid</span>
+            <span><span class="ax-dot-i" style="background:#4FAB4A"></span>Organic</span>
+            <span><span class="ax-dot-i" style="background:#F2820C"></span>Due</span>
+            <span class="ax-mile-aheadkey">✓ done / ahead of schedule</span>
+          </div>
+
+          <div class="ax-callayout">
+            <div class="ax-cal-stack">
+              {#- Previous / current / next month, anchored on today's month so it rolls forward. -#}
+              {% for cal in view.calendars %}
+              <div class="ax-panel ax-cal-month {{ 'is-current' if cal.is_current else 'is-side' }}">
+                <div class="ax-cal-mhead">
+                  <span class="ax-cal-mname">{{ cal.label }}</span>
+                  {% if cal.is_current %}<span class="ax-cal-now">This month</span>{% endif %}
+                </div>
+                <div class="ax-cal-grid">
+                  {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="ax-cal-dow">{{ d }}</div>{% endfor %}
+                  {% for week in cal.weeks %}{% for cell in week %}
+                  {% set cell_emptypast = cell.is_past and cell.in_month and not cell.events and not cell.done and not cell.ahead and not cell.is_today %}
+                  <div class="ax-cal-cell {{ 'out' if not cell.in_month else '' }} {{ 'past' if cell.is_past else '' }} {{ 'pastempty' if cell_emptypast else '' }} {{ 'done' if cell.done else '' }} {{ 'ahead' if cell.ahead else '' }} {{ 'today' if cell.is_today else '' }}">
+                    <div class="ax-cal-day">{{ cell.day }}{% if cell.done %} <span class="ax-cal-check">✓</span>{% endif %}</div>
+                    {% for ev in cell.events %}
+                    <div class="ax-cal-ev"><span class="ax-evd {{ ev.kind }}"></span><span>{{ ev.label }}</span></div>
+                    {% endfor %}
+                  </div>
+                  {% endfor %}{% endfor %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="ax-panel ax-miles">
+              <h2 class="ax-h2">{{ ic('trophy') }} Milestones</h2>
+              {% if view.milestones %}
+              <div class="ax-mile-list">
+                {% for m in view.milestones %}
+                <div class="ax-mile {{ m.state }}">
+                  <span class="ax-mile-ic {{ m.kind }} {{ m.state }}">{% if m.state == 'done' %}{{ ic('check') }}{% endif %}</span>
+                  <div class="ax-mile-main">
+                    <div class="ax-mile-date">{{ m.date_label }}{% if m.ahead %} &middot; <span class="ax-mile-ahead">done ahead</span>{% endif %}</div>
+                    <div class="ax-mile-title">{{ m.label }}</div>
+                    {% if m.kind in ('paid','organic') %}<span class="ax-tag {{ m.kind }}">{{ 'Paid' if m.kind=='paid' else 'Organic' }}</span>{% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="ax-empty">No milestones yet.</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if is_superadmin %}
+          <div class="ax-addpanel" data-calform style="margin-top:18px">
+            <h3>Add a calendar event</h3>
+            <div class="ax-editrow" style="grid-template-columns:1fr 2fr 1fr">
+              <input class="ax-editbox" type="date" data-cev="date">
+              <input class="ax-editbox" data-cev="label" placeholder="Label (e.g. Reel goes live)">
+              <select class="ax-editbox" data-cev="kind">
+                <option value="paid">Paid</option>
+                <option value="organic">Organic</option>
+                <option value="due">Due</option>
+                <option value="milestone">Milestone</option>
+              </select>
+            </div>
+            <button class="ax-btn violet small" type="button" data-caladd>Add event</button>
+            {% if ws.calendar %}
+            <div style="margin-top:14px">
+              <div class="ax-com-label">Existing events</div>
+              {% for ev in ws.calendar %}
+              <div class="ax-set-row" style="padding:8px 0">
+                <div class="ax-set-d"><span class="ax-evd {{ ev.kind }}" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>{{ ev.date }} — {{ ev.label }} <span class="ax-tag plain">{{ ev.kind }}</span>{% if ev.status == 'done' %} <span class="ax-tag organic">✓ Done</span>{% endif %}</div>
+                <div style="display:flex;gap:8px;flex-shrink:0">
+                  <button class="ax-btn ghost small" type="button" data-caldone="{{ loop.index0 }}" data-calstatus="{{ 'done' if ev.status == 'done' else '' }}">{{ 'Mark as not done' if ev.status == 'done' else 'Mark as done' }}</button>
+                  <button class="ax-btn danger small" type="button" data-caldel="{{ loop.index0 }}">Delete</button>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </section>
+
+        <!-- ============ CLIENT COMMUNICATIONS (email + meeting summaries) ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='conversations' else '' }}" data-pane="conversations">
+          <h1 class="ax-greet">Client Communications</h1>
+          <p class="ax-lede">A running record of our meetings and email updates — so nothing gets lost.</p>
+          <div class="ax-comm">
+            <div class="ax-comm-col email">
+              <h2>{{ ic('mail') }} Email Summary</h2>
+              {% if ws.email_summaries %}
+                {% for e in ws.email_summaries %}
+                <div class="ax-card ax-comm-item">
+                  <div class="ax-comm-top">
+                    <span class="ax-comm-title">{{ e.subject }}</span>
+                    <span class="ax-comm-date">{{ e.date|atrium_dt }}</span>
+                  </div>
+                  <p class="ax-comm-body">{{ e.summary }}</p>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="ax-empty">No email summaries yet.</div>
+              {% endif %}
+            </div>
+            <div class="ax-comm-col meeting">
+              <h2>{{ ic('calendar') }} Meeting Summary</h2>
+              {% if ws.meeting_summaries %}
+                {% for mtg in ws.meeting_summaries %}
+                <div class="ax-card ax-comm-item">
+                  <div class="ax-comm-top">
+                    <span class="ax-comm-title">{{ mtg.title }}</span>
+                    <span class="ax-comm-date">{{ mtg.date|atrium_dt }}</span>
+                  </div>
+                  {% if mtg.attendees %}<div class="ax-comm-meta">{{ ic('users') }} {{ mtg.attendees }}</div>{% endif %}
+                  <p class="ax-comm-body">{{ mtg.summary }}</p>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="ax-empty">No meeting summaries yet.</div>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ NOTIFICATION SETTINGS ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='settings' else '' }}" data-pane="settings">
+          <h1 class="ax-greet">Notification settings</h1>
+          <p class="ax-lede">Choose what AGORA emails you about. Everything still appears here in your workspace either way.</p>
+          <div class="ax-panel ax-set-wrap" id="ax-settings">
+            <div class="ax-set-master">
+              <div class="ax-set-row" style="border:0">
+                <div><div class="ax-set-t">Email me about my workspace</div><div class="ax-set-d">The master switch. Off means AGORA won't email you at all.</div></div>
+                <label class="ax-switch"><input type="checkbox" data-pref="master" {{ 'checked' if user_notify.master else '' }}><span class="ax-track"></span><span class="ax-knob"></span></label>
+              </div>
+            </div>
+            <div id="ax-granular" class="{{ '' if user_notify.master else 'ax-disabled' }}">
+              {% for pref, t, d in [
+                ('content','New content to review','When the team adds a piece for your approval.'),
+                ('replies','New email or meeting summary','When AGORA posts a meeting note or email summary.'),
+                ('summary','Weekly performance summary','A short recap of your numbers each week.'),
+                ('status','Campaign status changes','When a campaign goes live, pauses, or wraps.'),
+                ('news','Product news from AGORA','Occasional updates about new features.')
+              ] %}
+              <div class="ax-set-row">
+                <div><div class="ax-set-t">{{ t }}</div><div class="ax-set-d">{{ d }}</div></div>
+                <label class="ax-switch"><input type="checkbox" data-pref="{{ pref }}" {{ 'checked' if user_notify[pref] else '' }}><span class="ax-track"></span><span class="ax-knob"></span></label>
+              </div>
+              {% endfor %}
+              <div class="ax-set-row">
+                <div><div class="ax-set-t">Frequency</div><div class="ax-set-d">Send emails instantly, or bundle them into one daily digest.</div></div>
+                <div class="ax-seg" data-freq>
+                  <button type="button" data-freqval="instant" class="{{ 'is-active' if user_notify.frequency=='instant' else '' }}">Instant</button>
+                  <button type="button" data-freqval="daily" class="{{ 'is-active' if user_notify.frequency=='daily' else '' }}">Daily digest</button>
+                </div>
+              </div>
+            </div>
+            <div class="ax-actions" style="margin-top:18px">
+              <button class="ax-btn violet" type="button" id="ax-savenotify">Save settings</button>
+              <span class="ax-savehint" id="ax-notifysaved" hidden>Saved ✓</span>
+            </div>
+            <div class="ax-reassure">{{ ic('check') }}<span>With emails off, everything still appears here in the workspace — you just won't get an email about it.</span></div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Shared click-to-enlarge lightbox for approval pictures -->
+<div class="ax-lightbox" id="ax-lightbox" hidden>
+  <button class="ax-lightbox-close" id="ax-lb-x" type="button" aria-label="Close">&times;</button>
+  <button class="ax-lightbox-nav prev" id="ax-lb-p" type="button" aria-label="Previous">&lsaquo;</button>
+  <img class="ax-lightbox-img" id="ax-lb-i" alt="">
+  <button class="ax-lightbox-nav next" id="ax-lb-n" type="button" aria-label="Next">&rsaquo;</button>
+  <div class="ax-lightbox-count" id="ax-lb-c">1 / 1</div>
+</div>
+
+<script>
+// esprima-4.x-safe: classic ES5/ES2015 only -- no optional chaining (?.) or nullish (??).
+// All state is read from the DOM (data-* attributes); no Jinja appears in this script.
+(function () {
+  var root = document.querySelector(".atrium");
+  if (!root) { return; }
+  var base = root.getAttribute("data-base") || "";
+  var isAdmin = root.getAttribute("data-admin") === "1";
+  var adminName = root.getAttribute("data-adminname") || "AGORA";
+
+  function qsa(sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
+
+  // ---- Collapsible sidebar (tuck the nav to the side; remembers the choice) ------------------
+  var navToggle = document.getElementById("ax-navtoggle");
+  var navKey = "axNavCollapsed";
+  function setNav(collapsed) {
+    if (collapsed) { root.classList.add("nav-collapsed"); } else { root.classList.remove("nav-collapsed"); }
+  }
+  try { if (window.localStorage && window.localStorage.getItem(navKey) === "1") { setNav(true); } } catch (e) {}
+  if (navToggle) {
+    navToggle.addEventListener("click", function () {
+      var collapsed = !root.classList.contains("nav-collapsed");
+      setNav(collapsed);
+      try { if (window.localStorage) { window.localStorage.setItem(navKey, collapsed ? "1" : "0"); } } catch (e) {}
+    });
+  }
+
+  function adminMsg(text, ok) {
+    var el = document.getElementById("ax-admin-msg");
+    if (el) { el.textContent = text; el.style.color = ok === false ? "#ff8da3" : "#9be8a6"; }
+  }
+
+  // ---- Tab switching -------------------------------------------------------
+  var titles = {
+    overview: "Overview", dashboard: "Dashboard", leadgen: "Lead Generation",
+    organic: "Organic Content", calendar: "Content Calendar",
+    conversations: "Client Communications", settings: "Notification settings"
+  };
+  function showTab(tab, push) {
+    var pane = document.querySelector('[data-pane="' + tab + '"]');
+    if (!pane) { return; }
+    qsa(".ax-pane").forEach(function (p) { p.classList.remove("is-active"); });
+    pane.classList.add("is-active");
+    qsa("#ax-nav a").forEach(function (a) {
+      a.classList.toggle("is-active", a.getAttribute("data-tab") === tab);
+    });
+    var title = document.getElementById("ax-title");
+    if (title && titles[tab]) { title.textContent = titles[tab]; }
+    var shareBtnToggle = document.getElementById("ax-sharebtn");
+    if (shareBtnToggle) { shareBtnToggle.style.display = (tab === "overview") ? "" : "none"; }
+    if (push && window.history && window.history.pushState) {
+      window.history.pushState({ tab: tab }, "", base + "/" + tab);
+    }
+    if (window.scrollTo) { window.scrollTo(0, 0); }
+  }
+  qsa("#ax-nav a").forEach(function (a) {
+    a.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      showTab(a.getAttribute("data-tab"), true);
+    });
+  });
+  qsa("[data-goto]").forEach(function (el) {
+    el.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      showTab(el.getAttribute("data-goto"), true);
+    });
+  });
+  window.addEventListener("popstate", function () {
+    var parts = window.location.pathname.split("/");
+    var tab = parts[parts.length - 1];
+    if (titles[tab]) { showTab(tab, false); } else { showTab("overview", false); }
+  });
+
+  // ---- Live clock + greeting ----------------------------------------------
+  var clock = document.getElementById("ax-clock");
+  function tick() {
+    if (!clock) { return; }
+    var now = new Date();
+    var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+    var ap = h >= 12 ? "PM" : "AM";
+    var hh = h % 12; if (hh === 0) { hh = 12; }
+    function pad(n) { return n < 10 ? "0" + n : "" + n; }
+    clock.textContent = hh + ":" + pad(m) + ":" + pad(s) + " " + ap;
+  }
+  if (clock) { tick(); window.setInterval(tick, 1000); }
+  var gw = document.getElementById("ax-greetword");
+  if (gw) {
+    var hr = new Date().getHours();
+    gw.textContent = hr < 12 ? "morning" : (hr < 18 ? "afternoon" : "evening");
+  }
+
+  // ---- Share recap: copy a capability link whose #fragment carries the recap (no server round-trip).
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", "");
+    ta.style.position = "absolute"; ta.style.left = "-9999px";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    if (done) { done(); }
+  }
+  var shareBtn = document.getElementById("ax-sharebtn");
+  if (shareBtn) {
+    var shareDefault = shareBtn.innerHTML;
+    shareBtn.addEventListener("click", function () {
+      var recap = shareBtn.getAttribute("data-recap") || "";
+      var link = window.location.origin + "/r#" + recap;
+      function copied() {
+        shareBtn.classList.add("copied");
+        shareBtn.innerHTML = "Link copied &#10003;";
+        window.setTimeout(function () {
+          shareBtn.classList.remove("copied");
+          shareBtn.innerHTML = shareDefault;
+        }, 2200);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(copied, function () { fallbackCopy(link, copied); });
+      } else {
+        fallbackCopy(link, copied);
+      }
+    });
+  }
+
+  // ---- POST helpers --------------------------------------------------------
+  function postData(path, body) {
+    return fetch(base + path, { method: "POST", body: body, credentials: "same-origin" })
+      .then(function (resp) {
+        if (!resp || !resp.ok) { throw new Error("request failed"); }
+        return resp.json();
+      });
+  }
+  function post(path, fields) {
+    var body = new FormData();
+    var k;
+    for (k in fields) { if (fields.hasOwnProperty(k)) { body.append(k, fields[k]); } }
+    return postData(path, body);
+  }
+  // Admin edit actions reload the page on success so the workspace reflects the change (matching the
+  // approve/request-changes flow). A JSON {ok:false} (e.g. a doc that could not be read) surfaces its
+  // message inline instead of reloading.
+  function adminAction(path, fields, btn) {
+    if (btn) { btn.setAttribute("disabled", "disabled"); }
+    return post(path, fields)
+      .then(function (data) {
+        if (data && data.ok === false) {
+          adminMsg(data.message || "Could not complete that.", false);
+          if (btn) { btn.removeAttribute("disabled"); }
+          return data;
+        }
+        window.location.reload();
+        return data;
+      })
+      .catch(function () {
+        adminMsg("Could not save — please try again.", false);
+        if (btn) { btn.removeAttribute("disabled"); }
+      });
+  }
+
+  // ---- Content review: approve / request changes / save note ---------------
+  qsa('[data-content]').forEach(function (card) {
+    var id = card.getAttribute("data-content");
+    var noteEl = card.querySelector("[data-note]");
+    function noteVal() { return noteEl ? noteEl.value : ""; }
+
+    var approveBtn = card.querySelector("[data-approve]");
+    var changesBtn = card.querySelector("[data-changes]");
+    var hint = card.querySelector("[data-savehint]");
+
+    function decide(action, btn) {
+      if (btn) { btn.setAttribute("disabled", "disabled"); }
+      post("/" + action, { content_id: id, note: noteVal() })
+        .then(function () { window.location.reload(); })
+        .catch(function () {
+          if (btn) { btn.removeAttribute("disabled"); }
+          if (hint) { hint.textContent = "Could not save — try again."; hint.style.color = "#E5413E"; hint.hidden = false; }
+        });
+    }
+    if (approveBtn) { approveBtn.addEventListener("click", function () { decide("approve", approveBtn); }); }
+    if (changesBtn) { changesBtn.addEventListener("click", function () { decide("request-changes", changesBtn); }); }
+
+    // Save the note quietly on blur (so a note isn't lost if they navigate without deciding).
+    if (noteEl) {
+      noteEl.addEventListener("blur", function () {
+        if (noteEl.value === noteEl.getAttribute("data-saved")) { return; }
+        post("/save-note", { content_id: id, note: noteVal() })
+          .then(function () {
+            noteEl.setAttribute("data-saved", noteEl.value);
+            if (hint) { hint.hidden = false; window.setTimeout(function () { hint.hidden = true; }, 1500); }
+          })
+          .catch(function () {});
+      });
+    }
+  });
+
+  // ---- Content status filter chips ----------------------------------------
+  qsa("[data-contentfilter]").forEach(function (bar) {
+    var block = bar.parentNode;
+    qsa(".ax-chip", bar).forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        qsa(".ax-chip", bar).forEach(function (c) { c.classList.remove("is-active"); });
+        chip.classList.add("is-active");
+        var want = chip.getAttribute("data-filter");
+        qsa("[data-content]", block).forEach(function (card) {
+          var st = card.getAttribute("data-status");
+          card.style.display = (want === "all" || want === st) ? "" : "none";
+        });
+      });
+    });
+  });
+
+  // ---- Campaign dropdown (when a channel has >1 campaign) ------------------
+  qsa("[data-campfilter]").forEach(function (sel) {
+    var tab = sel.getAttribute("data-campfilter");
+    sel.addEventListener("change", function () {
+      var id = sel.value;
+      var chosen = null;
+      qsa('[data-campblock="' + tab + '"]').forEach(function (b) {
+        var match = b.getAttribute("data-campid") === id;
+        b.style.display = match ? "" : "none";
+        if (match) { chosen = b; }
+      });
+      if (chosen) {
+        var title = document.querySelector('[data-camptitle="' + tab + '"]');
+        if (title) { title.textContent = chosen.getAttribute("data-campname"); }
+      }
+    });
+  });
+
+  // ---- Conversations: thread switch + send --------------------------------
+  qsa("[data-thread]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var id = btn.getAttribute("data-thread");
+      qsa("[data-thread]").forEach(function (b) { b.classList.remove("is-active"); });
+      btn.classList.add("is-active");
+      qsa("[data-chatpanel]").forEach(function (p) {
+        p.classList.toggle("is-active", p.getAttribute("data-chatpanel") === id);
+      });
+    });
+  });
+  qsa("[data-send]").forEach(function (btn) {
+    var id = btn.getAttribute("data-send");
+    var panel = document.querySelector('[data-chatpanel="' + id + '"]');
+    if (!panel) { return; }
+    var box = panel.querySelector("[data-composer]");
+    var msgs = panel.querySelector("[data-msgs]");
+    var tag = panel.querySelector("[data-threadtag]");
+    var resolveEl = panel.querySelector("[data-resolve]");
+
+    function send() {
+      var text = box ? box.value.replace(/^\s+|\s+$/g, "") : "";
+      if (!text) { return; }
+      btn.setAttribute("disabled", "disabled");
+      // The same composer is used by clients (send a message) and by AGORA admins (reply as the
+      // team, optionally resolving the thread). The endpoint + bubble side differ by role.
+      var path = isAdmin ? "/admin/reply" : "/send-message";
+      var fields = isAdmin
+        ? { conversation_id: id, body: text, sender_name: adminName,
+            resolve: (resolveEl && resolveEl.checked) ? "1" : "0" }
+        : { conversation_id: id, body: text };
+      post(path, fields)
+        .then(function (data) {
+          var bubble = document.createElement("div");
+          bubble.className = isAdmin ? "ax-bubble agora" : "ax-bubble client";
+          var who = document.createElement("div"); who.className = "ax-who";
+          who.textContent = isAdmin ? (adminName + " · AGORA") : "You";
+          var when = document.createElement("div"); when.className = "ax-when"; when.textContent = "Just now";
+          bubble.appendChild(who);
+          bubble.appendChild(document.createTextNode(text));
+          bubble.appendChild(when);
+          if (msgs) { msgs.appendChild(bubble); msgs.scrollTop = msgs.scrollHeight; }
+          if (box) { box.value = ""; }
+          var newStatus = (data && data.status) ? data.status : (isAdmin ? "awaiting_reply" : "awaiting_reply");
+          if (tag) {
+            tag.textContent = newStatus === "resolved" ? "Resolved" : "Awaiting reply";
+            tag.className = "ax-th-tag " + newStatus;
+          }
+          if (resolveEl) { resolveEl.checked = false; }
+          btn.removeAttribute("disabled");
+        })
+        .catch(function () { btn.removeAttribute("disabled"); });
+    }
+    if (btn) { btn.addEventListener("click", send); }
+    if (box) {
+      box.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(); }
+      });
+    }
+  });
+
+  // ---- Per-creative comment thread (client posts; admin posts as AGORA) ----
+  qsa("[data-comments]").forEach(function (wrap) {
+    var id = wrap.getAttribute("data-comments");
+    var list = wrap.querySelector("[data-comlist]");
+    var input = wrap.querySelector("[data-cominput]");
+    var btn = wrap.querySelector("[data-comsend]");
+    function send() {
+      var text = input ? input.value.replace(/^\s+|\s+$/g, "") : "";
+      if (!text) { return; }
+      var path = isAdmin ? "/admin/content-comment" : "/comment";
+      var fields = isAdmin
+        ? { content_id: id, body: text, sender_name: adminName }
+        : { content_id: id, body: text };
+      if (btn) { btn.setAttribute("disabled", "disabled"); }
+      post(path, fields)
+        .then(function () {
+          var el = document.createElement("div");
+          el.className = isAdmin ? "ax-com agora" : "ax-com client";
+          var who = document.createElement("div"); who.className = "ax-com-who";
+          who.textContent = isAdmin ? (adminName + " · AGORA") : "You";
+          var when = document.createElement("div"); when.className = "ax-com-when"; when.textContent = "Just now";
+          el.appendChild(who);
+          el.appendChild(document.createTextNode(text));
+          el.appendChild(when);
+          if (list) { list.appendChild(el); }
+          if (input) { input.value = ""; }
+          if (btn) { btn.removeAttribute("disabled"); }
+        })
+        .catch(function () { if (btn) { btn.removeAttribute("disabled"); } });
+    }
+    if (btn) { btn.addEventListener("click", send); }
+    if (input) {
+      input.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(); }
+      });
+    }
+  });
+
+  // ---- Notification settings ----------------------------------------------
+  var masterEl = document.querySelector('[data-pref="master"]');
+  var granular = document.getElementById("ax-granular");
+  if (masterEl && granular) {
+    masterEl.addEventListener("change", function () {
+      granular.classList.toggle("ax-disabled", !masterEl.checked);
+    });
+  }
+  var freqWrap = document.querySelector("[data-freq]");
+  var freqVal = freqWrap ? (freqWrap.querySelector(".is-active") ? freqWrap.querySelector(".is-active").getAttribute("data-freqval") : "instant") : "instant";
+  if (freqWrap) {
+    qsa("button", freqWrap).forEach(function (b) {
+      b.addEventListener("click", function () {
+        qsa("button", freqWrap).forEach(function (x) { x.classList.remove("is-active"); });
+        b.classList.add("is-active");
+        freqVal = b.getAttribute("data-freqval");
+      });
+    });
+  }
+  var saveBtn = document.getElementById("ax-savenotify");
+  var savedHint = document.getElementById("ax-notifysaved");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", function () {
+      var fields = { frequency: freqVal };
+      qsa("[data-pref]").forEach(function (el) {
+        fields[el.getAttribute("data-pref")] = el.checked ? "1" : "0";
+      });
+      saveBtn.setAttribute("disabled", "disabled");
+      post("/save-notify", fields)
+        .then(function () {
+          if (savedHint) { savedHint.textContent = "Saved ✓"; savedHint.style.color = "#347A30"; savedHint.hidden = false; }
+          saveBtn.removeAttribute("disabled");
+        })
+        .catch(function () {
+          if (savedHint) { savedHint.textContent = "Could not save — try again."; savedHint.style.color = "#E5413E"; savedHint.hidden = false; }
+          saveBtn.removeAttribute("disabled");
+        });
+    });
+  }
+
+  // ======================================================================
+  // Super-admin inline editing (only wired when the workspace is opened by AGORA).
+  // Every control reads its values from data-* inputs and posts to /w/<c>/admin/*; on success
+  // adminAction() reloads so the rendered workspace reflects exactly what the client will see.
+  // ======================================================================
+  if (isAdmin) {
+    function fieldsFrom(scope, attr, into) {
+      var out = into || {};
+      qsa("[" + attr + "]", scope).forEach(function (el) { out[el.getAttribute(attr)] = el.value; });
+      return out;
+    }
+    function toggleHidden(el) { if (el) { el.classList.toggle("ax-edit-hidden"); } }
+
+    // --- Strategy: edit / save / cancel ---
+    qsa("[data-stratedit]").forEach(function (btn) {
+      var form = document.querySelector('[data-stratform="' + btn.getAttribute("data-stratedit") + '"]');
+      btn.addEventListener("click", function () { toggleHidden(form); });
+    });
+    qsa("[data-stratcancel]").forEach(function (btn) {
+      var form = document.querySelector('[data-stratform="' + btn.getAttribute("data-stratcancel") + '"]');
+      btn.addEventListener("click", function () { if (form) { form.classList.add("ax-edit-hidden"); } });
+    });
+    qsa("[data-stratsave]").forEach(function (btn) {
+      var id = btn.getAttribute("data-stratsave");
+      var form = document.querySelector('[data-stratform="' + id + '"]');
+      btn.addEventListener("click", function () {
+        adminAction("/admin/strategy", fieldsFrom(form, "data-sf", { campaign_id: id }), btn);
+      });
+    });
+
+    // --- Delete campaign ---
+    qsa("[data-campdelete]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var name = btn.getAttribute("data-campname") || "this campaign";
+        if (!window.confirm("Delete " + name + " and all its content? This cannot be undone.")) { return; }
+        adminAction("/admin/delete-campaign", { campaign_id: btn.getAttribute("data-campdelete") }, btn);
+      });
+    });
+
+    // --- Strategy doc + generate AI summary ---
+    qsa("[data-docsave]").forEach(function (btn) {
+      var id = btn.getAttribute("data-docsave");
+      var input = document.querySelector('[data-docurl="' + id + '"]');
+      btn.addEventListener("click", function () {
+        adminAction("/admin/strategy-doc", { campaign_id: id, doc_url: input ? input.value : "" }, btn);
+      });
+    });
+    qsa("[data-docgen]").forEach(function (btn) {
+      var id = btn.getAttribute("data-docgen");
+      var input = document.querySelector('[data-docurl="' + id + '"]');
+      btn.addEventListener("click", function () {
+        adminMsg("Reading the doc and writing a summary…", true);
+        adminAction("/admin/generate-summary", { campaign_id: id, doc_url: input ? input.value : "" }, btn);
+      });
+    });
+
+    // --- AI summary: hand-edit ---
+    qsa("[data-aiedittoggle]").forEach(function (btn) {
+      var id = btn.getAttribute("data-aiedittoggle");
+      var box = document.querySelector('[data-aiedit="' + id + '"]');
+      var save = document.querySelector('[data-aisave="' + id + '"]');
+      btn.addEventListener("click", function () { toggleHidden(box); toggleHidden(save); });
+    });
+    qsa("[data-aisave]").forEach(function (btn) {
+      var id = btn.getAttribute("data-aisave");
+      var box = document.querySelector('[data-aiedit="' + id + '"]');
+      btn.addEventListener("click", function () {
+        adminAction("/admin/summary", { campaign_id: id, ai_summary: box ? box.value : "" }, btn);
+      });
+    });
+
+    // --- Content: edit / save / cancel / delete ---
+    qsa("[data-contentedit]").forEach(function (btn) {
+      var form = document.querySelector('[data-contentform="' + btn.getAttribute("data-contentedit") + '"]');
+      btn.addEventListener("click", function () { toggleHidden(form); });
+    });
+    qsa("[data-contentcancel]").forEach(function (btn) {
+      var form = document.querySelector('[data-contentform="' + btn.getAttribute("data-contentcancel") + '"]');
+      btn.addEventListener("click", function () { if (form) { form.classList.add("ax-edit-hidden"); } });
+    });
+    qsa("[data-contentsave]").forEach(function (btn) {
+      var id = btn.getAttribute("data-contentsave");
+      var form = document.querySelector('[data-contentform="' + id + '"]');
+      btn.addEventListener("click", function () {
+        adminAction("/admin/edit-content", fieldsFrom(form, "data-cf", { content_id: id }), btn);
+      });
+    });
+    qsa("[data-contentdelete]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (!window.confirm("Delete this content piece? This cannot be undone.")) { return; }
+        adminAction("/admin/delete-content", { content_id: btn.getAttribute("data-contentdelete") }, btn);
+      });
+    });
+
+    // --- Upload / remove creative ---
+    qsa("[data-uploadbtn]").forEach(function (btn) {
+      var id = btn.getAttribute("data-uploadbtn");
+      var input = document.querySelector('[data-uploadinput="' + id + '"]');
+      if (!input) { return; }
+      btn.addEventListener("click", function () { input.click(); });
+      input.addEventListener("change", function () {
+        if (!input.files || !input.files.length) { return; }
+        var file = input.files[0];
+        var ctype = file.type || "application/octet-stream";
+        var DIRECT_MAX = 30 * 1024 * 1024;
+        btn.setAttribute("disabled", "disabled");
+
+        function done() { window.location.reload(); }
+        function fail(msg) { adminMsg(msg || "Upload failed — try again.", false); btn.removeAttribute("disabled"); }
+
+        // Small files upload through the app. Large files (videos) upload STRAIGHT to GCS via a
+        // signed URL, bypassing Cloud Run's ~32 MB request cap.
+        if (file.size <= DIRECT_MAX) {
+          var body = new FormData();
+          body.append("content_id", id);
+          body.append("file", file);
+          adminMsg("Uploading creative…", true);
+          postData("/admin/upload-creative", body).then(done).catch(function () {
+            fail("Upload failed — use an image (≤8 MB) or a smaller video.");
+          });
+          return;
+        }
+
+        adminMsg("Preparing large upload…", true);
+        var meta = new FormData();
+        meta.append("content_id", id);
+        meta.append("content_type", ctype);
+        postData("/admin/creative-upload-url", meta).then(function (d) {
+          if (!d || !d.ok || !d.url) { fail("Large uploads aren't available — try a smaller file."); return; }
+          var xhr = new XMLHttpRequest();
+          xhr.open("PUT", d.url, true);
+          xhr.setRequestHeader("Content-Type", ctype);
+          if (xhr.upload) {
+            xhr.upload.onprogress = function (e) {
+              if (e.lengthComputable) { adminMsg("Uploading… " + Math.round(e.loaded * 100 / e.total) + "%", true); }
+            };
+          }
+          xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              adminMsg("Finishing…", true);
+              var c2 = new FormData();
+              c2.append("content_id", id);
+              c2.append("content_type", ctype);
+              postData("/admin/creative-confirm", c2).then(done).catch(function () {
+                fail("Uploaded, but could not be recorded — refresh and retry.");
+              });
+            } else {
+              fail("Direct upload failed (" + xhr.status + ") — try again.");
+            }
+          };
+          xhr.onerror = function () { fail("Direct upload failed — check your connection and retry."); };
+          xhr.send(file);
+        }).catch(function () { fail("Could not start the large upload — try again."); });
+      });
+    });
+    qsa("[data-removecreative]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        adminAction("/admin/remove-creative", { content_id: btn.getAttribute("data-removecreative") }, btn);
+      });
+    });
+
+    // --- Add content ---
+    qsa("[data-addcontentbtn]").forEach(function (btn) {
+      var id = btn.getAttribute("data-addcontentbtn");
+      var panel = document.querySelector('[data-addcontent="' + id + '"]');
+      btn.addEventListener("click", function () {
+        var fields = fieldsFrom(panel, "data-nc", { campaign_id: id });
+        if (!fields.ref && !fields.type_tag && !fields.caption) {
+          adminMsg("Add at least a reference, type, or caption.", false); return;
+        }
+        adminAction("/admin/content", fields, btn);
+      });
+    });
+
+    // --- Add campaign ---
+    qsa("[data-addcampaignbtn]").forEach(function (btn) {
+      var chan = btn.getAttribute("data-addcampaignbtn");
+      var panel = document.querySelector('[data-addcampaign="' + chan + '"]');
+      btn.addEventListener("click", function () {
+        var fields = fieldsFrom(panel, "data-ac", { channel: chan });
+        if (!fields.name) { adminMsg("Campaign name is required.", false); return; }
+        adminAction("/admin/campaign", fields, btn);
+      });
+    });
+
+    // --- Metrics ---
+    qsa("[data-metricssave]").forEach(function (btn) {
+      var panel = document.querySelector("[data-metricsform]");
+      btn.addEventListener("click", function () {
+        var fields = fieldsFrom(panel, "data-mf", {});
+        qsa("[data-mf-check]", panel).forEach(function (el) {
+          fields[el.getAttribute("data-mf-check")] = el.checked ? "1" : "0";
+        });
+        adminAction("/admin/metrics", fields, btn);
+      });
+    });
+
+    // --- Monthly goal (three tiers) ---
+    qsa("[data-goalsave]").forEach(function (btn) {
+      var panel = document.querySelector("[data-goalform]");
+      btn.addEventListener("click", function () {
+        adminAction("/admin/goal", fieldsFrom(panel, "data-gf", {}), btn);
+      });
+    });
+
+    // --- Calendar add / delete ---
+    qsa("[data-caladd]").forEach(function (btn) {
+      var panel = document.querySelector("[data-calform]");
+      btn.addEventListener("click", function () {
+        var fields = fieldsFrom(panel, "data-cev", { op: "add" });
+        if (!fields.date) { adminMsg("Pick a date for the event.", false); return; }
+        adminAction("/admin/calendar", fields, btn);
+      });
+    });
+    qsa("[data-caldel]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        adminAction("/admin/calendar", { op: "delete", index: btn.getAttribute("data-caldel") }, btn);
+      });
+    });
+    qsa("[data-caldone]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var next = btn.getAttribute("data-calstatus") === "done" ? "" : "done";
+        adminAction("/admin/calendar", { op: "status", index: btn.getAttribute("data-caldone"), status: next }, btn);
+      });
+    });
+  }
+
+  // ===== Approval pictures: click-to-enlarge lightbox + admin add/remove =====
+  var lbx = document.getElementById("ax-lightbox");
+  var lbxImg = document.getElementById("ax-lb-i");
+  var lbxCount = document.getElementById("ax-lb-c");
+  var lbxList = [];
+  var lbxIdx = 0;
+  function lbxRender() {
+    if (lbxImg) { lbxImg.setAttribute("src", lbxList[lbxIdx]); }
+    if (lbxCount) { lbxCount.textContent = (lbxIdx + 1) + " / " + lbxList.length; }
+  }
+  function lbxOpen(list, i) {
+    if (!lbx || !list.length) { return; }
+    lbxList = list; lbxIdx = i; lbx.hidden = false; lbxRender();
+  }
+  function lbxNav(d) { if (lbxList.length) { lbxIdx = (lbxIdx + d + lbxList.length) % lbxList.length; lbxRender(); } }
+  function lbxClose() { if (lbx) { lbx.hidden = true; } }
+  (function () {
+    var p = document.getElementById("ax-lb-p");
+    var n = document.getElementById("ax-lb-n");
+    var x = document.getElementById("ax-lb-x");
+    if (p) { p.addEventListener("click", function () { lbxNav(-1); }); }
+    if (n) { n.addEventListener("click", function () { lbxNav(1); }); }
+    if (x) { x.addEventListener("click", lbxClose); }
+    if (lbx) { lbx.addEventListener("click", function (e) { if (e.target === lbx) { lbxClose(); } }); }
+  })();
+  document.addEventListener("keydown", function (e) {
+    if (!lbx || lbx.hidden) { return; }
+    if (e.key === "Escape") { lbxClose(); }
+    else if (e.key === "ArrowLeft") { lbxNav(-1); }
+    else if (e.key === "ArrowRight") { lbxNav(1); }
+  });
+
+  // Click an image thumbnail -> open the lightbox with that ticket's pictures.
+  qsa("[data-shot]").forEach(function (el) {
+    if (el.getAttribute("data-vid") === "1") { return; }
+    el.addEventListener("click", function () {
+      var box = el.closest("[data-shots]");
+      var imgs = [];
+      if (box) {
+        qsa("[data-shot]", box).forEach(function (s) {
+          if (s.getAttribute("data-vid") !== "1") { imgs.push(s.getAttribute("data-shot-src")); }
+        });
+      }
+      var idx = imgs.indexOf(el.getAttribute("data-shot-src"));
+      lbxOpen(imgs, idx < 0 ? 0 : idx);
+    });
+  });
+
+  // Admin: add one or more pictures to a ticket, then reload.
+  qsa("[data-addimages]").forEach(function (btn) {
+    var id = btn.getAttribute("data-addimages");
+    var input = document.querySelector('[data-addinput="' + id + '"]');
+    if (!input) { return; }
+    btn.addEventListener("click", function () { input.click(); });
+    input.addEventListener("change", function () {
+      if (!input.files || !input.files.length) { return; }
+      var fd = new FormData();
+      fd.append("content_id", id);
+      var i;
+      for (i = 0; i < input.files.length; i++) { fd.append("files", input.files[i]); }
+      btn.setAttribute("disabled", "disabled");
+      fetch(base + "/admin/add-images", { method: "POST", body: fd, credentials: "same-origin" })
+        .then(function (r) { if (!r || !r.ok) { throw new Error("upload failed"); } return r.json(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { btn.removeAttribute("disabled"); adminMsg("Upload failed — please try again.", false); });
+    });
+  });
+
+  // Admin: remove a single picture.
+  qsa("[data-removeimg]").forEach(function (btn) {
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      adminAction("/admin/remove-image", { content_id: btn.getAttribute("data-removeimg"), image_id: btn.getAttribute("data-imgid") }, btn);
+    });
+  });
+})();
+</script>
+</body>
+</html>
