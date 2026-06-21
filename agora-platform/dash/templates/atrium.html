@@ -541,6 +541,15 @@
     .ax-thumb-upload .ax-btn:hover { background: rgba(0,0,0,.62); }
     .ax-addpanel { border: 1px dashed var(--ax-line); border-radius: var(--ax-radius); padding: 16px; margin-bottom: 14px; background: var(--ax-canvas); }
     .ax-addpanel h3 { font-size: 14px; font-weight: 800; margin: 0 0 12px; }
+    /* Admin: pane toolbar + add-content/add-campaign popup + content-type filter */
+    .ax-pane-tools { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px; }
+    .ax-typefilter { margin-left: auto; }
+    .ax-modal { position: fixed; inset: 0; z-index: 140; background: rgba(10,12,20,.55); display: grid; place-items: start center; padding: 48px 18px; overflow-y: auto; }
+    .ax-modal[hidden] { display: none; }
+    .ax-modal-card { position: relative; background: var(--ax-white); border-radius: var(--ax-radius); box-shadow: var(--ax-shadow-lg); padding: 22px; width: 100%; max-width: 640px; }
+    .ax-modal-card h3 { margin-top: 0; }
+    .ax-modal-x { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--ax-canvas); color: var(--ax-sub); font-size: 20px; line-height: 1; cursor: pointer; }
+    .ax-modal-x:hover { background: var(--ax-line); color: var(--ax-ink); }
 
     /* Collapsible sidebar -- the topbar button tucks the nav away (choice persists in localStorage). */
     .ax-top-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -869,6 +878,11 @@
         {% set tab = stream[0] %} {% set chan = stream[1] %}
         {% set camps = ws.campaigns|selectattr('channel','equalto',chan)|list %}
         <section class="ax-pane {{ 'is-active' if view.active_tab==tab else '' }}" data-pane="{{ tab }}">
+          {% if is_superadmin %}
+          <div class="ax-pane-tools">
+            <button class="ax-btn violet small" type="button" data-modalopen="addcampaign-{{ chan }}">＋ Add campaign</button>
+          </div>
+          {% endif %}
           {% if camps %}
           <div class="ax-camphead">
             <div>
@@ -901,6 +915,7 @@
 
             {% if is_superadmin %}
             <div class="ax-admin-tools">
+              <button class="ax-btn green small" type="button" data-modalopen="addcontent-{{ c.id }}">＋ Add content</button>
               <button class="ax-btn admin small" type="button" data-stratedit="{{ c.id }}">Edit strategy</button>
               <button class="ax-btn danger small" type="button" data-campdelete="{{ c.id }}" data-campname="{{ c.name }}">Delete campaign</button>
             </div>
@@ -934,10 +949,17 @@
               <button class="ax-chip" type="button" data-filter="awaiting">Awaiting {{ aw_n }}</button>
               <button class="ax-chip" type="button" data-filter="approved">Approved {{ ap_n }}</button>
               <button class="ax-chip" type="button" data-filter="changes">Changes {{ ch_n }}</button>
+              {% set types = c.content|map(attribute='type_tag')|select|unique|list %}
+              {% if types %}
+              <select class="ax-select ax-typefilter" data-typefilter aria-label="Filter by content type">
+                <option value="all">All types</option>
+                {% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+              </select>
+              {% endif %}
             </div>
 
             {% for p in c.content %}
-            <div class="ax-card ax-content" data-content="{{ p.id }}" data-status="{{ p.status }}">
+            <div class="ax-card ax-content" data-content="{{ p.id }}" data-status="{{ p.status }}" data-type="{{ p.type_tag }}">
               {% set _shots = [] %}
               {% if p.images %}{% for im in p.images %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id ~ '/' ~ im.id, 'mime': im.mime|default('', true), 'id': im.id}) %}{% endfor %}
               {% elif p.image_object %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id, 'mime': p.image_mime|default('', true), 'id': ''}) %}
@@ -1055,7 +1077,10 @@
             </div>
 
             {% if is_superadmin %}
-            <div class="ax-addpanel" data-addcontent="{{ c.id }}">
+            <div class="ax-modal" data-modal="addcontent-{{ c.id }}" hidden>
+              <div class="ax-modal-card">
+                <button class="ax-modal-x" type="button" data-modalclose aria-label="Close">&times;</button>
+                <div class="ax-addpanel" data-addcontent="{{ c.id }}" style="border:0;background:transparent;padding:0;margin:0">
               <h3>Add content to {{ c.name }}</h3>
               <div class="ax-editrow" style="grid-template-columns:1fr 1fr 1fr">
                 <input class="ax-editbox" data-nc="ref" placeholder="Reference (e.g. RVR-018)">
@@ -1077,6 +1102,8 @@
               </div>
               <textarea class="ax-editbox" data-nc="caption" placeholder="Caption the client will review…"></textarea>
               <button class="ax-btn green small" type="button" data-addcontentbtn="{{ c.id }}">{{ ic('check') }} Add content &amp; notify client</button>
+                </div>
+              </div>
             </div>
             {% endif %}
           </div>
@@ -1086,7 +1113,10 @@
           {% endif %}
 
           {% if is_superadmin %}
-          <div class="ax-addpanel" data-addcampaign="{{ chan }}">
+          <div class="ax-modal" data-modal="addcampaign-{{ chan }}" hidden>
+            <div class="ax-modal-card">
+              <button class="ax-modal-x" type="button" data-modalclose aria-label="Close">&times;</button>
+              <div class="ax-addpanel" data-addcampaign="{{ chan }}" style="border:0;background:transparent;padding:0;margin:0">
             <h3>Add a {{ 'paid / lead-gen' if chan=='paid' else 'organic' }} campaign</h3>
             <div class="ax-editrow">
               <input class="ax-editbox" data-ac="name" placeholder="Campaign name">
@@ -1096,6 +1126,8 @@
             <textarea class="ax-editbox" data-ac="why" placeholder="Why it happened"></textarea>
             <textarea class="ax-editbox" data-ac="next" placeholder="What to do next"></textarea>
             <button class="ax-btn violet small" type="button" data-addcampaignbtn="{{ chan }}">Add campaign</button>
+              </div>
+            </div>
           </div>
           {% endif %}
         </section>
@@ -1498,20 +1530,28 @@
     }
   });
 
-  // ---- Content status filter chips ----------------------------------------
+  // ---- Content filter: status chips + type dropdown (combined) -------------
   qsa("[data-contentfilter]").forEach(function (bar) {
     var block = bar.parentNode;
+    var statusWant = "all";
+    var typeWant = "all";
+    function apply() {
+      qsa("[data-content]", block).forEach(function (card) {
+        var okStatus = (statusWant === "all" || statusWant === card.getAttribute("data-status"));
+        var okType = (typeWant === "all" || typeWant === card.getAttribute("data-type"));
+        card.style.display = (okStatus && okType) ? "" : "none";
+      });
+    }
     qsa(".ax-chip", bar).forEach(function (chip) {
       chip.addEventListener("click", function () {
         qsa(".ax-chip", bar).forEach(function (c) { c.classList.remove("is-active"); });
         chip.classList.add("is-active");
-        var want = chip.getAttribute("data-filter");
-        qsa("[data-content]", block).forEach(function (card) {
-          var st = card.getAttribute("data-status");
-          card.style.display = (want === "all" || want === st) ? "" : "none";
-        });
+        statusWant = chip.getAttribute("data-filter");
+        apply();
       });
     });
+    var typeSel = bar.querySelector("[data-typefilter]");
+    if (typeSel) { typeSel.addEventListener("change", function () { typeWant = typeSel.value; apply(); }); }
   });
 
   // ---- Campaign dropdown (when a channel has >1 campaign) ------------------
@@ -1972,6 +2012,27 @@
       ev.stopPropagation();
       adminAction("/admin/remove-image", { content_id: btn.getAttribute("data-removeimg"), image_id: btn.getAttribute("data-imgid") }, btn);
     });
+  });
+
+  // Admin: add-content / add-campaign popups (open on a button; close on x, backdrop, or Esc).
+  qsa("[data-modalopen]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var m = document.querySelector('[data-modal="' + btn.getAttribute("data-modalopen") + '"]');
+      if (m) { m.hidden = false; }
+    });
+  });
+  qsa("[data-modalclose]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var m = btn.closest("[data-modal]");
+      if (m) { m.hidden = true; }
+    });
+  });
+  qsa("[data-modal]").forEach(function (m) {
+    m.addEventListener("click", function (e) { if (e.target === m) { m.hidden = true; } });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") { return; }
+    qsa("[data-modal]").forEach(function (m) { if (!m.hidden) { m.hidden = true; } });
   });
 })();
 </script>
