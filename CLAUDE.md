@@ -81,7 +81,9 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   local-fs backend via `WORKSPACE_LOCAL_DIR` (+ `WORKSPACE_BUCKET`/`WORKSPACE_PREFIX`) so it is
   testable off-cloud. Shape: `metrics`, `today`, `split`, `series`, `activity`, `campaigns[]`
   (`strategy`/`ai_summary`/`strategy_doc` + `content[]` with status `awaiting|approved|changes`,
-  `client_note`, threaded `comments[]`, and optional uploaded-creative `image_object`/`image_mime`),
+  `client_note`, threaded `comments[]` (each `id`/`sender`/`body`/`kind`; a `kind:"changes"` comment
+  is a "Request changes" comment that flips status and carries `resolved`), and optional
+  uploaded-creative `image_object`/`image_mime`),
   `calendar[]`, `conversations[]` (`client`/`agora` messages), per-user `notify` prefs.
 - **Uploaded creatives = separate private objects (NOT inline in the JSON):** an admin-uploaded
   creative (image OR video) is stored as its own object `workspace/creatives/<c>/<content_id>` in the
@@ -107,11 +109,14 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   `summary`, `campaign`, `delete-campaign`, `content`, `edit-content`, `delete-content`,
   `content-comment`, `upload-creative`, `creative-upload-url`, `creative-confirm`, `remove-creative`,
   `metrics`, `calendar`, `reply`. The older
-  dark `/admin/atrium/...` console stays as a fallback. **Clients** can now re-decide a creative's
-  status anytime (`/approve` ⇄ `/request-changes`) and post threaded `/w/<c>/comment`s.
+  dark `/admin/atrium/...` console stays as a fallback. **Clients** approve in place (`/approve`) and
+  post threaded `/w/<c>/comment`s; "Request changes" now lives IN the comment thread as a
+  `kind:"changes"` comment (light-red, flagged) that flips status to `changes` and exposes a
+  **Resolve** button (`/resolve-comment`) — resolving the last open one returns the piece to
+  `awaiting`. All of it updates in place (no reload), so the organic dropdown stays open.
 - **Routes (all behind existing session auth):** client `GET /w/<c>/` + `/w/<c>/<tab>` (overview,
   dashboard, leadgen, organic, calendar, conversations, settings) gated `authed()`+`can_open(<c>)`;
-  client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify}` +
+  client POSTs `/w/<c>/{approve,request-changes,save-note,comment,resolve-comment,send-message,save-notify}` +
   creative GET above; admin POSTs `/w/<c>/admin/*` gated `is_superadmin()`. Team console
   `/admin/atrium[/<c>][/campaign|content|conversation|reply|metrics]` gated `is_superadmin()`. The
   portal landing shows **Open workspace** beside **Open dashboard**.

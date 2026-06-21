@@ -350,8 +350,11 @@
     .ax-lightbox-count { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; font-family: ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,.12); padding: 5px 13px; border-radius: 999px; }
     /* Organic content: collapsible dropdown card (brand-kit themed) */
     .ax-content.ax-collapse { display: block; padding: 0; overflow: hidden; }
-    .ax-cardhead { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; align-items: center; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; padding: 14px 16px; font: inherit; color: inherit; }
-    .ax-cardhead:hover { background: var(--ax-canvas); }
+    .ax-cardhead { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; width: 100%; padding: 12px 16px; }
+    .ax-ch-media { min-width: 0; }
+    .ax-cardhead-toggle { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; width: 100%; min-width: 0; text-align: left; background: none; border: 0; cursor: pointer; padding: 0; font: inherit; color: inherit; }
+    .ax-cardhead-toggle:hover .ax-ch-cap { color: var(--ax-violet-d); }
+    @media (max-width: 720px) { .ax-cardhead { grid-template-columns: 120px 1fr; } }
     .ax-ch-thumb { height: 64px; border-radius: 10px; background-size: cover; background-position: center; display: grid; place-items: center; overflow: hidden; color: #fff; }
     .ax-ch-thumb.organic { background-color: #347A30; background-image: linear-gradient(140deg, #5FBE57, #347A30); }
     .ax-ch-k { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
@@ -362,8 +365,7 @@
     .ax-chev { color: #aab0bd; font-size: 13px; transition: transform .2s ease; }
     .ax-collapse.is-open .ax-chev { transform: rotate(180deg); }
     .ax-collapse .ax-detail { display: none; }
-    .ax-collapse.is-open .ax-detail { display: grid; grid-template-columns: 280px 1fr; gap: 16px; padding: 16px; border-top: 1px solid var(--ax-line); }
-    @media (max-width: 720px) { .ax-collapse.is-open .ax-detail { grid-template-columns: 1fr; } }
+    .ax-collapse.is-open .ax-detail { display: block; padding: 16px; border-top: 1px solid var(--ax-line); }
     /* Organic content: picture carousel (one at a time) */
     .ax-carousel { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #11131a; }
     .ax-car-track { display: flex; transition: transform .3s ease; }
@@ -376,6 +378,15 @@
     .ax-car-dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; }
     .ax-car-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.45); cursor: pointer; }
     .ax-car-dot.active { background: #fff; }
+    /* Mini carousel in the collapsed organic card head: navigable preview (no dots — scales to any count). */
+    .ax-carousel.ax-carousel-mini { background: #11131a; }
+    .ax-carousel-mini .ax-car-slide .ax-shot-media { height: 104px; }
+    .ax-carousel-mini .ax-car-nav { width: 24px; height: 24px; font-size: 15px; }
+    .ax-carousel-mini .ax-car-nav.prev { left: 5px; } .ax-carousel-mini .ax-car-nav.next { right: 5px; }
+    .ax-carousel-mini .ax-car-count { bottom: 5px; right: 6px; font-size: 10px; padding: 2px 7px; }
+    .ax-carousel-mini .ax-shot-x { width: 18px; height: 18px; font-size: 12px; top: 4px; right: 4px; }
+    .ax-ch-media .ax-shots-admin { margin-top: 7px; }
+    .ax-ch-media .ax-ch-thumb { min-height: 104px; height: 104px; }
     .ax-content-main { min-width: 0; }
     .ax-tagrow { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 8px; }
     .ax-ref { font-size: 12px; color: var(--ax-sub); margin-bottom: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; }
@@ -528,11 +539,25 @@
     .ax-com { display: flex; flex-direction: column; max-width: 86%; padding: 8px 11px; border-radius: 11px; font-size: 13px; }
     .ax-com.client { align-self: flex-end; background: var(--ax-green-bg); }
     .ax-com.agora { align-self: flex-start; background: var(--ax-violet-bg); }
+    /* A "Request changes" comment: light-red bubble with a flag at the top (wins over sender bg). */
+    .ax-com.changes { align-self: stretch; max-width: 100%; background: #FDECEC; border: 1px solid #F3C9C8; }
+    .ax-com-flag { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #E5413E; background: var(--ax-white); border: 1px solid #F3C9C8; padding: 2px 8px; border-radius: 999px; margin-bottom: 5px; }
+    .ax-com-flag .ax-ic { width: 12px; height: 12px; }
+    .ax-com-done { color: var(--ax-green-d); }
+    /* A resolved changes-comment: settles to a calm green-tinted "done" state. */
+    .ax-com.changes.resolved { background: var(--ax-green-bg); border-color: #cdeccf; }
+    .ax-com.changes.resolved .ax-com-flag { color: var(--ax-green-d); border-color: #cdeccf; }
+    .ax-com-resolve { margin-top: 7px; }
+    .ax-com-resolve .ax-btn { padding: 5px 11px; }
+    .ax-com-resolve[hidden] { display: none; }
     .ax-com .ax-com-who { font-size: 10.5px; font-weight: 800; opacity: .75; margin-bottom: 2px; }
     .ax-com .ax-com-when { font-size: 10px; opacity: .6; margin-top: 4px; }
     .ax-com-form { display: flex; gap: 8px; align-items: flex-end; }
     .ax-com-form textarea { flex: 1; resize: vertical; min-height: 40px; font: inherit; font-size: 13px; padding: 8px 11px; border: 1px solid var(--ax-line); border-radius: 10px; outline: none; }
     .ax-com-form textarea:focus { border-color: var(--ax-violet); }
+    /* Two ways to send a comment, stacked so "Request changes" sits above "Comment". */
+    .ax-com-send { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+    .ax-com-send .ax-btn { width: 100%; justify-content: center; white-space: nowrap; }
 
     /* ---- Super-admin inline editing ---- */
     .ax-adminbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 16px; padding: 10px 14px; background: #1c2440; color: #eaf0ff; border-radius: 12px; font-size: 13px; }
@@ -543,7 +568,15 @@
     .ax-btn.danger { background: var(--ax-white); color: var(--ax-bad); border-color: rgba(229,65,62,.4); }
     .ax-btn.danger:hover { background: #FDECEC; }
     .ax-btn.small { padding: 6px 11px; font-size: 12px; }
-    .ax-admin-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--ax-line); }
+    .ax-admin-tools { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--ax-line); }
+    /* Per-campaign team controls: bold, full-fill, color-coded so they read at a glance. */
+    .ax-admin-tools .ax-btn { font-size: 13px; font-weight: 800; padding: 9px 16px; border-color: transparent; color: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.12); }
+    .ax-admin-tools .ax-btn.green { background: linear-gradient(135deg, var(--ax-green) 0%, var(--ax-green-d) 100%); }       /* Add content -> brand Data Green (CTA) */
+    .ax-admin-tools .ax-btn.green:hover { background: linear-gradient(135deg, var(--ax-green-d) 0%, #2A6327 100%); }
+    .ax-admin-tools .ax-btn.admin { background: linear-gradient(135deg, var(--ax-violet) 0%, var(--ax-violet-d) 100%); }    /* Edit strategy -> brand Accent Purple */
+    .ax-admin-tools .ax-btn.admin:hover { background: linear-gradient(135deg, var(--ax-violet-d) 0%, #4A3BB4 100%); }
+    .ax-admin-tools .ax-btn.danger { background: linear-gradient(135deg, var(--ax-bad) 0%, #C9302D 100%); color: #fff; border-color: transparent; }  /* Delete -> brand red (destructive) */
+    .ax-admin-tools .ax-btn.danger:hover { background: linear-gradient(135deg, #C9302D 0%, #A8211F 100%); }
     .ax-editbox { width: 100%; font: inherit; font-size: 13.5px; padding: 9px 11px; border: 1px solid var(--ax-violet); border-radius: 9px; background: #fbfbff; outline: none; margin-bottom: 8px; }
     textarea.ax-editbox { min-height: 60px; resize: vertical; }
     .ax-editrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -551,7 +584,9 @@
     .ax-strat-doc { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 0; padding: 12px; background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 12px; }
     .ax-strat-doc .ax-strat-doc-in { flex: 1; min-width: 220px; font: inherit; font-size: 13px; padding: 8px 11px; border: 1px solid var(--ax-line); border-radius: 9px; outline: none; }
     .ax-strat-doc .ax-strat-doc-in:focus { border-color: var(--ax-violet); }
-    .ax-strat-doc .ax-doc-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-violet-d); width: 100%; }
+    .ax-strat-doc .ax-doc-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-violet-d); width: 100%; display: inline-flex; align-items: center; gap: 6px; }
+    .ax-strat-doc .ax-doc-label .ax-ic { width: 14px; height: 14px; }
+    .ax-strat-doc .ax-doc-help { width: 100%; font-size: 12px; color: var(--ax-sub); margin: 4px 0 0; line-height: 1.5; }
 
     /* Strategy breakdown link (client-facing, on top of the strategy) */
     .ax-breakdown { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 11px 15px; border-radius: 12px; background: var(--ax-violet-bg); border: 1px solid #E1DBFB; color: var(--ax-violet-d); font-size: 13.5px; font-weight: 700; }
@@ -581,6 +616,9 @@
     .ax-thumb-upload .ax-btn:hover { background: rgba(0,0,0,.62); }
     .ax-addpanel { border: 1px dashed var(--ax-line); border-radius: var(--ax-radius); padding: 16px; margin-bottom: 14px; background: var(--ax-canvas); }
     .ax-addpanel h3 { font-size: 14px; font-weight: 800; margin: 0 0 12px; }
+    /* Add-content modal: attach pictures at creation time. */
+    .ax-newpics { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+    .ax-newpics-status { font-size: 12px; font-weight: 700; color: var(--ax-green-d); }
     /* Admin: pane toolbar + add-content/add-campaign popup + content-type filter */
     .ax-pane-tools { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px; }
     .ax-typefilter { margin-left: auto; }
@@ -948,13 +986,13 @@
               <button class="ax-chip" type="button" data-filter="awaiting">Awaiting {{ aw_n }}</button>
               <button class="ax-chip" type="button" data-filter="approved">Approved {{ ap_n }}</button>
               <button class="ax-chip" type="button" data-filter="changes">Changes {{ ch_n }}</button>
-              {% set types = c.content|map(attribute='type_tag')|select|unique|list %}
-              {% if types %}
+              {% set type_opts = ['Blog Post','Static Post','Quizzes','Email','Newsletter','Video Edit'] %}
+              {% set used_types = c.content|map(attribute='type_tag')|select|unique|list %}
               <select class="ax-select ax-typefilter" data-typefilter aria-label="Filter by content type">
                 <option value="all">All types</option>
-                {% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                {% for t in type_opts %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                {% for t in used_types if t not in type_opts %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
               </select>
-              {% endif %}
             </div>
 
             {% for p in c.content %}
@@ -965,21 +1003,48 @@
             {% set is_org = chan == 'organic' %}
             <div class="ax-card ax-content{% if is_org %} ax-collapse{% endif %}" data-content="{{ p.id }}" data-status="{{ p.status }}" data-type="{{ p.type_tag }}">
               {% if is_org %}
-              <button class="ax-cardhead" type="button" data-cardtoggle aria-expanded="false">
-                <span class="ax-ch-thumb {{ chan }}"{% if _shots and not _shots[0].mime.startswith('video/') %} style="background-image:url('{{ _shots[0].url }}')"{% endif %}>
-                  {% if not (_shots and not _shots[0].mime.startswith('video/')) %}<span class="ax-ch-k">{{ p.type_tag or 'Post' }}</span>{% endif %}
-                </span>
-                <span class="ax-ch-main">
-                  <span class="ax-ch-meta">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</span>
-                  <span class="ax-ch-cap">{{ p.caption }}</span>
-                </span>
-                <span class="ax-ch-right">
-                  <span class="ax-status {{ p.status }}">{{ 'Changes requested' if p.status=='changes' else p.status }}</span>
-                  <span class="ax-chev" aria-hidden="true">&#9662;</span>
-                </span>
-              </button>
+              <div class="ax-cardhead">
+                <div class="ax-ch-media" data-shots>
+                  {% if _shots %}
+                  <div class="ax-carousel ax-carousel-mini" data-carousel>
+                    <div class="ax-car-track" data-cartrack>
+                      {% for s in _shots %}
+                      <div class="ax-car-slide">
+                        {% if s.mime.startswith('video/') %}<video src="{{ s.url }}" class="ax-shot-media" controls preload="metadata"></video>{% else %}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ p.ref }} — picture {{ loop.index }}">{% endif %}
+                        {% if is_superadmin and s.id %}<button class="ax-shot-x" type="button" data-removeimg="{{ p.id }}" data-imgid="{{ s.id }}" title="Remove this picture">&times;</button>{% endif %}
+                      </div>
+                      {% endfor %}
+                    </div>
+                    {% if _shots|length > 1 %}
+                    <button class="ax-car-nav prev" type="button" data-carprev aria-label="Previous picture">&lsaquo;</button>
+                    <button class="ax-car-nav next" type="button" data-carnext aria-label="Next picture">&rsaquo;</button>
+                    <div class="ax-car-count" data-carcount>1 / {{ _shots|length }}</div>
+                    {% endif %}
+                  </div>
+                  {% else %}
+                  <span class="ax-ch-thumb {{ chan }}"><span class="ax-ch-k">{{ p.type_tag or 'Post' }}</span></span>
+                  {% endif %}
+                  {% if is_superadmin %}
+                  <div class="ax-shots-admin">
+                    <button class="ax-btn small" type="button" data-addimages="{{ p.id }}">＋ Add picture(s)</button>
+                    <input type="file" accept="image/*,video/*" multiple data-addinput="{{ p.id }}" style="display:none">
+                  </div>
+                  {% endif %}
+                </div>
+                <button class="ax-cardhead-toggle" type="button" data-cardtoggle aria-expanded="false">
+                  <span class="ax-ch-main">
+                    <span class="ax-ch-meta">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</span>
+                    <span class="ax-ch-cap">{{ p.caption }}</span>
+                  </span>
+                  <span class="ax-ch-right">
+                    <span class="ax-status {{ p.status }}">{{ 'Changes requested' if p.status=='changes' else p.status }}</span>
+                    <span class="ax-chev" aria-hidden="true">&#9662;</span>
+                  </span>
+                </button>
+              </div>
               <div class="ax-detail">
               {% endif %}
+              {% if not is_org %}
               <div class="ax-thumb {{ chan }}{{ ' has-shots' if _shots else '' }}" data-shots>
                 {% if _shots and is_org %}
                 <div class="ax-carousel" data-carousel>
@@ -1020,6 +1085,7 @@
                 </div>
                 {% endif %}
               </div>
+              {% endif %}
               <div class="ax-content-main">
                 <div class="ax-tagrow">
                   <span class="ax-tag plain">{{ p.type_tag }}</span>
@@ -1037,7 +1103,6 @@
                 <div data-actionslot>
                   <div class="ax-actions">
                     <button class="ax-btn approve" type="button" data-approve>{{ ic('check') }} Approve</button>
-                    <button class="ax-btn ghost" type="button" data-changes>Request changes</button>
                     <span class="ax-savehint" data-savehint hidden>Saved ✓</span>
                   </div>
                   {% if p.status == 'approved' %}
@@ -1051,16 +1116,25 @@
                   <div class="ax-com-label">Comments</div>
                   <div class="ax-com-list" data-comlist>
                     {% for cm in p.comments|default([], true) %}
-                    <div class="ax-com {{ cm.sender }}">
+                    <div class="ax-com {{ cm.sender }}{% if cm.kind == 'changes' %} changes{% endif %}{% if cm.resolved %} resolved{% endif %}"{% if cm.id %} data-comid="{{ cm.id }}"{% endif %}>
+                      {% if cm.kind == 'changes' %}<div class="ax-com-flag">{{ ic('message') }} Request changes{% if cm.resolved %} <span class="ax-com-done">· Resolved</span>{% endif %}</div>{% endif %}
                       <div class="ax-com-who">{{ cm.sender_name }}{% if cm.sender=='agora' %} · AGORA{% endif %}</div>
                       {{ cm.body }}
                       <div class="ax-com-when">{{ cm.created_at|atrium_dt }}</div>
+                      {% if cm.kind == 'changes' and cm.id %}
+                      <div class="ax-com-resolve" data-comresolvewrap{% if cm.resolved %} hidden{% endif %}>
+                        <button class="ax-btn ghost small" type="button" data-comresolve="{{ cm.id }}">{{ ic('check') }} Resolve</button>
+                      </div>
+                      {% endif %}
                     </div>
                     {% endfor %}
                   </div>
                   <div class="ax-com-form">
                     <textarea data-cominput placeholder="Add a comment…  (Enter to send)"></textarea>
-                    <button class="ax-btn violet small" type="button" data-comsend="{{ p.id }}">Comment</button>
+                    <div class="ax-com-send">
+                      <button class="ax-btn ghost small" type="button" data-comsend="{{ p.id }}" data-comkind="changes">Request changes</button>
+                      <button class="ax-btn violet small" type="button" data-comsend="{{ p.id }}" data-comkind="comment">Comment</button>
+                    </div>
                   </div>
                 </div>
 
@@ -1137,6 +1211,11 @@
                 </select>
               </div>
               <textarea class="ax-editbox" data-nc="caption" placeholder="Caption the client will review…"></textarea>
+              <div class="ax-newpics">
+                <button class="ax-btn ghost small" type="button" data-newcontentpick="{{ c.id }}">＋ Add picture(s)</button>
+                <input type="file" accept="image/*,video/*" multiple data-newcontentinput="{{ c.id }}" style="display:none">
+                <span class="ax-newpics-status" data-newcontentcount="{{ c.id }}"></span>
+              </div>
               <button class="ax-btn green small" type="button" data-addcontentbtn="{{ c.id }}">{{ ic('check') }} Add content &amp; notify client</button>
                 </div>
               </div>
@@ -1154,14 +1233,13 @@
               <button class="ax-modal-x" type="button" data-modalclose aria-label="Close">&times;</button>
               <div class="ax-addpanel" data-addcampaign="{{ chan }}" style="border:0;background:transparent;padding:0;margin:0">
             <h3>Add a {{ 'paid / lead-gen' if chan=='paid' else 'organic' }} campaign</h3>
-            <div class="ax-editrow">
-              <input class="ax-editbox" data-ac="name" placeholder="Campaign name">
-              <input class="ax-editbox" data-ac="eyebrow" placeholder="Eyebrow (e.g. PAID ADS · RETARGETING)">
+            <input class="ax-editbox" data-ac="name" placeholder="Campaign name">
+            <div class="ax-strat-doc" style="margin-top:14px">
+              <span class="ax-doc-label">{{ ic('sparkle') }} Strategy doc → AI writes the strategy</span>
+              <input class="ax-strat-doc-in" data-ac="strategy_doc" placeholder="Paste a Google Doc link…">
+              <p class="ax-doc-help">AI reads the doc and writes the &ldquo;What happened / Why it happened / What to do next&rdquo; summary for you. The client also gets a &ldquo;View the full breakdown&rdquo; link to the doc. Optional &mdash; you can skip it and write the strategy by hand later.</p>
             </div>
-            <textarea class="ax-editbox" data-ac="what" placeholder="What happened"></textarea>
-            <textarea class="ax-editbox" data-ac="why" placeholder="Why it happened"></textarea>
-            <textarea class="ax-editbox" data-ac="next" placeholder="What to do next"></textarea>
-            <button class="ax-btn violet small" type="button" data-addcampaignbtn="{{ chan }}">Add campaign</button>
+            <button class="ax-btn violet small" type="button" data-addcampaignbtn="{{ chan }}" style="margin-top:14px">{{ ic('sparkle') }} Add campaign</button>
               </div>
             </div>
           </div>
@@ -1530,14 +1608,14 @@
       });
   }
 
-  // ---- Content review: approve / request changes / save note ---------------
+  // ---- Content review: approve / save note ---------------------------------
+  // (Requesting changes now lives in the comment thread — see the comment handler below.)
   qsa('[data-content]').forEach(function (card) {
     var id = card.getAttribute("data-content");
     var noteEl = card.querySelector("[data-note]");
     function noteVal() { return noteEl ? noteEl.value : ""; }
 
     var approveBtn = card.querySelector("[data-approve]");
-    var changesBtn = card.querySelector("[data-changes]");
     var hint = card.querySelector("[data-savehint]");
 
     function decide(action, btn) {
@@ -1550,7 +1628,6 @@
         });
     }
     if (approveBtn) { approveBtn.addEventListener("click", function () { decide("approve", approveBtn); }); }
-    if (changesBtn) { changesBtn.addEventListener("click", function () { decide("request-changes", changesBtn); }); }
 
     // Save the note quietly on blur (so a note isn't lost if they navigate without deciding).
     if (noteEl) {
@@ -1640,6 +1717,25 @@
     });
   });
 
+  // On load, focus a specific campaign if the URL asks for it (e.g. "#camp-<id>" right after
+  // Add campaign). Without this the page always shows the FIRST campaign in the channel, so a
+  // freshly added campaign and its strategy would appear to land on the other campaign.
+  (function () {
+    var m = (window.location.hash || "").match(/^#camp-(.+)$/);
+    if (!m) { return; }
+    var id = m[1];
+    var block = document.querySelector('[data-campblock][data-campid="' + id + '"]');
+    if (!block) { return; }
+    var tab = block.getAttribute("data-campblock");
+    qsa('[data-campblock="' + tab + '"]').forEach(function (b) {
+      b.style.display = (b.getAttribute("data-campid") === id) ? "" : "none";
+    });
+    var title = document.querySelector('[data-camptitle="' + tab + '"]');
+    if (title) { title.textContent = block.getAttribute("data-campname"); }
+    var sel = document.querySelector('[data-campfilter="' + tab + '"]');
+    if (sel) { sel.value = id; }
+  })();
+
   // ---- Conversations: thread switch + send --------------------------------
   qsa("[data-thread]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -1702,39 +1798,99 @@
   });
 
   // ---- Per-creative comment thread (client posts; admin posts as AGORA) ----
+  // A comment sends as a plain "Comment" or as "Request changes" (kind=changes). A changes comment
+  // renders a flagged light-red bubble with a "Resolve" button and flips the piece's status. EVERY
+  // update happens IN PLACE (no reload) so the open organic dropdown stays open and the flow is smooth.
+  function setCardStatus(card, status) {
+    if (!card || !status) { return; }
+    var label = (status === "changes") ? "Changes requested" : status;
+    qsa(".ax-status", card).forEach(function (el) {
+      el.className = "ax-status " + status;   // keeps the data-statuspill attribute (not a class)
+      el.textContent = label;
+    });
+  }
+  function markResolved(bubble) {
+    if (!bubble) { return; }
+    bubble.classList.add("resolved");
+    var flag = bubble.querySelector(".ax-com-flag");
+    if (flag && flag.textContent.indexOf("Resolved") < 0) {
+      var done = document.createElement("span"); done.className = "ax-com-done";
+      done.textContent = " · Resolved"; flag.appendChild(done);
+    }
+    var wrap = bubble.querySelector("[data-comresolvewrap]");
+    if (wrap) { wrap.hidden = true; }
+  }
+  function wireResolve(btn) {
+    btn.addEventListener("click", function () {
+      var bubble = btn.closest(".ax-com");
+      var box = btn.closest("[data-comments]");
+      var card = box ? box.closest("[data-content]") : null;
+      var cid = card ? card.getAttribute("data-content") : "";
+      btn.setAttribute("disabled", "disabled");
+      post("/resolve-comment", { content_id: cid, comment_id: btn.getAttribute("data-comresolve") })
+        .then(function (data) {
+          markResolved(bubble);
+          if (data && data.status) { setCardStatus(card, data.status); }
+        })
+        .catch(function () { btn.removeAttribute("disabled"); });
+    });
+  }
+  qsa("[data-comresolve]").forEach(wireResolve);
+
   qsa("[data-comments]").forEach(function (wrap) {
     var id = wrap.getAttribute("data-comments");
+    var card = wrap.closest("[data-content]");
     var list = wrap.querySelector("[data-comlist]");
     var input = wrap.querySelector("[data-cominput]");
-    var btn = wrap.querySelector("[data-comsend]");
-    function send() {
+    var btns = qsa("[data-comsend]", wrap);
+    function setDisabled(v) { btns.forEach(function (b) { if (v) { b.setAttribute("disabled", "disabled"); } else { b.removeAttribute("disabled"); } }); }
+    function appendComment(text, kind, comId) {
+      var el = document.createElement("div");
+      el.className = (isAdmin ? "ax-com agora" : "ax-com client") + (kind === "changes" ? " changes" : "");
+      if (comId) { el.setAttribute("data-comid", comId); }
+      if (kind === "changes") {
+        var flag = document.createElement("div"); flag.className = "ax-com-flag";
+        flag.textContent = "Request changes";
+        el.appendChild(flag);
+      }
+      var who = document.createElement("div"); who.className = "ax-com-who";
+      who.textContent = isAdmin ? (adminName + " · AGORA") : "You";
+      var when = document.createElement("div"); when.className = "ax-com-when"; when.textContent = "Just now";
+      el.appendChild(who);
+      el.appendChild(document.createTextNode(text));
+      el.appendChild(when);
+      if (kind === "changes" && comId) {
+        var rw = document.createElement("div"); rw.className = "ax-com-resolve"; rw.setAttribute("data-comresolvewrap", "");
+        var rb = document.createElement("button"); rb.className = "ax-btn ghost small"; rb.type = "button";
+        rb.setAttribute("data-comresolve", comId); rb.textContent = "Resolve";
+        rw.appendChild(rb); el.appendChild(rw); wireResolve(rb);
+      }
+      if (list) { list.appendChild(el); }
+    }
+    function send(kind) {
       var text = input ? input.value.replace(/^\s+|\s+$/g, "") : "";
       if (!text) { return; }
       var path = isAdmin ? "/admin/content-comment" : "/comment";
       var fields = isAdmin
-        ? { content_id: id, body: text, sender_name: adminName }
-        : { content_id: id, body: text };
-      if (btn) { btn.setAttribute("disabled", "disabled"); }
+        ? { content_id: id, body: text, sender_name: adminName, kind: kind }
+        : { content_id: id, body: text, kind: kind };
+      setDisabled(true);
       post(path, fields)
-        .then(function () {
-          var el = document.createElement("div");
-          el.className = isAdmin ? "ax-com agora" : "ax-com client";
-          var who = document.createElement("div"); who.className = "ax-com-who";
-          who.textContent = isAdmin ? (adminName + " · AGORA") : "You";
-          var when = document.createElement("div"); when.className = "ax-com-when"; when.textContent = "Just now";
-          el.appendChild(who);
-          el.appendChild(document.createTextNode(text));
-          el.appendChild(when);
-          if (list) { list.appendChild(el); }
+        .then(function (data) {
+          var comId = (data && data.comment && data.comment.id) ? data.comment.id : "";
+          appendComment(text, kind, comId);
+          if (kind === "changes" && data && data.status) { setCardStatus(card, data.status); }
           if (input) { input.value = ""; }
-          if (btn) { btn.removeAttribute("disabled"); }
+          setDisabled(false);
         })
-        .catch(function () { if (btn) { btn.removeAttribute("disabled"); } });
+        .catch(function () { setDisabled(false); });
     }
-    if (btn) { btn.addEventListener("click", send); }
+    btns.forEach(function (b) {
+      b.addEventListener("click", function () { send(b.getAttribute("data-comkind") || "comment"); });
+    });
     if (input) {
       input.addEventListener("keydown", function (ev) {
-        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(); }
+        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send("comment"); }
       });
     }
   });
@@ -1940,16 +2096,44 @@
       });
     });
 
-    // --- Add content ---
+    // --- Add content (with optional pictures attached at creation) ---
     qsa("[data-addcontentbtn]").forEach(function (btn) {
       var id = btn.getAttribute("data-addcontentbtn");
       var panel = document.querySelector('[data-addcontent="' + id + '"]');
+      var picInput = document.querySelector('[data-newcontentinput="' + id + '"]');
+      var picBtn = document.querySelector('[data-newcontentpick="' + id + '"]');
+      var picCount = document.querySelector('[data-newcontentcount="' + id + '"]');
+      if (picBtn && picInput) {
+        picBtn.addEventListener("click", function () { picInput.click(); });
+        picInput.addEventListener("change", function () {
+          var n = picInput.files ? picInput.files.length : 0;
+          if (picCount) { picCount.textContent = n ? (n + " picture(s) ready to upload") : ""; }
+        });
+      }
       btn.addEventListener("click", function () {
         var fields = fieldsFrom(panel, "data-nc", { campaign_id: id });
-        if (!fields.ref && !fields.type_tag && !fields.caption) {
-          adminMsg("Add at least a reference, type, or caption.", false); return;
+        var hasPics = !!(picInput && picInput.files && picInput.files.length);
+        if (!fields.ref && !fields.type_tag && !fields.caption && !hasPics) {
+          adminMsg("Add at least a reference, type, caption, or a picture.", false); return;
         }
-        adminAction("/admin/content", fields, btn);
+        btn.setAttribute("disabled", "disabled");
+        if (hasPics) { adminMsg("Adding content and uploading picture(s)…", true); }
+        // Create the content first, then attach the chosen pictures to its new id before reloading.
+        post("/admin/content", fields)
+          .then(function (data) {
+            if (data && data.ok === false) { throw new Error("create failed"); }
+            var newId = (data && data.id) ? data.id : "";
+            if (!hasPics || !newId) { window.location.reload(); return; }
+            var fd = new FormData();
+            fd.append("content_id", newId);
+            var i;
+            for (i = 0; i < picInput.files.length; i++) { fd.append("files", picInput.files[i]); }
+            return postData("/admin/add-images", fd).then(function () { window.location.reload(); });
+          })
+          .catch(function () {
+            adminMsg("Could not add the content — please try again.", false);
+            btn.removeAttribute("disabled");
+          });
       });
     });
 
@@ -1957,10 +2141,35 @@
     qsa("[data-addcampaignbtn]").forEach(function (btn) {
       var chan = btn.getAttribute("data-addcampaignbtn");
       var panel = document.querySelector('[data-addcampaign="' + chan + '"]');
+      var tab = (chan === "paid") ? "leadgen" : "organic";
       btn.addEventListener("click", function () {
         var fields = fieldsFrom(panel, "data-ac", { channel: chan });
         if (!fields.name) { adminMsg("Campaign name is required.", false); return; }
-        adminAction("/admin/campaign", fields, btn);
+        if (fields.strategy_doc) { adminMsg("Reading the doc and writing the strategy…", true); }
+        btn.setAttribute("disabled", "disabled");
+        post("/admin/campaign", fields)
+          .then(function (data) {
+            if (data && data.ok === false) {
+              adminMsg(data.message || "Could not add the campaign.", false);
+              btn.removeAttribute("disabled");
+              return;
+            }
+            // Land on the NEWLY added campaign inside its own channel tab -- a blind reload would
+            // default back to the first campaign, making the new one (and its strategy) look like
+            // it landed "on the other campaign".
+            var id = (data && data.id) ? data.id : "";
+            var target = base + "/" + tab;
+            if (window.location.pathname.replace(/\/+$/, "") === target) {
+              if (id) { window.location.hash = "camp-" + id; }
+              window.location.reload();
+            } else {
+              window.location.href = target + (id ? "#camp-" + id : "");
+            }
+          })
+          .catch(function () {
+            adminMsg("Could not add the campaign — please try again.", false);
+            btn.removeAttribute("disabled");
+          });
       });
     });
 

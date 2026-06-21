@@ -670,7 +670,12 @@ def atrium_save_notify(client):
 
 @app.route("/w/<client>/comment", methods=["POST"])
 def atrium_comment(client):
-    """Append a client comment to a content piece (client-facing); notifies the AGORA team."""
+    """Append a client comment to a content piece (client-facing); notifies the AGORA team.
+
+    A comment is either a plain note (kind="comment") or a "Request changes" comment (kind="changes"),
+    which ALSO flips the piece's status to 'changes' — the request-changes decision now lives in the
+    comment thread (rendered as a flagged light-red bubble) instead of a separate action button.
+    """
     gate = _atrium_json_gate(client)
     if gate:
         return gate
@@ -678,14 +683,34 @@ def atrium_comment(client):
     body = request.form.get("body", "").strip()
     if not body:
         return Response('{"error":"empty"}', status=400, mimetype="application/json")
+    kind = "changes" if request.form.get("kind", "").strip() == "changes" else "comment"
     try:
         item, comment = workspace.add_content_comment(
             client, content_id, "client", _client_sender_name(current_user()), body,
+            kind=kind, set_status=("changes" if kind == "changes" else None),
         )
     except KeyError:
         return Response('{"error":"not_found"}', status=404, mimetype="application/json")
-    notify.client_commented(client, item, body, current_user())
-    return jsonify(ok=True, comment=comment)
+    if kind == "changes":
+        notify.client_decided(client, item, "changes", current_user())
+    else:
+        notify.client_commented(client, item, body, current_user())
+    return jsonify(ok=True, comment=comment, status=item.get("status"))
+
+
+@app.route("/w/<client>/resolve-comment", methods=["POST"])
+def atrium_resolve_comment(client):
+    """Mark a "Request changes" comment resolved (client or team); may return the piece to 'awaiting'."""
+    gate = _atrium_json_gate(client)
+    if gate:
+        return gate
+    content_id = request.form.get("content_id", "").strip()
+    comment_id = request.form.get("comment_id", "").strip()
+    try:
+        _item, _comment, status = workspace.resolve_content_comment(client, content_id, comment_id)
+    except KeyError:
+        return Response('{"error":"not_found"}', status=404, mimetype="application/json")
+    return jsonify(ok=True, status=status)
 
 
 @app.route("/w/<client>/creative/<content_id>", methods=["GET"])
@@ -845,7 +870,13 @@ def atrium_admin_summary(client):
 
 @app.route("/w/<client>/admin/campaign", methods=["POST"])
 def atrium_admin_add_campaign(client):
-    """Add a campaign to this workspace in place."""
+    """Add a campaign to this workspace in place.
+
+    If a strategy Google Doc is attached, the AI reads it and writes the campaign's summary at
+    creation time (same graceful chain as /admin/generate-summary). The doc URL is also stored so
+    the client gets a "View the full breakdown" link. Degrades to an empty summary if the doc can't
+    be read or AI is off -- the admin can still edit the strategy by hand afterwards.
+    """
     gate = _atrium_admin_json_gate(client)
     if gate:
         return gate
@@ -853,10 +884,18 @@ def atrium_admin_add_campaign(client):
     if not name:
         return Response('{"error":"name_required"}', status=400, mimetype="application/json")
     channel = "paid" if request.form.get("channel") == "paid" else "organic"
+    doc_url = request.form.get("strategy_doc", "").strip()
+    ai_summary = request.form.get("ai_summary", "").strip()
+    doc_source = ""
+    if doc_url and not ai_summary:
+        ai_summary, doc_source = atrium_docs.generate_summary(doc_url)
+        if doc_source == "none":
+            ai_summary = ""
     camp = workspace.add_campaign(client, channel, name, request.form.get("eyebrow", "").strip(),
                                   strategy=_strategy_from_form(),
-                                  ai_summary=request.form.get("ai_summary", "").strip())
-    return jsonify(ok=True, id=camp.get("id"))
+                                  ai_summary=ai_summary, strategy_doc=doc_url)
+    return jsonify(ok=True, id=camp.get("id"), ai_summary=camp.get("ai_summary", ""),
+                   doc_source=doc_source)
 
 
 @app.route("/w/<client>/admin/delete-campaign", methods=["POST"])
@@ -945,8 +984,11 @@ def atrium_admin_content_comment(client):
     if not body:
         return Response('{"error":"empty"}', status=400, mimetype="application/json")
     sender_name = request.form.get("sender_name", "").strip() or "AGORA"
+    kind = "changes" if request.form.get("kind", "").strip() == "changes" else "comment"
     try:
-        item, comment = workspace.add_content_comment(client, content_id, "agora", sender_name, body)
+        item, comment = workspace.add_content_comment(
+            client, content_id, "agora", sender_name, body, kind=kind,
+        )
     except KeyError:
         return Response('{"error":"not_found"}', status=404, mimetype="application/json")
     notify.team_commented(client, workspace.load_workspace(client), item, body, sender_name)

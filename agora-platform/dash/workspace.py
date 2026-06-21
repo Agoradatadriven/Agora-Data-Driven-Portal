@@ -523,7 +523,8 @@ def set_overview_counts(client, today=None, split=None, series=None):
     return _mutate(client, fn)
 
 
-def add_campaign(client, channel, name, eyebrow="", strategy=None, ai_summary="", campaign_id=None):
+def add_campaign(client, channel, name, eyebrow="", strategy=None, ai_summary="", campaign_id=None,
+                 strategy_doc=""):
     """Add a campaign (team-facing). `channel` is 'paid' or 'organic'. Returns the campaign dict."""
     def fn(ws):
         camp = {
@@ -533,6 +534,7 @@ def add_campaign(client, channel, name, eyebrow="", strategy=None, ai_summary=""
             "eyebrow": eyebrow or "",
             "strategy": strategy or {"what": "", "why": "", "next": ""},
             "ai_summary": ai_summary or "",
+            "strategy_doc": strategy_doc or "",
             "content": [],
         }
         ws.setdefault("campaigns", []).append(camp)
@@ -633,24 +635,58 @@ def delete_content(client, content_id):
     return _mutate(client, fn)
 
 
-def add_content_comment(client, content_id, sender, sender_name, body, created_at=None):
+def add_content_comment(client, content_id, sender, sender_name, body, created_at=None,
+                        kind="comment", set_status=None):
     """Append a threaded comment to a content piece. Returns (content, comment).
 
-    `sender` is "client" or "agora". Comments are an ongoing discussion on a creative, separate from
-    the one-shot `client_note` and the approve/changes decision.
+    `sender` is "client" or "agora". `kind` is "comment" (default) or "changes" — a "Request changes"
+    comment, rendered as a flagged light-red bubble. When `set_status` is given (e.g. "changes"), the
+    piece's review status + decided_at are stamped in the SAME write, so requesting changes through
+    the comment thread also records the decision atomically. Comments are an ongoing discussion on a
+    creative, separate from the one-shot `client_note`.
     """
     def fn(ws):
         _camp, item = _find_content(ws, content_id)
         if item is None:
             raise KeyError("no content '%s'" % content_id)
         comment = {
+            "id": _new_id("cm"),
             "sender": sender,
             "sender_name": sender_name or "",
             "body": body or "",
             "created_at": created_at or now_iso(),
+            "kind": kind or "comment",
         }
+        if (kind or "comment") == "changes":
+            comment["resolved"] = False
         item.setdefault("comments", []).append(comment)
+        if set_status:
+            item["status"] = set_status
+            item["decided_at"] = now_iso()
         return item, comment
+    return _mutate(client, fn)
+
+
+def resolve_content_comment(client, content_id, comment_id):
+    """Mark a "Request changes" comment resolved. Returns (content, comment, status).
+
+    When the piece has no remaining UNRESOLVED changes-comments and its status is still 'changes', it
+    returns to 'awaiting' (back in the review queue). Raises KeyError if the piece or comment is gone.
+    """
+    def fn(ws):
+        _camp, item = _find_content(ws, content_id)
+        if item is None:
+            raise KeyError("no content '%s'" % content_id)
+        target = next((c for c in item.get("comments", []) if c.get("id") == comment_id), None)
+        if target is None:
+            raise KeyError("no comment '%s'" % comment_id)
+        target["resolved"] = True
+        unresolved = [c for c in item.get("comments", [])
+                      if c.get("kind") == "changes" and not c.get("resolved")]
+        if not unresolved and item.get("status") == "changes":
+            item["status"] = "awaiting"
+            item["decided_at"] = now_iso()
+        return item, target, item.get("status")
     return _mutate(client, fn)
 
 
