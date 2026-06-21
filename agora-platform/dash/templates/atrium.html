@@ -526,51 +526,6 @@
     .atrium.nav-collapsed .ax-app { grid-template-columns: 1fr; }
     .atrium.nav-collapsed .ax-side { display: none; }
     @media (max-width: 720px) { .ax-app { grid-template-columns: 1fr; } .ax-side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; } .ax-side-card, .ax-nav .ax-count { display: none; } .ax-nav { flex-direction: row; flex-wrap: wrap; } .ax-editrow { grid-template-columns: 1fr; } }
-
-    /* ===== Review-queue creative card (Lead Gen / Organic) ===== */
-    .ax-mono { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; }
-    .ax-rq { padding: 0; overflow: hidden; transition: box-shadow .18s ease; margin-bottom: 14px; }
-    .ax-rq.open { box-shadow: var(--ax-shadow-lg); }
-    .ax-rq-head { display: flex; align-items: center; gap: 13px; padding: 13px 15px; cursor: pointer; user-select: none; }
-    .ax-rq-thumb { width: 54px; height: 54px; flex: 0 0 auto; border-radius: 11px; overflow: hidden; position: relative; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--ax-violet), var(--ax-violet-d)); box-shadow: 0 4px 12px rgba(16,24,40,.16); }
-    .ax-rq-thumb.organic { background: linear-gradient(135deg, #57B852, #347A30); }
-    .ax-rq-thumb img, .ax-rq-thumb video { width: 100%; height: 100%; object-fit: cover; }
-    .ax-rq-thumb-id { font-size: 10px; font-weight: 700; padding: 3px; text-align: center; }
-    .ax-rq-thumb-count { position: absolute; bottom: 3px; right: 3px; background: rgba(13,19,34,.78); color: #fff; font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 999px; }
-    .ax-rq-head-main { flex: 1; min-width: 0; }
-    .ax-rq-idrow { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
-    .ax-rq-ref { font-weight: 700; }
-    .ax-rq-date { color: var(--ax-sub); font-size: 11.5px; }
-    .ax-rq-preview { margin: 4px 0 0; color: var(--ax-sub); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .ax-rq-head-right { display: flex; align-items: center; gap: 11px; flex: 0 0 auto; }
-    .ax-rq-chev { width: 20px; height: 20px; color: var(--ax-sub); transition: transform .2s ease; }
-    .ax-rq.open .ax-rq-chev { transform: rotate(180deg); }
-    .ax-rq-body { display: none; border-top: 1px solid var(--ax-line); }
-    .ax-rq.open .ax-rq-body { display: block; }
-    .ax-rq-cols { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 20px; padding: 18px; }
-    @media (max-width: 880px) { .ax-rq-cols { grid-template-columns: 1fr; } }
-
-    .ax-gal-stage { position: relative; border-radius: 12px; overflow: hidden; background: #0d1322; aspect-ratio: 4 / 3; border: 1px solid var(--ax-line); }
-    .ax-gal-slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
-    .ax-gal-slide.on { display: block; }
-    img.ax-gal-slide { cursor: zoom-in; }
-    .ax-gal-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: var(--ax-ink); font-size: 21px; line-height: 1; cursor: pointer; display: grid; place-items: center; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-    .ax-gal-nav.prev { left: 9px; } .ax-gal-nav.next { right: 9px; }
-    .ax-gal-counter { position: absolute; top: 9px; right: 9px; background: rgba(13,19,34,.72); color: #fff; font-size: 11.5px; padding: 3px 8px; border-radius: 999px; }
-    .ax-gal-empty { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #9aa1ad; font-size: 12px; }
-    .ax-gal-empty .ax-mono { font-size: 15px; color: #cfd3db; }
-    .ax-gal-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
-    .ax-gal-dot { width: 7px; height: 7px; border-radius: 50%; border: 0; background: #cfd3db; cursor: pointer; padding: 0; transition: transform .12s, background .12s; }
-    .ax-gal-dot.on { background: var(--ax-green); transform: scale(1.35); }
-    .ax-gal-admin { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
-
-    .ax-lb { position: fixed; inset: 0; z-index: 120; background: rgba(10,12,20,.92); display: grid; place-items: center; padding: 42px; }
-    .ax-lb[hidden] { display: none; }
-    .ax-lb-img { max-width: 92vw; max-height: 84vh; border-radius: 10px; box-shadow: 0 24px 70px rgba(0,0,0,.6); }
-    .ax-lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border-radius: 50%; border: 0; background: rgba(255,255,255,.14); color: #fff; font-size: 28px; cursor: pointer; }
-    .ax-lb-nav.prev { left: 24px; } .ax-lb-nav.next { right: 24px; }
-    .ax-lb-close { position: absolute; top: 20px; right: 24px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255,255,255,.14); color: #fff; font-size: 24px; cursor: pointer; }
-    .ax-lb-counter { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; background: rgba(255,255,255,.12); padding: 5px 13px; border-radius: 999px; }
   </style>
 </head>
 <body>
@@ -959,61 +914,30 @@
             </div>
 
             {% for p in c.content %}
-            {% set _imgs = [] %}
-            {% if p.images %}{% for im in p.images %}{% set _ = _imgs.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id ~ '/' ~ im.id, 'mime': im.mime|default('', true), 'id': im.id}) %}{% endfor %}
-            {% elif p.image_object %}{% set _ = _imgs.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id, 'mime': p.image_mime|default('', true), 'id': ''}) %}
-            {% elif p.image %}{% set _ = _imgs.append({'url': p.image, 'mime': '', 'id': ''}) %}{% endif %}
-            <article class="ax-card ax-rq" data-content="{{ p.id }}" data-status="{{ p.status }}">
-              <div class="ax-rq-head" data-rqhead>
-                <div class="ax-rq-thumb {{ chan }}">
-                  {% if _imgs %}{% if _imgs[0].mime.startswith('video/') %}<video src="{{ _imgs[0].url }}" muted preload="metadata"></video>{% else %}<img src="{{ _imgs[0].url }}" alt="{{ p.ref }}">{% endif %}{% else %}<span class="ax-rq-thumb-id ax-mono">{{ p.ref }}</span>{% endif %}
-                  {% if _imgs|length > 1 %}<span class="ax-rq-thumb-count ax-mono">{{ _imgs|length }}</span>{% endif %}
+            <div class="ax-card ax-content" data-content="{{ p.id }}" data-status="{{ p.status }}">
+              <div class="ax-thumb {{ chan }}{{ ' has-img' if (p.image_object or p.image) else '' }}">
+                {% if p.image_object %}{% if p.image_mime and p.image_mime.startswith('video/') %}<video src="/w/{{ view.client }}/creative/{{ p.id }}" controls preload="metadata"></video>{% else %}<img src="/w/{{ view.client }}/creative/{{ p.id }}" alt="{{ p.ref }}">{% endif %}{% elif p.image %}<img src="{{ p.image }}" alt="{{ p.ref }}">{% endif %}
+                <span class="ax-thumb-k">{{ p.type_tag }}</span>
+                <span class="ax-thumb-r">{{ p.ref }}</span>
+                {% if is_superadmin %}
+                <div class="ax-thumb-upload">
+                  <button class="ax-btn small" type="button" data-uploadbtn="{{ p.id }}">{{ 'Replace' if p.image_object else 'Upload' }}</button>
+                  {% if p.image_object %}<button class="ax-btn small" type="button" data-removecreative="{{ p.id }}">Remove</button>{% endif %}
+                  <input type="file" accept="image/*,video/*" data-uploadinput="{{ p.id }}" style="display:none">
                 </div>
-                <div class="ax-rq-head-main">
-                  <div class="ax-rq-idrow"><span class="ax-rq-ref ax-mono">{{ p.ref }}</span><span class="ax-rq-date ax-mono">{{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</span></div>
-                  <p class="ax-rq-preview">{{ p.caption }}</p>
-                </div>
-                <div class="ax-rq-head-right">
-                  <span class="ax-status {{ p.status }}" data-statuspill>{{ 'Changes requested' if p.status=='changes' else p.status }}</span>
-                  <svg class="ax-rq-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-                </div>
+                {% endif %}
               </div>
-              <div class="ax-rq-body">
-                <div class="ax-rq-cols">
-                  <div class="ax-rq-left">
-                    <div class="ax-gal" data-gal>
-                      <div class="ax-gal-stage">
-                        {% if _imgs %}
-                        {% for im in _imgs %}{% if im.mime.startswith('video/') %}<video class="ax-gal-slide{{ ' on' if loop.first else '' }}" data-slide data-imgid="{{ im.id }}" data-vid="1" src="{{ im.url }}" controls preload="metadata"></video>{% else %}<img class="ax-gal-slide{{ ' on' if loop.first else '' }}" data-slide data-imgid="{{ im.id }}" src="{{ im.url }}" alt="{{ p.ref }} — photo {{ loop.index }}">{% endif %}{% endfor %}
-                        <button class="ax-gal-nav prev" type="button" data-galprev aria-label="Previous photo">‹</button>
-                        <button class="ax-gal-nav next" type="button" data-galnext aria-label="Next photo">›</button>
-                        <div class="ax-gal-counter ax-mono"><span data-galcur>1</span> / {{ _imgs|length }}</div>
-                        {% else %}
-                        <div class="ax-gal-empty"><span class="ax-mono">{{ p.ref }}</span><span>No creative uploaded yet</span></div>
-                        {% endif %}
-                      </div>
-                      {% if _imgs|length > 1 %}
-                      <div class="ax-gal-dots">{% for im in _imgs %}<button class="ax-gal-dot{{ ' on' if loop.first else '' }}" type="button" data-galdot="{{ loop.index0 }}" aria-label="Photo {{ loop.index }}"></button>{% endfor %}</div>
-                      {% endif %}
-                      {% if is_superadmin %}
-                      <div class="ax-gal-admin">
-                        <button class="ax-btn admin small" type="button" data-addimages="{{ p.id }}">＋ Add images</button>
-                        {% if _imgs and _imgs[0].id %}<button class="ax-btn danger small" type="button" data-removeimg="{{ p.id }}">Remove shown</button>{% endif %}
-                        <input type="file" accept="image/*,video/*" multiple data-addinput="{{ p.id }}" style="display:none">
-                      </div>
-                      {% endif %}
-                    </div>
-                  </div>
-                  <div class="ax-rq-right">
-                    <div class="ax-tagrow">
-                      <span class="ax-tag plain">{{ p.type_tag }}</span>
-                      <span class="ax-tag plain">{{ p.platform }}</span>
-                      <span class="ax-tag {{ chan }}">{{ 'Paid / Lead Generation' if chan=='paid' else 'Organic' }}</span>
-                    </div>
-                    <div class="ax-ref">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</div>
-                    <p class="ax-caption">{{ p.caption }}</p>
+              <div class="ax-content-main">
+                <div class="ax-tagrow">
+                  <span class="ax-tag plain">{{ p.type_tag }}</span>
+                  <span class="ax-tag plain">{{ p.platform }}</span>
+                  <span class="ax-tag {{ chan }}">{{ 'Paid / Lead Generation' if chan=='paid' else 'Organic' }}</span>
+                  <span class="ax-status {{ p.status }}" data-statuspill>{{ 'Changes requested' if p.status=='changes' else p.status }}</span>
+                </div>
+                <div class="ax-ref">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</div>
+                <p class="ax-caption">{{ p.caption }}</p>
 
-                    <div data-noteslot>
+                <div data-noteslot>
                   <textarea class="ax-noteinput" data-note data-saved="{{ p.client_note }}" placeholder="＋ Add a note for the AGORA team…">{{ p.client_note }}</textarea>
                 </div>
 
@@ -1075,10 +999,8 @@
                   </div>
                 </div>
                 {% endif %}
-                  </div>
-                </div>
               </div>
-            </article>
+            </div>
             {% endfor %}
 
             <div class="ax-ai" data-aiwrap="{{ c.id }}"{% if not c.ai_summary and not is_superadmin %} style="display:none"{% endif %}>
