@@ -1137,6 +1137,11 @@
                 </select>
               </div>
               <textarea class="ax-editbox" data-nc="caption" placeholder="Caption the client will review…"></textarea>
+              <div style="display:flex;align-items:center;gap:10px;margin:2px 0 10px">
+                <button class="ax-btn admin small" type="button" data-newpicbtn="{{ c.id }}">{{ ic('image') }} Add picture(s)</button>
+                <input type="file" accept="image/*,video/*" multiple data-newpicinput="{{ c.id }}" style="display:none">
+                <span class="ax-newpicname" data-newpicname="{{ c.id }}" style="font-size:12px;color:var(--ax-sub)"></span>
+              </div>
               <button class="ax-btn green small" type="button" data-addcontentbtn="{{ c.id }}">{{ ic('check') }} Add content &amp; notify client</button>
                 </div>
               </div>
@@ -1508,6 +1513,14 @@
     var k;
     for (k in fields) { if (fields.hasOwnProperty(k)) { body.append(k, fields[k]); } }
     return postData(path, body);
+  }
+  // Upload one or more pictures/videos to an EXISTING content piece by id. Resolves on success.
+  function uploadImages(contentId, fileList) {
+    var fd = new FormData();
+    fd.append("content_id", contentId);
+    var i;
+    for (i = 0; i < fileList.length; i++) { fd.append("files", fileList[i]); }
+    return postData("/admin/add-images", fd);
   }
   // Admin edit actions reload the page on success so the workspace reflects the change (matching the
   // approve/request-changes flow). A JSON {ok:false} (e.g. a doc that could not be read) surfaces its
@@ -1940,16 +1953,47 @@
       });
     });
 
-    // --- Add content ---
+    // --- Add content (with optional picture[s] uploaded to the new piece) ---
+    qsa("[data-newpicbtn]").forEach(function (btn) {
+      var id = btn.getAttribute("data-newpicbtn");
+      var input = document.querySelector('[data-newpicinput="' + id + '"]');
+      var nameEl = document.querySelector('[data-newpicname="' + id + '"]');
+      if (!input) { return; }
+      btn.addEventListener("click", function () { input.click(); });
+      input.addEventListener("change", function () {
+        if (!nameEl) { return; }
+        var n = (input.files && input.files.length) ? input.files.length : 0;
+        nameEl.textContent = n ? (n + (n === 1 ? " picture selected" : " pictures selected")) : "";
+      });
+    });
     qsa("[data-addcontentbtn]").forEach(function (btn) {
       var id = btn.getAttribute("data-addcontentbtn");
       var panel = document.querySelector('[data-addcontent="' + id + '"]');
+      var picInput = document.querySelector('[data-newpicinput="' + id + '"]');
       btn.addEventListener("click", function () {
         var fields = fieldsFrom(panel, "data-nc", { campaign_id: id });
-        if (!fields.ref && !fields.type_tag && !fields.caption) {
-          adminMsg("Add at least a reference, type, or caption.", false); return;
+        var files = (picInput && picInput.files && picInput.files.length) ? picInput.files : null;
+        if (!fields.ref && !fields.type_tag && !fields.caption && !files) {
+          adminMsg("Add at least a reference, type, caption, or picture.", false); return;
         }
-        adminAction("/admin/content", fields, btn);
+        btn.setAttribute("disabled", "disabled");
+        adminMsg(files ? "Adding content & uploading picture(s)…" : "Adding content…", true);
+        post("/admin/content", fields)
+          .then(function (data) {
+            var newId = data ? data.id : null;
+            if (!files || !newId) { window.location.reload(); return; }
+            uploadImages(newId, files)
+              .then(function () { window.location.reload(); })
+              .catch(function () {
+                // The content piece WAS created; only the picture(s) failed. Show it, with a note.
+                adminMsg("Content added, but the picture(s) failed — open the new card to add them.", false);
+                window.setTimeout(function () { window.location.reload(); }, 2000);
+              });
+          })
+          .catch(function () {
+            adminMsg("Could not add content — please try again.", false);
+            btn.removeAttribute("disabled");
+          });
       });
     });
 
@@ -2058,13 +2102,8 @@
     btn.addEventListener("click", function () { input.click(); });
     input.addEventListener("change", function () {
       if (!input.files || !input.files.length) { return; }
-      var fd = new FormData();
-      fd.append("content_id", id);
-      var i;
-      for (i = 0; i < input.files.length; i++) { fd.append("files", input.files[i]); }
       btn.setAttribute("disabled", "disabled");
-      fetch(base + "/admin/add-images", { method: "POST", body: fd, credentials: "same-origin" })
-        .then(function (r) { if (!r || !r.ok) { throw new Error("upload failed"); } return r.json(); })
+      uploadImages(id, input.files)
         .then(function () { window.location.reload(); })
         .catch(function () { btn.removeAttribute("disabled"); adminMsg("Upload failed — please try again.", false); });
     });
