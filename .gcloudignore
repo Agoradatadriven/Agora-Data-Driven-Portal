@@ -5,7 +5,7 @@
 venv/
 __pycache__/
 *.pyc
-ingest/windsor_data_pull/*/_run/
+services/ingest/*/_run/
 *.log
 *.ndjson
 # Local-only secrets vault + stray secret material (defense in depth)

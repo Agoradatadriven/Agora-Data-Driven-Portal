@@ -129,7 +129,7 @@ On a brand-new project the views and export job have nothing to read until Winds
 has landed data. Run these in order:
 
 1. **Windsor ingest loaders land `raw_windsor`.** The shared daily Windsor ingest
-   jobs (deployed by `scripts/deploy_ingest_jobs.ps1`) must have run at least once so
+   jobs (deployed by `tools/deploy_ingest_jobs.ps1`) must have run at least once so
    `raw_windsor.*` tables exist and contain rows. The exports/views read from there;
    they cannot produce anything before this.
 2. **Create the views** — `create_views.py` (applied via the repo `.venv` python),

@@ -7,6 +7,7 @@ and the operator tooling that runs it all from a Windows laptop.
 
 > New here? Read **[`ONBOARDING.md`](ONBOARDING.md)** for the step-by-step first-day setup.
 > Working with Claude Code? **[`CLAUDE.md`](CLAUDE.md)** is the canonical fast-path.
+> On a team? **[`docs/dev-workflow.md`](docs/dev-workflow.md)** is how we branch → PR → CI → merge.
 
 ## Architecture at a glance
 
@@ -39,25 +40,28 @@ Windsor.ai ──(ingest loaders)──▶ raw_windsor (shared BigQuery dataset)
 
 | Folder | What it is |
 |--------|-----------|
+| `services/portal/` | The portal/CRM front-door (`platform-dash`): reverse proxy + single login, registry-as-one-private-JSON, super-admin console, and **Agora Atrium** (the co-branded client workspace). `deploy.ps1` stands it up. |
+| `services/ingest/` | Windsor connector loaders (`ga4`, `google_ads`, `meta`, `tradedesk`, `reddit`, `hubspot`, `fields`) that write the shared `raw_windsor` dataset. |
+| `services/status-dashboard/` | Meta dashboard monitoring every client's freshness (no dataset/views of its own). |
 | `clients/client_template/` | The worked-example client. Copy it to start a new one. `sql/` (3 views) · `job/` (self-gating export) · `dash/` (Flask + `dashboard.html`) · deploy scripts. |
-| `ingest/windsor_data_pull/` | Windsor connector loaders (`ga4`, `google_ads`, `meta`, `tradedesk`, `reddit`, `hubspot`, `fields`) that write the shared `raw_windsor` dataset. |
-| `agora-platform/` | The portal/CRM front-door (`platform-dash`): reverse proxy + single login, registry-as-one-private-JSON, super-admin console. |
-| `status_dashboard/` | Meta dashboard monitoring every client's freshness (no dataset/views of its own). |
-| `scripts/` | Operator tooling for the Windows laptop — see [`scripts/README.md`](scripts/README.md). |
+| `assets/` | Brand kit — logo set, `brand.json`/`brand.md`, per-client `clients/<c>.svg`. The seed inlines these into each workspace. |
+| `tools/` | Operator tooling for the Windows laptop — see [`tools/README.md`](tools/README.md). Includes `push-branch.ps1` / `merge-branches.ps1` (the team workflow). |
+| `preview/` | Double-click local-preview launchers (super-admin on `:8080`, client-login on `:8081`). |
+| `docs/` | Deeper docs — [`docs/dev-workflow.md`](docs/dev-workflow.md) is the branch → PR → CI → merge flow. |
 
 ## Quickstart (Windows operator)
 
 ```powershell
 # 1. One-time machine setup (installs Python 3.12 + gcloud, builds .venv, logs in twice).
-#    Double-click scripts\setup.cmd, or:
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+#    Double-click tools\setup.cmd, or:
+powershell -ExecutionPolicy Bypass -File tools\setup.ps1
 
 # 2. Every working session — ~30s preflight that reauths whichever gcloud login expired.
-#    Double-click scripts\start_day.cmd, or:
-powershell -ExecutionPolicy Bypass -File scripts\start_day.ps1
+#    Double-click tools\start_day.cmd, or:
+powershell -ExecutionPolicy Bypass -File tools\start_day.ps1
 
 # 3. Run a Windsor ingest loader locally (writes raw_windsor.*), using the repo venv:
-.\.venv\Scripts\python.exe ingest\windsor_data_pull\ga4\ga4_loader.py
+.\.venv\Scripts\python.exe services\ingest\ga4\ga4_loader.py
 ```
 
 From there, deploy with the per-stage scripts (all idempotent, all run as yourself):
@@ -67,17 +71,29 @@ From there, deploy with the per-stage scripts (all idempotent, all run as yourse
 powershell -ExecutionPolicy Bypass -File clients\client_template\deploy_template.ps1
 
 # Deploy/refresh the shared Windsor ingest jobs (the one script that touches production ingest):
-powershell -ExecutionPolicy Bypass -File scripts\deploy_ingest_jobs.ps1
+powershell -ExecutionPolicy Bypass -File tools\deploy_ingest_jobs.ps1
 
 # Stand up the portal, then wire SSO + the super-admin console:
-powershell -ExecutionPolicy Bypass -File agora-platform\deploy_platform.ps1
-powershell -ExecutionPolicy Bypass -File scripts\enable_platform_sso.ps1
-powershell -ExecutionPolicy Bypass -File scripts\enable_super_admin.ps1
+powershell -ExecutionPolicy Bypass -File services\portal\deploy.ps1
+powershell -ExecutionPolicy Bypass -File tools\enable_platform_sso.ps1
+powershell -ExecutionPolicy Bypass -File tools\enable_super_admin.ps1
 ```
 
 > Deploys are **manual** — build the image, then deploy as yourself. Never trigger Cloud Build from
 > a laptop to deploy (the Cloud Build SA cannot `actAs` the runtime SA), and never use
 > `--allow-unauthenticated` (org policy rejects it; the apps do their own auth).
+
+## Working on a team
+
+Each developer pushes to their own per-machine branch and opens a PR; CI gates every merge to `main`.
+
+```powershell
+.\tools\push-branch.ps1 -Dev alex      # first time: sets your name -> branch alex/work
+.\tools\push-branch.ps1                # thereafter: push your work, open a PR on GitHub
+.\tools\merge-branches.ps1             # integrate everyone's branches safely (stops for conflicts)
+```
+
+Full process — including making the CI check required — is in [`docs/dev-workflow.md`](docs/dev-workflow.md).
 
 ## Cross-platform note (macOS / Linux)
 
@@ -108,8 +124,9 @@ apply identically on every platform.
 
 - [`CLAUDE.md`](CLAUDE.md) — fixed facts, the data contract, deploy procedure, the binding freshness
   contract, and the guardrails.
-- [`scripts/README.md`](scripts/README.md) — every operator script and when to run it.
+- [`docs/dev-workflow.md`](docs/dev-workflow.md) — branch → PR → CI → merge for the team.
+- [`tools/README.md`](tools/README.md) — every operator script and when to run it.
 - [`clients/client_template/README.md`](clients/client_template/README.md) — the three-stage contract
   end to end.
-- [`ingest/windsor_data_pull/README.md`](ingest/windsor_data_pull/README.md) — the shared raw layer.
-- [`agora-platform/README.md`](agora-platform/README.md) — the portal/CRM front-door.
+- [`services/ingest/README.md`](services/ingest/README.md) — the shared raw layer.
+- [`services/portal/README.md`](services/portal/README.md) — the portal/CRM front-door.

@@ -4,6 +4,10 @@ This is the file Claude Code auto-loads. It is the single source of truth for fi
 data contract, the deploy procedure, and the guardrails. The pointer at `.claude/CLAUDE.md` defers
 to this file; if they ever disagree, **this file wins — update both so they agree again.**
 
+Per-area `CLAUDE.md` files (in `services/portal/dash/`, `clients/client_template/`, `services/ingest/`,
+`tools/`) give Claude local context for a subtree and **defer to this root file** for the rules — so
+every developer's Claude follows the same contract without re-reading the whole repo.
+
 ## Overview
 
 Agora Data Driven is a marketing agency that self-hosts password-gated client marketing dashboards
@@ -13,12 +17,12 @@ on Google Cloud Platform, fronted by a client portal that is growing into a full
   (see the derivation rule below). One GCP project, one region, one shared Artifact Registry repo.
 - **`template` is the worked example.** `clients/client_template/` is the canonical pattern every
   new client copies — three SQL views, an export job, and a dashboard web service.
-- **The portal/CRM front-door** (`agora-platform/`, served at `portal.agoradatadriven.com`) is a
+- **The portal/CRM front-door** (`services/portal/`, served at `portal.agoradatadriven.com`) is a
   reverse proxy + single login over all dashboards, with a registry stored as one private JSON in
-  GCS. It is designed to grow into a CRM (see the `# CRM:` markers in `agora-platform/dash/main.py`).
+  GCS. It is designed to grow into a CRM (see the `# CRM:` markers in `services/portal/dash/main.py`).
   **Agora Atrium** — the co-branded client workspace — is built into this same `platform-dash`
   service (see the Agora Atrium section below).
-- **Windsor.ai is the only data source.** Connector loaders in `ingest/windsor_data_pull/` land
+- **Windsor.ai is the only data source.** Connector loaders in `services/ingest/` land
   source data into the shared `raw_windsor` BigQuery dataset; per-client SQL views read from there.
 
 ## Fixed facts (use literally — never invent alternatives)
@@ -45,35 +49,44 @@ data object `<c>.json` + freshness sidecar `_freshness.json` in the client's buc
 
 ## Repo layout
 
-- `clients/` — one folder per client; `client_template/` is the worked pattern (`sql/`, `job/`,
-  `dash/`, deploy scripts, README).
-- `ingest/windsor_data_pull/` — Windsor connector loaders (`ga4`, `google_ads`, `meta`, `tradedesk`,
-  `reddit`, `hubspot`, `fields`) that write `raw_windsor.*`. Scheduled API pulls, not self-gating.
-- `agora-platform/` — the portal/CRM front-door (`platform-dash`). Also hosts **Agora Atrium**
-  (`dash/workspace.py`, `seed_workspace.py`, `notify.py`, `atrium_view.py`, `atrium_docs.py`,
-  `templates/atrium.html` + `admin_atrium.html`). The brand kit lives in `Creatives/` (logo set, `brand.json`/`brand.md`);
-  `dash/brand.py` is the bundled runtime copy of the AGORA mark + official palette (the container
-  can't read `Creatives/`), used by the portal/login chrome and as `seed_workspace.py`'s fallback.
-- `status_dashboard/` — meta dashboard monitoring every client's freshness (no dataset/views).
-- `scripts/` — operator tooling: `setup.ps1` (one-time laptop setup), `start_day.ps1` (per-session
-  preflight), `deploy_ingest_jobs.ps1` (the one script that touches production ingest),
-  `enable_platform_sso.ps1`, `enable_super_admin.ps1`, `_validate_dash_js.py`.
+```
+ROOT/
+├── services/                — every deployable Cloud Run service / job
+│   ├── portal/              — portal/CRM front-door + Agora Atrium (Cloud Run service `platform-dash`)
+│   │   ├── dash/            — the Flask app (main.py, workspace.py, store.py, templates/, …)
+│   │   └── deploy.ps1       — one-shot portal standup (formerly deploy_platform.ps1)
+│   ├── ingest/              — Windsor connector loaders (ga4, google_ads, meta, tradedesk, reddit,
+│   │                          hubspot, fields) that write raw_windsor.* — scheduled API pulls
+│   └── status-dashboard/    — meta freshness monitor over every client (no dataset/views)
+├── clients/                 — one folder per client; client_template/ is the worked pattern
+│   └── client_template/       sql/ · job/ · dash/ · deploy scripts · README
+├── assets/                  — brand kit: logo set, brand.json/brand.md, clients/<c>.svg
+├── tools/                   — operator tooling: setup.ps1, start_day.ps1, deploy_ingest_jobs.ps1,
+│                              enable_platform_sso.ps1, enable_super_admin.ps1, _validate_dash_js.py,
+│                              push-branch.ps1, merge-branches.ps1
+├── preview/                 — double-click local-preview launchers (admin / client-login)
+├── docs/                    — deeper docs; docs/dev-workflow.md = the branch → PR → CI → merge flow
+└── CLAUDE.md · README.md · ONBOARDING.md
+```
+
+`tools/_validate_dash_js.py` is the shared pre-deploy JS gate; `assets/` is the brand kit the seed
+inlines into each workspace (the deployed container only bundles `dash/`, so logos are embedded).
 
 ## Dashboard edits
 
 Each dashboard is **one big self-contained `dash/dashboard.html`** (no build step, no external JS).
 Grep for the metric or label you want to change and edit in place. Theme colors are CSS custom
 properties in `:root` (the `--ag-*` palette). Inline JS must stay **esprima-4.x-safe**: no optional
-chaining `?.` and no nullish coalescing `??` (the pre-deploy gate `scripts/_validate_dash_js.py`
+chaining `?.` and no nullish coalescing `??` (the pre-deploy gate `tools/_validate_dash_js.py`
 parses it with esprima, which predates those tokens). Use classic `&&`/`||` guards.
 
 ## Agora Atrium (client workspace in the portal)
 
 Atrium is the co-branded client workspace built **into** `platform-dash` — **additive**, reusing the
 existing session auth, bucket, and runtime SA. **No new infra/IAM/bucket/secret/service** — with ONE
-opt-in exception, the Google-Doc → AI summary feature (see the strategy-doc bullet below), which stays
+opt-in exception, the Google-Doc → AI strategy feature (see the strategy-doc bullet below), which stays
 dormant and infra-free unless an operator deliberately enables it. Product name is one constant:
-`WORKSPACE_NAME` in `agora-platform/dash/main.py`.
+`WORKSPACE_NAME` in `services/portal/dash/main.py`.
 
 - **State = one private JSON per client (no database):** `workspace/<c>.json` in the **registry
   bucket** `agora-data-driven-platform-dash`. `dash/workspace.py` is the only reader/writer
@@ -99,7 +112,7 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   (`workspace.signed_upload_url`, **keyless** — signs via the IAM signBlob API using a cloud-platform-
   scoped runtime-SA token; storage-scoped tokens fail with `ACCESS_TOKEN_SCOPE_INSUFFICIENT`), `PUT`s
   the file straight to the bucket, then `POST /w/<c>/admin/creative-confirm` records it. ⚠️ Needs
-  one-time infra (run `agora-platform/dash/enable_atrium_uploads.ps1`, idempotent): the
+  one-time infra (run `services/portal/dash/enable_atrium_uploads.ps1`, idempotent): the
   `iamcredentials` API on, the runtime SA granted `roles/iam.serviceAccountTokenCreator` **on itself**,
   and CORS on the registry bucket. If signing is unavailable the route returns `ok:false` and the UI
   falls back to the in-app POST path (so a default deploy still serves ≤30 MiB uploads with no infra).
@@ -107,8 +120,8 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   opens a workspace, the SAME client UI renders extra edit affordances (`{% if is_superadmin %}` +
   `data-admin="1"`), posting JSON to `/w/<c>/admin/*`: `strategy`, `strategy-doc`, `generate-summary`,
   `summary`, `campaign`, `delete-campaign`, `content`, `edit-content`, `delete-content`,
-  `content-comment`, `upload-creative`, `creative-upload-url`, `creative-confirm`, `remove-creative`,
-  `metrics`, `calendar`, `reply`. The older
+  `content-comment`, `add-images`, `remove-image`, `upload-creative`, `creative-upload-url`,
+  `creative-confirm`, `remove-creative`, `metrics`, `calendar`, `reply`. The older
   dark `/admin/atrium/...` console stays as a fallback. **Clients** approve in place (`/approve`) and
   post threaded `/w/<c>/comment`s; "Request changes" now lives IN the comment thread as a
   `kind:"changes"` comment (light-red, flagged) that flips status to `changes` and exposes a
@@ -120,15 +133,15 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   creative GET above; admin POSTs `/w/<c>/admin/*` gated `is_superadmin()`. Team console
   `/admin/atrium[/<c>][/campaign|content|conversation|reply|metrics]` gated `is_superadmin()`. The
   portal landing shows **Open workspace** beside **Open dashboard**.
-- **Strategy doc → AI summary (optional, opt-in):** an admin attaches a Google Doc to a campaign and
-  clicks "Generate from doc". `dash/atrium_docs.py` reads it via the **Google Drive API** (lazy
-  `googleapiclient`, runtime-SA ADC, `drive.readonly`; gated `ATRIUM_DOCS_ENABLED=1`; the doc must be
-  shared with the runtime SA) and `feedback_ai.summarize_strategy` (Claude `claude-opus-4-8`, the
-  existing `FEEDBACK_AI_ENABLED`+`ANTHROPIC_API_KEY` gate) writes the summary; it stays hand-editable.
-  Every step degrades gracefully (no AI → doc excerpt; no doc → empty, the admin types it). ⚠️ This is
-  a **deliberate, opt-in deviation** from the "no new infra" rule below: enabling it needs the
-  Docs/Drive API on + `google-api-python-client` added to `requirements.txt` + the doc shared with the
-  runtime SA. **A default deploy stays infra-free** (`googleapiclient` is never imported unless enabled).
+- **Strategy doc → AI strategy (optional, opt-in):** an admin attaches a Google Doc to a campaign and
+  clicks "Generate strategy". `dash/atrium_docs.py` reads it (public-export fetch by default, or the
+  **Google Drive API** when `ATRIUM_DOCS_ENABLED=1`) and `feedback_ai.summarize_strategy_sections`
+  (Claude `claude-opus-4-8`, the existing `FEEDBACK_AI_ENABLED`+`ANTHROPIC_API_KEY` gate) writes the
+  three **What / Why / What-next** strategy sections; they stay hand-editable. Every step degrades
+  gracefully (no AI → doc excerpt in "What happened"; unreadable doc → ok:false with share guidance;
+  no doc → empty, the admin types it). ⚠️ The Drive-API path is a **deliberate, opt-in deviation** from
+  "no new infra": it needs the Docs/Drive API on + `google-api-python-client` in `requirements.txt` +
+  the doc shared with the runtime SA. **A default deploy stays infra-free.**
 - **Notifications are optional & graceful** (`dash/notify.py`, mirrors `feedback_ai.py`): default
   records an activity entry + logs to stdout; real email only when **both** `ATRIUM_EMAIL_ENABLED=1`
   and `ATRIUM_EMAIL_API_KEY` (Secret-Manager) are set, SDK imported lazily. **No provider key
@@ -138,19 +151,19 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   front-door (login, portal, team console) shares it; Atrium scopes every selector under `.atrium` so
   it stays self-contained. The logo is `ws.brand.agora_logo` (seeded) in Atrium and `dash/brand.py`
   elsewhere. Inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script block).
-- **Ships via the SAME deploy as the portal:** `agora-platform/dash/deploy_dash_platform.ps1` (build
+- **Ships via the SAME deploy as the portal:** `services/portal/dash/deploy_dash_platform.ps1` (build
   as yourself → `gcloud run deploy platform-dash --no-invoker-iam-check`). Validate templates with
-  `scripts/_validate_dash_js.py` first. Seed the demo once:
-  `.\.venv\Scripts\python.exe agora-platform\dash\seed_workspace.py` (idempotent; writes
+  `tools/_validate_dash_js.py` first. Seed the demo once:
+  `.\.venv\Scripts\python.exe services\portal\dash\seed_workspace.py` (idempotent; writes
   `workspace/riverdance.json`, refuses to clobber). Local tests: `dash/_workspace_localtest.py`
   (data) and `dash/_atrium_smoketest.py` (full route+template, stubs GCS).
-- **Local preview (no-password, for devs):** double-click `Preview Portal.cmd` (repo root) — or run
-  `agora-platform/dash/run_local.ps1`. It serves the whole front-door at `http://localhost:8080` from
+- **Local preview (no-password, for devs):** double-click `preview/Preview Portal (admin).cmd` — or run
+  `services/portal/dash/run_local.ps1`. It serves the whole front-door at `http://localhost:8080` from
   an isolated `.venv-portal` + throwaway `.local_portal_data` (never the real bucket/ADC), seeds demo
   clients (`dash/seed_local.py`), and auto-signs-in as super-admin so there is NO login and every
-  workspace is editable in place. The no-auth is `PORTAL_DEV_NOAUTH=1`, honored by a `before_request`
-  hook in `main.py` **only when `PORTAL_SECURE_COOKIES=0`** — so it can never activate in the https
-  deploy (deploys set neither var).
+  workspace is editable in place. `preview/Preview Portal (client login).cmd` shows the real login on
+  `:8081`. The no-auth is `PORTAL_DEV_NOAUTH=1`, honored by a `before_request` hook in `main.py`
+  **only when `PORTAL_SECURE_COOKIES=0`** — so it can never activate in the https deploy.
 
 ## The data contract (three stages, matched BY NAME)
 
@@ -176,12 +189,24 @@ that fails). Use the per-stage scripts (all resolve paths from `$PSScriptRoot`, 
 - **Dashboard / web change** → `clients/client_template/dash/deploy_dash_template.ps1`
   (validate JS → build → `gcloud run deploy template-dash … --no-invoker-iam-check`).
 - **Full standup of a new client** → copy `client_template`, then `deploy_template.ps1`.
+- **Portal / Atrium change** → `services/portal/dash/deploy_dash_platform.ps1` (fast redeploy) or
+  `services/portal/deploy.ps1` (full standup). **Ingest jobs** → `tools/deploy_ingest_jobs.ps1`.
+  **Status dashboard** → `services/status-dashboard/deploy_status.ps1`.
 
 `FORCE_REBUILD=1` is mandatory for view-only / code / seed changes: they do **not** advance the
 upstream watermark, so without it the freshness gate no-ops and keeps serving stale JSON.
 
 Org policy (Domain Restricted Sharing) rejects `--allow-unauthenticated`; all web services deploy
 with `--no-invoker-iam-check` and do their own password/SSO auth in-process.
+
+## Team workflow (branch → PR → CI → merge)
+
+Multiple developers (each with their own Claude Code) work in parallel. To keep merges clean, follow
+**`docs/dev-workflow.md`**: each machine pushes to its own branch with `tools/push-branch.ps1`, opens a
+PR (CI runs the gates in `.github/workflows/ci.yml` — esprima JS gate, `py_compile`, the off-cloud
+Atrium tests), and only green PRs merge to `main`. `tools/merge-branches.ps1` automates the safe path
+(fetch → integration branch → run CI tests → stop for a human on any conflict; never auto-deletes a
+branch until its work is verified-merged). Branch protection on `main` makes the CI check required.
 
 ## Freshness contract (binding)
 

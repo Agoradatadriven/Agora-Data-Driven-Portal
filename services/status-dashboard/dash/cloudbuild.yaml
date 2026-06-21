@@ -7,13 +7,13 @@ steps:
     args:
       - build
       - -t
-      - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/template-dash:$SHORT_SHA
+      - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/status-dash:$SHORT_SHA
       - .
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/template-dash:$SHORT_SHA
+      - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/status-dash:$SHORT_SHA
 images:
-  - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/template-dash:$SHORT_SHA
+  - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/status-dash:$SHORT_SHA
 options:
   logging: CLOUD_LOGGING_ONLY

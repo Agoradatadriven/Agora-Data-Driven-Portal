@@ -36,24 +36,24 @@ jobs:
         run: |
           set -e
           for f in \
-            agora-platform/dash/templates/atrium.html \
-            agora-platform/dash/templates/portal.html \
-            agora-platform/dash/templates/login.html \
-            agora-platform/dash/templates/admin_atrium.html \
+            services/portal/dash/templates/atrium.html \
+            services/portal/dash/templates/portal.html \
+            services/portal/dash/templates/login.html \
+            services/portal/dash/templates/admin_atrium.html \
             clients/client_template/dash/dashboard.html ; do
             if [ -f "$f" ]; then
               echo "== validating $f =="
-              python scripts/_validate_dash_js.py "$f"
+              python tools/_validate_dash_js.py "$f"
             fi
           done
 
       - name: Compile all dash modules
-        run: python -m py_compile agora-platform/dash/*.py
+        run: python -m py_compile services/portal/dash/*.py
 
       - name: Atrium data-layer test (off-cloud, no GCS)
-        working-directory: agora-platform/dash
+        working-directory: services/portal/dash
         run: python _workspace_localtest.py
 
       - name: Atrium route + template smoke test (stubs GCS)
-        working-directory: agora-platform/dash
+        working-directory: services/portal/dash
         run: python _atrium_smoketest.py

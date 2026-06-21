@@ -18,8 +18,8 @@ comes back.
    git clone <the repo URL your team gives you> "Agora Data Driven"
    cd "Agora Data Driven"
    ```
-3. **Run the setup script** — double-click `scripts\setup.cmd` (or run
-   `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1`). It installs Python 3.12 and the
+3. **Run the setup script** — double-click `tools\setup.cmd` (or run
+   `powershell -ExecutionPolicy Bypass -File tools\setup.ps1`). It installs Python 3.12 and the
    Google Cloud SDK if missing, builds the project `.venv`, and then asks you to **log in to Google
    Cloud twice**:
    - `gcloud auth login` — the **CLI** credentials.
@@ -38,7 +38,7 @@ That's it. You won't repeat step 1.
 
 ```powershell
 cd "$HOME\Desktop\Agora Data Driven"
-powershell -ExecutionPolicy Bypass -File scripts\start_day.ps1   # or double-click scripts\start_day.cmd
+powershell -ExecutionPolicy Bypass -File tools\start_day.ps1   # or double-click tools\start_day.cmd
 claude
 ```
 
@@ -71,12 +71,12 @@ serving the old data.
 ## 4. Doing GCP work through Claude
 
 You can ask Claude to stand up a new client, deploy the portal, refresh the Windsor ingest jobs, or
-rotate a password — it uses the scripts in `scripts/` and the per-client deploy scripts. Examples:
+rotate a password — it uses the scripts in `tools/` and the per-client deploy scripts. Examples:
 
 - *"Stand up a new client called `acme`."* (Claude copies `client_template`, derives every name from
   the key, and runs the standup.)
-- *"Deploy the Windsor ingest jobs."* → `scripts\deploy_ingest_jobs.ps1`
-- *"Turn on the portal super-admin console."* → `scripts\enable_super_admin.ps1`
+- *"Deploy the Windsor ingest jobs."* → `tools\deploy_ingest_jobs.ps1`
+- *"Turn on the portal super-admin console."* → `tools\enable_super_admin.ps1`
 
 Deploys are **manual and run as you** — Claude builds the image and deploys it, never via Cloud
 Build from your laptop.
@@ -108,6 +108,7 @@ Claude — it will tell you exactly which login to refresh.
 
 - [`README.md`](README.md) — the architecture and folder map.
 - [`CLAUDE.md`](CLAUDE.md) — the canonical facts, data contract, and deploy procedure.
-- [`scripts/README.md`](scripts/README.md) — every operator script and when to run it.
+- [`tools/README.md`](tools/README.md) — every operator script and when to run it.
+- [`docs/dev-workflow.md`](docs/dev-workflow.md) — how the team ships changes (branch → PR → CI → merge).
 - [`clients/client_template/README.md`](clients/client_template/README.md) — the data contract end
   to end.

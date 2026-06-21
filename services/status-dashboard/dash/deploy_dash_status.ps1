@@ -1,6 +1,11 @@
 # =============================================================================
-# deploy_dash_template.ps1 -- build + deploy the `template` client DASH web service
-#                             (Cloud Run service `template-dash`, Stage 3).
+# deploy_dash_status.ps1 -- build + deploy the STATUS dashboard web service
+#                           (Cloud Run service `status-dash`).
+#
+# The status dashboard is a META monitor over ALL clients' freshness. It has NO
+# dataset/views of its own; it only serves the rolled-up status.json that the status
+# JOB writes. Same private-bucket + Flask password-gate serving model as a client
+# dash, but password-gated ONLY (no portal SSO).
 #
 # RUN AS YOURSELF -- never via Cloud Build from a laptop. We use `gcloud builds
 # submit --tag` ONLY to build the image (no actAs needed for that), then deploy the
@@ -11,14 +16,9 @@
 #
 # Idempotent: `gcloud run deploy` is create-or-update.
 #
-# NOTE on SSO: this script does NOT set SSO_SECRET / CLIENT_KEY. Those are wired
-# separately (additively) by tools\enable_platform_sso.ps1 AFTER this service is
-# deployed on its template.agoradatadriven.com custom domain. The dashboard's own
-# password gate set here always works on its own regardless.
-#
 # USAGE
-#   .\deploy_dash_template.ps1               # validate JS, build, deploy
-#   .\deploy_dash_template.ps1 -SkipBuild    # reuse current image, redeploy only
+#   .\deploy_dash_status.ps1               # validate JS, build, deploy
+#   .\deploy_dash_status.ps1 -SkipBuild    # reuse current image, redeploy only
 # =============================================================================
 
 param([switch]$SkipBuild)
@@ -27,16 +27,16 @@ param([switch]$SkipBuild)
 $PROJECT     = "agora-data-driven"
 $REGION      = "asia-southeast1"
 $REPO        = "agora"
-$SERVICE     = "template-dash"
-$SA          = "template-dash-web@agora-data-driven.iam.gserviceaccount.com"
+$SERVICE     = "status-dash"
+$SA          = "status-dash-web@agora-data-driven.iam.gserviceaccount.com"
 
-# Private data bucket + object this dashboard proxies (DERIVED from the client key).
-$GCS_BUCKET  = "agora-data-driven-template-dash"
-$DATA_OBJECT = "template.json"
+# Private status bucket + object this dashboard proxies.
+$GCS_BUCKET  = "agora-data-driven-status-dash"
+$DATA_OBJECT = "status.json"
 
 # Secrets mounted as env vars (Secret Manager, :latest).
-$SESSION_SECRET = "template-dash-session-key"
-$PASSWORD_SECRET = "template-dash-password"
+$SESSION_SECRET  = "status-dash-session-key"
+$PASSWORD_SECRET = "status-dash-password"
 
 # This script stays on the default $ErrorActionPreference = "Continue": gcloud writes
 # ordinary progress to stderr, and under "Stop" PowerShell wraps that stderr as a
@@ -51,6 +51,7 @@ function Must([string]$what) {
 }
 
 # Resolve paths relative to THIS script so it works from any working directory.
+# services/status-dashboard/dash is three levels below the repo root.
 $DASH_DIR  = $PSScriptRoot
 $REPO_ROOT = (Resolve-Path (Join-Path $DASH_DIR "..\..\..")).Path
 $VENV_PY   = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
@@ -59,9 +60,9 @@ $DASH_HTML = Join-Path $DASH_DIR "dashboard.html"
 
 # =============================================================================
 # Step 0 -- Pre-deploy JS gate. A JS syntax error in dashboard.html does not throw
-#           a visible error -- the page just stays stuck forever on "Loading
-#           dashboard...", because the inline script that fetches /data.json and
-#           swaps the DOM never runs. Catch it here, before we ship a dead page.
+#           a visible error -- the page just stays stuck forever on "Loading...",
+#           because the inline script that fetches /data.json and swaps the DOM never
+#           runs. Catch it here, before we ship a dead page.
 # =============================================================================
 Write-Host "[..] Validating dashboard.html inline JS (esprima gate)" -ForegroundColor Cyan
 if (-not (Test-Path $VENV_PY))   { Die "repo .venv python not found at $VENV_PY (create the dev .venv first)" }
@@ -102,8 +103,8 @@ if (-not $SkipBuild) {
 # Step 3 -- Deploy the Cloud Run service AS YOURSELF with the runtime SA.
 #
 #   Org policy: Domain Restricted Sharing rejects --allow-unauthenticated. Deploy
-#   with --no-invoker-iam-check instead; the Flask app does its OWN password/SSO
-#   auth in-process, and the private data object is only ever proxied to an
+#   with --no-invoker-iam-check instead; the Flask app does its OWN password auth
+#   in-process, and the private status object is only ever proxied to an
 #   authenticated session at /data.json.
 # =============================================================================
 Write-Host "[..] Deploying Cloud Run service $SERVICE" -ForegroundColor Cyan
@@ -117,4 +118,3 @@ gcloud run deploy $SERVICE `
     --update-secrets "SESSION_SECRET=${SESSION_SECRET}:latest,DASH_PASSWORD=${PASSWORD_SECRET}:latest"
 Must "deploy Cloud Run service $SERVICE"
 Write-Host "[OK] deployed $SERVICE (tag $SHA)" -ForegroundColor Green
-Write-Host "     Next: map template.agoradatadriven.com, then run tools\enable_platform_sso.ps1 -Keys template"

@@ -25,6 +25,8 @@ venv/
 # Local portal run (run_local.ps1): throwaway venv + seeded demo data, never committed
 .venv-portal/
 .local_portal_data/
+# push-branch.ps1 remembers your branch name here (per-machine, not shared)
+tools/.devname
 # OS / editor
 .DS_Store
 Thumbs.db

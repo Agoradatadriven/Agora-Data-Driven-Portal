@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ workspace_name }} &mdash; Team management</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
+  <style>
+    /* Operator console: the Agora light brand (mirrors portal.html / assets/brand.json). */
+    :root {
+      --ag-green:#4FAB4A; --ag-green-d:#347A30; --ag-green-bg:#EAF6E9;
+      --ag-purple:#9484FB; --ag-purple-d:#5C4BD0; --ag-purple-bg:#F1EFFE;
+      --ag-ink:#1A1B1E; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-canvas:#F6F7F9; --ag-white:#fff; --ag-danger:#E5413E;
+      --ag-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ag-ink);
+      background:
+        radial-gradient(820px 460px at 6% -12%, rgba(79,171,74,0.08), transparent 60%),
+        radial-gradient(760px 460px at 104% 4%, rgba(148,132,251,0.09), transparent 56%),
+        var(--ag-canvas);
+      min-height: 100vh; -webkit-font-smoothing: antialiased; }
+    header.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 14px 28px; border-bottom: 1px solid var(--ag-line); background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand svg { display: block; height: 30px; width: auto; }
+    /* Brand badge: the same green→purple gradient lockup used in the client workspace (.ax-badge). */
+    .brand .brand-sub { font-size: 11px; font-weight: 800; color: #fff;
+      background: linear-gradient(120deg, #4FAB4A 0%, #4FAB4A 42%, #7E6CF6 100%);
+      padding: 3px 11px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .8px; box-shadow: 0 4px 12px rgba(92,75,208,.28); }
+    .nav { display: flex; align-items: center; gap: 10px; }
+    .who { color: var(--ag-muted); font-size: 13px; }
+    .pill { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--ag-line);
+      color: var(--ag-charcoal); text-decoration: none; font-size: 13px; font-weight: 600; background: var(--ag-white);
+      transition: border-color .12s, color .12s; }
+    .pill:hover { border-color: var(--ag-green); color: var(--ag-ink); }
+    .pill.logout { color: var(--ag-danger); }
+    .pill.logout:hover { border-color: rgba(229,65,62,0.4); }
+    main { max-width: 1000px; margin: 0 auto; padding: 28px; }
+    a { color: var(--ag-purple-d); }
+    h2.section { font-size: 12px; color: var(--ag-muted); text-transform: uppercase; letter-spacing: 0.9px;
+      font-weight: 700; margin: 28px 0 14px; }
+    .panel { background: var(--ag-white); border: 1px solid var(--ag-line); border-radius: 14px; padding: 18px;
+      margin-bottom: 16px; box-shadow: var(--ag-shadow); }
+    .panel h3 { margin: 0 0 12px; font-size: 15px; font-weight: 800; }
+    .panel .meta { color: var(--ag-muted); font-size: 12px; margin: 0 0 12px; }
+    .flash { background: var(--ag-green-bg); border: 1px solid #CDE9CC; color: var(--ag-green-d);
+      border-radius: 10px; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; font-weight: 600; }
+    label { display: block; font-size: 11px; color: var(--ag-muted); margin: 10px 0 4px;
+      text-transform: uppercase; letter-spacing: .5px; font-weight: 700; }
+    input[type=text], textarea, select { width: 100%; padding: 10px 12px; background: var(--ag-white);
+      color: var(--ag-ink); border: 1px solid var(--ag-line); border-radius: 10px; font: inherit; font-size: 13px;
+      outline: none; transition: border-color .12s, box-shadow .12s; }
+    input[type=text]:focus, textarea:focus, select:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,171,74,.14); }
+    textarea { min-height: 64px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .btn { margin-top: 12px; padding: 10px 16px; border: 0; border-radius: 10px; font-size: 13px; font-weight: 700;
+      cursor: pointer; background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.22); }
+    .btn.green { background: var(--ag-green); color: #fff; }
+    .btn.violet { background: var(--ag-purple-d); color: #fff; box-shadow: 0 6px 14px rgba(92,75,208,.22); }
+    .btn:hover { filter: brightness(1.05); }
+    .chk { display: inline-flex; align-items: center; gap: 7px; color: var(--ag-charcoal); font-size: 13px; margin-top: 10px; }
+    .chk input { width: auto; }
+    .tag { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+    .tag.paid { background: var(--ag-purple-bg); color: var(--ag-purple-d); }
+    .tag.organic { background: var(--ag-green-bg); color: var(--ag-green-d); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    a.card { display: block; text-decoration: none; color: var(--ag-ink); background: var(--ag-white);
+      border: 1px solid var(--ag-line); border-radius: 14px; padding: 18px; box-shadow: var(--ag-shadow);
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+    a.card:hover { transform: translateY(-2px); border-color: #d7dae3; }
+    a.card .name { font-weight: 800; }
+    a.card .st { font-size: 12px; color: var(--ag-muted); margin-top: 6px; }
+    .msglist { font-size: 12px; color: var(--ag-charcoal); border-left: 2px solid var(--ag-line); padding-left: 12px; margin: 0 0 12px; }
+    .divider { height: 1px; background: var(--ag-line); margin: 14px 0; border: 0; }
+    fieldset { border: 1px solid var(--ag-line); border-radius: 10px; padding: 12px 14px; margin: 0 0 12px; }
+    legend { font-size: 12px; color: var(--ag-muted); padding: 0 6px; font-weight: 700; }
+    /* Content calendar: read-only mirror of the client workspace calendar (prev / current / next). */
+    .cal-legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 14px; font-size: 12.5px; color: var(--ag-muted); }
+    .cal-legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+    .cal-stack { display: flex; flex-direction: column; gap: 14px; }
+    .cal-month { background: var(--ag-white); border: 1px solid var(--ag-line); border-radius: 14px; padding: 14px 16px 16px; box-shadow: var(--ag-shadow); }
+    .cal-month.is-current { border-color: #cdeccf; box-shadow: 0 0 0 1px var(--ag-green) inset, var(--ag-shadow); }
+    .cal-month.is-side { background: linear-gradient(180deg, #fff 0%, #FCFDFC 100%); }
+    .cal-mhead { display: flex; align-items: center; gap: 10px; margin: 0 2px 12px; }
+    .cal-mname { font-size: 15px; font-weight: 800; }
+    .cal-month.is-side .cal-mname { color: var(--ag-muted); }
+    .cal-now { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #fff;
+      background: linear-gradient(135deg, #57B852, #347A30); padding: 2px 9px; border-radius: 999px; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .cal-dow { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--ag-muted); text-align: center; padding: 4px 0; }
+    .cal-cell { min-height: 76px; border: 1px solid var(--ag-line); border-radius: 10px; padding: 7px 8px; background: var(--ag-white); }
+    .cal-month.is-side .cal-cell { min-height: 58px; }
+    .cal-cell.out { background: var(--ag-canvas); color: #b7bcc7; }
+    .cal-cell.today { background: var(--ag-green-bg); border-color: var(--ag-green); box-shadow: 0 0 0 1px var(--ag-green) inset; }
+    .cal-cell.past { background: var(--ag-canvas); color: #aeb4c0; }
+    .cal-cell.pastempty { background: linear-gradient(165deg, #F3FAF2 0%, #E9F6E8 100%); border-color: #DCEEDB; color: #8AAE87; }
+    .cal-cell.done { background: var(--ag-green-bg); border-color: #cdeccf; }
+    .cal-cell.ahead { background: var(--ag-green-bg); border-color: var(--ag-green); box-shadow: 0 0 0 1px var(--ag-green) inset; }
+    .cal-day { font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+    .cal-cell.past .cal-day { color: #98a0b0; }
+    .cal-cell.pastempty .cal-day { color: var(--ag-green-d); opacity: .75; }
+    .cal-check { color: var(--ag-green-d); font-weight: 900; }
+    .cal-ev { font-size: 11px; line-height: 1.35; display: flex; align-items: flex-start; gap: 5px; margin-bottom: 3px; }
+    .cal-ev .evd { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex: 0 0 auto; }
+    .cal-ev .evd.paid { background: var(--ag-purple); } .cal-ev .evd.organic { background: var(--ag-green); }
+    .cal-ev .evd.milestone { background: #98a0b0; } .cal-ev .evd.due { background: #F2820C; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">{{ agora_logo|safe }}<span class="brand-sub">{{ workspace_name }} &middot; Team</span></div>
+    <nav class="nav">
+      {% if user %}<span class="who">{{ user }}</span>{% endif %}
+      <a class="pill" href="/">Portal</a>
+      <a class="pill" href="/admin">Admin</a>
+      <a class="pill logout" href="/logout">Log out</a>
+    </nav>
+  </header>
+
+  <main>
+    {% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+
+    {% if clients is not none %}
+      <!-- ===== List mode: pick a client to manage ===== -->
+      <h2 class="section">Manage a client workspace</h2>
+      {% if clients %}
+      <div class="grid">
+        {% for c in clients %}
+        <a class="card" href="/admin/atrium/{{ c.key }}">
+          <div class="name">{{ c.name|default(c.key, true) }}</div>
+          <div class="st">{{ 'Workspace ready' if c.has_workspace else 'No workspace yet' }}</div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="panel">No clients yet — create your first one below.</div>
+      {% endif %}
+
+      <h2 class="section">Add a new client</h2>
+      <form class="panel" method="post" action="/admin/atrium/new">
+        <p class="meta">Creates the client, a portal login, and a <strong>blank Atrium workspace</strong>
+        to build from. The key is the short lowercase id used everywhere (e.g. <code>honeytribe</code>).
+        Tip: drop their logo at <code>assets/clients/&lt;key&gt;.svg</code> first, or rebrand later.</p>
+        <div class="row">
+          <div><label>Display name</label><input type="text" name="name" placeholder="Honey Tribe Resort" required></div>
+          <div><label>Client key (optional)</label><input type="text" name="key" placeholder="auto from name, e.g. honey-tribe-resort"></div>
+        </div>
+        <label>Portal password (optional &mdash; blank auto-generates a strong one)</label>
+        <input type="text" name="password" placeholder="auto-generated if left blank">
+        <button class="btn violet" type="submit">Create client &amp; blank workspace</button>
+      </form>
+
+    {% else %}
+      <!-- ===== Manage mode: one client ===== -->
+      <h2 class="section" style="margin-top:8px">
+        Managing <strong style="color:var(--ag-ink)">{{ ws.display_name if ws else client }}</strong>
+        &nbsp;·&nbsp; <a href="/admin/atrium">All clients</a>
+        &nbsp;·&nbsp; <a href="/w/{{ client }}/" target="_blank">Open workspace ↗</a>
+      </h2>
+
+      <!-- Client login (portal password) — folded in from the old Super admin console -->
+      <h2 class="section">Client login</h2>
+      <form class="panel" method="post" action="/admin/atrium/{{ client }}/password">
+        <p class="meta">The client logs in with <strong>any email</strong> + this password (the email is only a label).</p>
+        <div class="row">
+          <div><label>Current password</label><input type="text" value="{{ revealed_pw|default('', true) }}" readonly placeholder="(none set yet)"></div>
+          <div><label>Set a new password</label><input type="text" name="password" placeholder="leave blank to auto-generate"></div>
+        </div>
+        <button class="btn violet" type="submit">Save password</button>
+      </form>
+
+      {% if not ws %}
+        <div class="panel">
+          <h3>No workspace yet</h3>
+          <p class="meta">This client has no <code>workspace/{{ client }}.json</code> object. Seed one
+          (e.g. run <code>seed_workspace.py</code> for the demo client) before managing it here.</p>
+        </div>
+      {% else %}
+
+        <!-- Headline metrics -->
+        <h2 class="section">Headline metrics</h2>
+        <form class="panel" method="post" action="/admin/atrium/{{ client }}/metrics">
+          <div class="row3">
+            <div><label>Leads today</label><input type="text" name="today_leads" value="{{ ws.today.leads }}"></div>
+            <div><label>Visitors today</label><input type="text" name="today_visitors" value="{{ ws.today.visitors }}"></div>
+            <div><label>Bookings today</label><input type="text" name="today_bookings" value="{{ ws.today.bookings }}"></div>
+          </div>
+          <div class="row">
+            <div><label>Leads from paid</label><input type="text" name="split_paid" value="{{ ws.split.paid }}"></div>
+            <div><label>Leads from organic</label><input type="text" name="split_organic" value="{{ ws.split.organic }}"></div>
+          </div>
+          <hr class="divider">
+          {% for m in ws.metrics %}
+          <fieldset>
+            <legend>{{ m.label }}</legend>
+            <div class="row3">
+              <div><label>Value</label><input type="text" name="metric_value_{{ loop.index0 }}" value="{{ m.value }}"></div>
+              <div><label>Trend</label><input type="text" name="metric_trend_{{ loop.index0 }}" value="{{ m.trend }}"></div>
+              <div><span class="chk"><input type="checkbox" name="metric_up_{{ loop.index0 }}" value="1" {{ 'checked' if m.trend_up else '' }}> Good change (green)</span></div>
+            </div>
+          </fieldset>
+          {% endfor %}
+          <button class="btn" type="submit">Save metrics</button>
+        </form>
+
+        <!-- Content calendar (read-only mirror of the client's; edit dates via the workspace itself) -->
+        {% if calendars %}
+        <h2 class="section">Content calendar</h2>
+        <div class="cal-legend">
+          <span><span class="dot" style="background:#98a0b0"></span>Milestone</span>
+          <span><span class="dot" style="background:#9484FB"></span>Paid</span>
+          <span><span class="dot" style="background:#4FAB4A"></span>Organic</span>
+          <span><span class="dot" style="background:#F2820C"></span>Due</span>
+          <span style="color:var(--ag-green-d);font-weight:700">&#10003; done / ahead</span>
+        </div>
+        <div class="cal-stack">
+          {% for cal in calendars %}
+          <div class="cal-month {{ 'is-current' if cal.is_current else 'is-side' }}">
+            <div class="cal-mhead"><span class="cal-mname">{{ cal.label }}</span>{% if cal.is_current %}<span class="cal-now">This month</span>{% endif %}</div>
+            <div class="cal-grid">
+              {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="cal-dow">{{ d }}</div>{% endfor %}
+              {% for week in cal.weeks %}{% for cell in week %}
+              {% set cep = cell.is_past and cell.in_month and not cell.events and not cell.done and not cell.ahead and not cell.is_today %}
+              <div class="cal-cell {{ 'out' if not cell.in_month else '' }} {{ 'past' if cell.is_past else '' }} {{ 'pastempty' if cep else '' }} {{ 'done' if cell.done else '' }} {{ 'ahead' if cell.ahead else '' }} {{ 'today' if cell.is_today else '' }}">
+                <div class="cal-day">{{ cell.day }}{% if cell.done %} <span class="cal-check">&#10003;</span>{% endif %}</div>
+                {% for ev in cell.events %}<div class="cal-ev"><span class="evd {{ ev.kind }}"></span><span>{{ ev.label }}</span></div>{% endfor %}
+              </div>
+              {% endfor %}{% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Campaigns + content -->
+        <h2 class="section">Campaigns &amp; content</h2>
+        {% for c in ws.campaigns %}
+        <div class="panel">
+          <h3><span class="tag {{ c.channel }}">{{ 'Paid' if c.channel=='paid' else 'Organic' }}</span> &nbsp;{{ c.name }}</h3>
+          <p class="meta">{{ c.eyebrow }} &middot; {{ c.content|length }} content piece(s)</p>
+
+          <form method="post" action="/admin/atrium/{{ client }}/campaign">
+            <input type="hidden" name="campaign_id" value="{{ c.id }}">
+            <label>What we did</label><textarea name="what">{{ c.strategy.what }}</textarea>
+            <label>Why — the data</label><textarea name="why">{{ c.strategy.why }}</textarea>
+            <label>What's next</label><textarea name="next">{{ c.strategy.next }}</textarea>
+            <label>AI summary</label><textarea name="ai_summary">{{ c.ai_summary }}</textarea>
+            <button class="btn" type="submit">Save strategy &amp; summary</button>
+          </form>
+
+          <hr class="divider">
+          <form method="post" action="/admin/atrium/{{ client }}/content">
+            <input type="hidden" name="campaign_id" value="{{ c.id }}">
+            <p class="meta">Add a content piece (it starts as <strong>awaiting</strong> and notifies the client):</p>
+            <div class="row">
+              <div><label>Reference (e.g. RVR-018)</label><input type="text" name="ref" placeholder="RVR-018"></div>
+              <div><label>Type</label><input type="text" name="type_tag" placeholder="Static Post"></div>
+            </div>
+            <div class="row">
+              <div><label>Sub-tag</label><input type="text" name="sub_tag" placeholder="Lead Gen"></div>
+              <div><label>Platform</label><input type="text" name="platform" placeholder="Instagram · Facebook"></div>
+            </div>
+            <label>Caption</label><textarea name="caption" placeholder="The caption the client will review…"></textarea>
+            <button class="btn green" type="submit">Add content &amp; notify client</button>
+          </form>
+        </div>
+        {% endfor %}
+
+        <div class="panel">
+          <h3>Add a campaign</h3>
+          <form method="post" action="/admin/atrium/{{ client }}/campaign">
+            <div class="row">
+              <div><label>Channel</label><select name="channel"><option value="paid">Paid / Lead Gen</option><option value="organic">Organic</option></select></div>
+              <div><label>Name</label><input type="text" name="name" placeholder="Autumn Retargeting"></div>
+            </div>
+            <label>Eyebrow</label><input type="text" name="eyebrow" placeholder="PAID ADS · RETARGETING">
+            <label>What we did</label><textarea name="what"></textarea>
+            <label>Why — the data</label><textarea name="why"></textarea>
+            <label>What's next</label><textarea name="next"></textarea>
+            <label>AI summary</label><textarea name="ai_summary"></textarea>
+            <button class="btn violet" type="submit">Add campaign</button>
+          </form>
+        </div>
+
+        <!-- Conversations -->
+        <h2 class="section">Conversations</h2>
+        {% for cv in ws.conversations %}
+        <div class="panel">
+          <h3>{{ cv.subject }} &nbsp;<span class="tag {{ 'organic' if cv.status=='resolved' else 'paid' }}">{{ 'Resolved' if cv.status=='resolved' else 'Awaiting reply' }}</span></h3>
+          <div class="msglist">
+            {% for m in cv.messages %}<div><strong>{{ m.sender_name }}{% if m.sender=='agora' %} (AGORA){% endif %}:</strong> {{ m.body }}</div>{% endfor %}
+          </div>
+          <form method="post" action="/admin/atrium/{{ client }}/reply">
+            <input type="hidden" name="conversation_id" value="{{ cv.id }}">
+            <div class="row">
+              <div><label>Reply as</label><input type="text" name="sender_name" value="Maya"></div>
+              <div><span class="chk"><input type="checkbox" name="resolve" value="1"> Mark resolved</span></div>
+            </div>
+            <label>Message</label><textarea name="body" placeholder="Your reply…"></textarea>
+            <button class="btn green" type="submit">Send reply &amp; notify client</button>
+          </form>
+        </div>
+        {% endfor %}
+
+        <div class="panel">
+          <h3>Start a conversation</h3>
+          <form method="post" action="/admin/atrium/{{ client }}/conversation">
+            <label>Subject</label><input type="text" name="subject" placeholder="July creative direction">
+            <div class="row">
+              <div><label>Open as</label><input type="text" name="sender_name" value="Maya"></div>
+              <div></div>
+            </div>
+            <label>Opening message (optional)</label><textarea name="body"></textarea>
+            <button class="btn violet" type="submit">Start conversation</button>
+          </form>
+        </div>
+
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

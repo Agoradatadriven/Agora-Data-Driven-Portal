@@ -1,14 +1,18 @@
 # =============================================================================
-# deploy_template.ps1 -- ONE-SHOT, IDEMPOTENT standup of the `template` client.
+# deploy_status.ps1 -- ONE-SHOT, IDEMPOTENT standup of the STATUS DASHBOARD.
 #
-# Stands up the full per-client stack from nothing (or converges an existing one):
-#   APIs -> AR repo + private bucket + dataset -> job/web service accounts + IAM
-#   -> password/session secrets -> SQL views -> export job (build/deploy/run)
-#   -> */10 scheduler -> dash web service (build/deploy, private + app-level auth).
+# The status dashboard is the agency-wide freshness MONITOR. It has NO BigQuery
+# dataset and NO SQL views of its own -- it watches every client's exported data
+# JSON and reports how fresh each one is. This script stands up the full stack
+# from nothing (or converges an existing one):
+#   APIs -> AR repo + PRIVATE status bucket -> job/web service accounts + IAM
+#   (incl. objectViewer on EVERY client bucket for the job) -> password/session
+#   secrets -> status-export job (build/deploy/run) -> */15 scheduler -> status
+#   dash web service (build/deploy, private + app-level auth).
 #
-# Re-running is safe: every step is create-or-update / add-if-missing. To stand up
-# a NEW client, copy this directory, set $CLIENT, and re-run -- all names DERIVE
-# from the client key.
+# Re-running is safe: every step is create-or-update / add-if-missing. RE-RUN THIS
+# WHENEVER A NEW CLIENT BUCKET IS CREATED so the monitor's job SA gains
+# objectViewer on it (otherwise the new client is missing from status.json).
 #
 # RUN AS YOURSELF -- never via Cloud Build from a laptop. We use `gcloud builds
 # submit --tag` ONLY to build images (no actAs needed), then deploy the Cloud Run
@@ -17,36 +21,36 @@
 # Build SA is org-blocked from acting as our runtime SAs.
 #
 # USAGE
-#   .\deploy_template.ps1                       # prompt for the dashboard password
-#   .\deploy_template.ps1 -Password "s3cret"    # pass it inline (or set $env:DASH_PASSWORD)
+#   .\deploy_status.ps1                       # prompt for the status dashboard password
+#   .\deploy_status.ps1 -Password "s3cret"    # pass it inline (or set $env:DASH_PASSWORD)
 # =============================================================================
 
 param([string]$Password = "")
 
 # --- Constants (use literally; never invent alternatives) --------------------
 $PROJECT = "agora-data-driven"
-$REGION  = "asia-southeast1"
-$REPO    = "agora"
-$CLIENT  = "template"
+$REGION  = "asia-southeast1"   # Singapore. One region, never another.
+$REPO    = "agora"             # shared Artifact Registry docker repo
 
-# Derived names (DERIVE from the client key `<c>`; never re-type) --------------
-$DATASET     = "client_$CLIENT"                                            # BigQuery dataset
-$BUCKET      = "agora-data-driven-$CLIENT-dash"                            # PRIVATE data bucket
-$EXPORT_JOB  = "$CLIENT-export"                                            # Cloud Run job
-$SCHED       = "$CLIENT-export-daily"                                      # Cloud Scheduler trigger
-$WEB_SERVICE = "$CLIENT-dash"                                             # Cloud Run service
-$JOB_SA      = "$CLIENT-dash-job@agora-data-driven.iam.gserviceaccount.com"
-$WEB_SA      = "$CLIENT-dash-web@agora-data-driven.iam.gserviceaccount.com"
-$PW_SECRET   = "$CLIENT-dash-password"
-$KEY_SECRET  = "$CLIENT-dash-session-key"
+# The status dashboard's fixed names (it is a singleton; not derived from a client key).
+$BUCKET      = "agora-data-driven-status-dash"                              # PRIVATE status bucket
+$EXPORT_JOB  = "status-export"                                             # Cloud Run job
+$SCHED       = "status-export-daily"                                       # Cloud Scheduler trigger
+$WEB_SERVICE = "status-dash"                                              # Cloud Run service
+$JOB_SA      = "status-dash-job@agora-data-driven.iam.gserviceaccount.com"
+$WEB_SA      = "status-dash-web@agora-data-driven.iam.gserviceaccount.com"
+$PW_SECRET   = "status-dash-password"
+$KEY_SECRET  = "status-dash-session-key"
 $AR_HOST     = "$REGION-docker.pkg.dev"
 
+# Buckets to EXCLUDE when granting the job SA objectViewer on "client" buckets:
+# the platform/CRM registry bucket and the status monitor's OWN bucket are not clients.
+$PLATFORM_BUCKET = "agora-data-driven-platform-dash"
+
 # Paths relative to THIS script (so the standup works regardless of CWD).
-$ROOT         = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path      # repo root
-$VENV_PY      = Join-Path $ROOT ".venv\Scripts\python.exe"
-$CREATE_VIEWS = Join-Path $PSScriptRoot "create_views.py"                  # sits next to this script
-$JOB_DIR      = Join-Path $PSScriptRoot "job"
-$DASH_DIR     = Join-Path $PSScriptRoot "dash"
+$ROOT      = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path             # repo root
+$JOB_DIR   = Join-Path $PSScriptRoot "job"
+$DASH_DIR  = Join-Path $PSScriptRoot "dash"
 
 # NOTE: This script stays on the default $ErrorActionPreference = "Continue".
 # gcloud writes ordinary progress to stderr; under "Stop" PowerShell wraps that
@@ -107,6 +111,8 @@ Write-Host "[OK] image tag = $SHA ; project number = $PNUM"
 
 # =============================================================================
 # Step 1 -- Enable the required APIs (idempotent; enabling an enabled API is a no-op).
+#           No bigquery dataset is created for the status dash, but the job still
+#           needs the BigQuery API to PROBE raw_windsor for the freshness gate.
 # =============================================================================
 Write-Host "[..] Enabling required APIs" -ForegroundColor Cyan
 gcloud services enable `
@@ -122,12 +128,12 @@ Must "enable required APIs"
 Write-Host "[OK] APIs enabled"
 
 # =============================================================================
-# Step 2 -- Ensure the shared AR repo, the PRIVATE data bucket, and the dataset
-#           (all create-if-absent).
+# Step 2 -- Ensure the shared AR repo and the PRIVATE status bucket
+#           (both create-if-absent). The status dash has NO dataset and NO views.
 # =============================================================================
-Write-Host "[..] Ensuring AR repo / private bucket / dataset" -ForegroundColor Cyan
+Write-Host "[..] Ensuring AR repo / private status bucket" -ForegroundColor Cyan
 
-# 2a. Shared Artifact Registry docker repo `agora` (shared across all clients).
+# 2a. Shared Artifact Registry docker repo `agora` (shared across all units).
 if (Exists { gcloud artifacts repositories describe $REPO --location $REGION --project $PROJECT }) {
     Write-Host "    AR repo $REPO already exists"
 } else {
@@ -140,8 +146,8 @@ if (Exists { gcloud artifacts repositories describe $REPO --location $REGION --p
     Must "create AR repo $REPO"
 }
 
-# 2b. The PRIVATE per-client data bucket. The data JSON lives here and is NEVER
-#     public -- the dash web service proxies it only to authenticated sessions.
+# 2b. The PRIVATE status bucket. status.json lives here and is NEVER public --
+#     the status dash web service proxies it only to authenticated sessions.
 #     Uniform bucket-level access + public-access-prevention keep it locked down.
 if (Exists { gcloud storage buckets describe "gs://$BUCKET" --project $PROJECT }) {
     Write-Host "    bucket $BUCKET already exists"
@@ -154,51 +160,73 @@ if (Exists { gcloud storage buckets describe "gs://$BUCKET" --project $PROJECT }
         --public-access-prevention
     Must "create bucket $BUCKET"
 }
-
-# 2c. The per-client BigQuery dataset client_template (location MUST be the region;
-#     bq mk is a no-op if it already exists, so tolerate that exit code).
-if (Exists { bq --project_id=$PROJECT show --dataset "${PROJECT}:${DATASET}" }) {
-    Write-Host "    dataset $DATASET already exists"
-} else {
-    Write-Host "    creating dataset $DATASET" -ForegroundColor Yellow
-    bq --project_id=$PROJECT --location=$REGION mk --dataset "${PROJECT}:${DATASET}"
-    Must "create dataset $DATASET"
-}
-Write-Host "[OK] AR repo / bucket / dataset in place"
+Write-Host "[OK] AR repo / status bucket in place"
 
 # =============================================================================
 # Step 3 -- Create the job + web service accounts with LEAST-PRIVILEGE IAM.
-#           job SA: read BigQuery + run query jobs, read/write the data bucket.
-#           web SA: read the data bucket ONLY (it proxies <c>.json; never writes).
+#           job SA: probe raw_windsor (bigquery.jobUser), read EVERY client bucket
+#                   (objectViewer), write status.json into its OWN bucket
+#                   (objectAdmin).
+#           web SA: read the status bucket ONLY (it proxies status.json; never
+#                   writes).
 #           Every binding is add-if-missing (idempotent).
 # =============================================================================
 Write-Host "[..] Ensuring service accounts + least-privilege IAM" -ForegroundColor Cyan
 
-Ensure-Sa $JOB_SA "$CLIENT-dash-job" "template export job (BigQuery -> bucket)"
-Ensure-Sa $WEB_SA "$CLIENT-dash-web" "template dash web (bucket reader + auth)"
+Ensure-Sa $JOB_SA "status-dash-job" "status export job (monitor every client bucket)"
+Ensure-Sa $WEB_SA "status-dash-web" "status dash web (bucket reader + auth)"
 
-# 3a. Job SA -- project roles: jobUser (run query jobs) + dataViewer (read views).
+# 3a. Job SA -- project role: jobUser. The status job runs a __TABLES__ probe query
+#     against raw_windsor for the freshness gate; it needs to run query JOBS. It
+#     does NOT need dataViewer (it reads no view/table rows -- only __TABLES__
+#     metadata, which jobUser-run metadata queries cover).
 gcloud projects add-iam-policy-binding $PROJECT `
     --member "serviceAccount:$JOB_SA" `
     --role "roles/bigquery.jobUser" `
     --condition=None
 Must "grant bigquery.jobUser to job SA"
 
-gcloud projects add-iam-policy-binding $PROJECT `
-    --member "serviceAccount:$JOB_SA" `
-    --role "roles/bigquery.dataViewer" `
-    --condition=None
-Must "grant bigquery.dataViewer to job SA"
-
-# 3b. Job SA -- bucket role: objectAdmin (writes <c>.json and the _freshness.json
-#     watermark sidecar into its OWN bucket).
+# 3b. Job SA -- objectAdmin on its OWN status bucket (writes status.json and the
+#     _freshness.json watermark sidecar).
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" `
     --member "serviceAccount:$JOB_SA" `
     --role "roles/storage.objectAdmin"
 Must "grant storage.objectAdmin to job SA on $BUCKET"
 
-# 3c. Web SA -- bucket role: objectViewer ONLY. The web service proxies the private
-#     <c>.json to authed sessions; it never writes, so read-only is sufficient.
+# 3c. Job SA -- objectViewer on EVERY CLIENT bucket. This is the crux of the
+#     monitor: to read each client's <key>.json + _freshness.json the status job
+#     must be able to READ every client data bucket. We ITERATE the existing
+#     `agora-data-driven-*-dash` buckets and grant objectViewer on each, EXCLUDING
+#     the platform/CRM registry bucket and the status monitor's OWN bucket (those
+#     are not clients). RE-RUN this script when a new client bucket appears so the
+#     job SA gains read on it -- otherwise the new client is missing from status.json.
+Write-Host "[..] Granting job SA objectViewer on every client bucket" -ForegroundColor Cyan
+$rawBuckets = (gcloud storage buckets list --project $PROJECT --format='value(name)' --filter="name:agora-data-driven-")
+Must "list client buckets"
+$clientBuckets = @()
+foreach ($line in ($rawBuckets -split "`n")) {
+    $name = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($name)) { continue }
+    # Only data buckets follow the agora-data-driven-<c>-dash convention.
+    if (-not ($name.StartsWith("agora-data-driven-") -and $name.EndsWith("-dash"))) { continue }
+    # Exclude the platform registry bucket and the status monitor's own bucket -- not clients.
+    if ($name -eq $PLATFORM_BUCKET -or $name -eq $BUCKET) { continue }
+    $clientBuckets += $name
+}
+if ($clientBuckets.Count -eq 0) {
+    Write-Host "    (no client buckets found yet -- re-run this script after the first client stands up)" -ForegroundColor Yellow
+} else {
+    foreach ($cb in $clientBuckets) {
+        Write-Host "    granting objectViewer on gs://$cb" -ForegroundColor Yellow
+        gcloud storage buckets add-iam-policy-binding "gs://$cb" `
+            --member "serviceAccount:$JOB_SA" `
+            --role "roles/storage.objectViewer"
+        Must "grant storage.objectViewer to job SA on $cb"
+    }
+}
+
+# 3d. Web SA -- objectViewer on the STATUS bucket ONLY. The web service proxies the
+#     private status.json to authed sessions; it never writes, so read-only suffices.
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" `
     --member "serviceAccount:$WEB_SA" `
     --role "roles/storage.objectViewer"
@@ -210,17 +238,17 @@ Write-Host "[OK] service accounts + IAM in place"
 #           secretAccessor on both. Secrets are written through UTF-8-no-BOM temp
 #           files (see Write-SecretFile) so no stray byte corrupts them.
 # =============================================================================
-Write-Host "[..] Ensuring dashboard secrets" -ForegroundColor Cyan
+Write-Host "[..] Ensuring status dashboard secrets" -ForegroundColor Cyan
 
 # 4a. Resolve the dashboard password: -Password param > $env:DASH_PASSWORD > prompt.
 if ([string]::IsNullOrEmpty($Password)) { $Password = $env:DASH_PASSWORD }
 if ([string]::IsNullOrEmpty($Password)) {
-    $sec = Read-Host "Enter the dashboard password for '$CLIENT'" -AsSecureString
+    $sec = Read-Host "Enter the status dashboard password" -AsSecureString
     $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
     $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
 }
-if ([string]::IsNullOrEmpty($Password)) { Die "no dashboard password supplied" }
+if ([string]::IsNullOrEmpty($Password)) { Die "no status dashboard password supplied" }
 
 # 4b. Generate a cryptographically strong session key (32 random bytes -> base64)
 #     for signing the Flask session cookie.
@@ -263,36 +291,20 @@ try {
 Write-Host "[OK] secrets created + web SA granted access"
 
 # =============================================================================
-# Step 5 -- Apply the SQL views via the repo .venv python (create_views.py reads
-#           sql/*.sql in order and CREATE OR REPLACE VIEWs them into the dataset).
-#           This is the create_views.py invocation referenced by README.md.
-# =============================================================================
-Write-Host "[..] Applying SQL views with create_views.py" -ForegroundColor Cyan
-if (-not (Test-Path $VENV_PY))      { Die "repo .venv python not found at $VENV_PY (run tools\setup.ps1 first)" }
-if (-not (Test-Path $CREATE_VIEWS)) { Die "create_views.py not found at $CREATE_VIEWS" }
-# create_views.py takes no arguments: it resolves its sql/ directory relative to
-# its own location and applies every *.sql in filename (NN_) order against the
-# fixed project/location. Run it through the repo .venv python (the dev venv has
-# the google-cloud-bigquery the script imports).
-& $VENV_PY $CREATE_VIEWS
-Must "apply SQL views for $CLIENT"
-Write-Host "[OK] views applied to dataset $DATASET"
-
-# =============================================================================
-# Step 6 -- Build + deploy + run the export job. The FIRST run passes
-#           FORCE_REBUILD=1 so it builds the data JSON immediately rather than
+# Step 5 -- Build + deploy + run the status-export job. The FIRST run passes
+#           FORCE_REBUILD=1 so it builds status.json immediately rather than
 #           no-op'ing because the watermark has not yet been written.
 # =============================================================================
 Write-Host "[..] Building + deploying export job $EXPORT_JOB" -ForegroundColor Cyan
 $jobImg = "$AR_HOST/$PROJECT/$REPO/${EXPORT_JOB}:$SHA"
 
-# 6a. Build the image (build ONLY -- no actAs needed; we deploy ourselves below).
+# 5a. Build the image (build ONLY -- no actAs needed; we deploy ourselves below).
 gcloud builds submit $JOB_DIR --tag $jobImg --project $PROJECT
 Must "build export job image"
 
-# 6b. Deploy the Cloud Run job AS YOURSELF with the job SA. deploy is
-#     create-or-update (idempotent). The job resolves project/dataset/bucket from
-#     its OWN constants (job/main.py), so it needs NO env for normal runs.
+# 5b. Deploy the Cloud Run job AS YOURSELF with the job SA. deploy is
+#     create-or-update (idempotent). The job resolves project/bucket from its OWN
+#     constants (job/main.py), so it needs NO env for normal runs.
 gcloud run jobs deploy $EXPORT_JOB `
     --image $jobImg `
     --region $REGION `
@@ -303,8 +315,8 @@ gcloud run jobs deploy $EXPORT_JOB `
 Must "deploy export job $EXPORT_JOB"
 Write-Host "[OK] deployed $EXPORT_JOB"
 
-# 6c. First run with FORCE_REBUILD=1 -- the watermark does not exist yet, so we
-#     bypass the freshness gate to produce the initial <c>.json. Subsequent
+# 5c. First run with FORCE_REBUILD=1 -- the watermark does not exist yet, so we
+#     bypass the freshness gate to produce the initial status.json. Subsequent
 #     scheduled ticks self-gate normally.
 Write-Host "[..] Running $EXPORT_JOB once with FORCE_REBUILD=1" -ForegroundColor Cyan
 gcloud run jobs execute $EXPORT_JOB `
@@ -313,16 +325,16 @@ gcloud run jobs execute $EXPORT_JOB `
     --update-env-vars "FORCE_REBUILD=1" `
     --wait
 Must "execute export job $EXPORT_JOB"
-Write-Host "[OK] initial data export complete"
+Write-Host "[OK] initial status export complete"
 
 # =============================================================================
-# Step 7 -- Grant the scheduler agent run.invoker on the job, then create the
-#           */10 Cloud Scheduler trigger template-export-daily (project number
+# Step 6 -- Grant the scheduler agent run.invoker on the job, then create the
+#           */15 Cloud Scheduler trigger status-export-daily (project number
 #           resolved at runtime in Step 0).
 # =============================================================================
-Write-Host "[..] Creating the */10 scheduler $SCHED" -ForegroundColor Cyan
+Write-Host "[..] Creating the */15 scheduler $SCHED" -ForegroundColor Cyan
 
-# 7a. The scheduler agent must be able to invoke the job's :run endpoint.
+# 6a. The scheduler agent must be able to invoke the job's :run endpoint.
 gcloud run jobs add-iam-policy-binding $EXPORT_JOB `
     --region $REGION `
     --project $PROJECT `
@@ -330,15 +342,15 @@ gcloud run jobs add-iam-policy-binding $EXPORT_JOB `
     --role "roles/run.invoker"
 Must "grant run.invoker to scheduler agent on $EXPORT_JOB"
 
-# 7b. Create-or-update the */10 HTTP scheduler that POSTs the Run :run URI as the
-#     scheduler agent SA (OAuth; the Run jobs:run endpoint is a Google API).
+# 6b. Create-or-update the */15 HTTP scheduler that POSTs the Run :run URI as the
+#     scheduler agent SA (OAuth; the Run jobs:run endpoint is a Google API, not OIDC).
 $RUN_URI = "https://$REGION-run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/jobs/${EXPORT_JOB}:run"
 if (Exists { gcloud scheduler jobs describe $SCHED --location $REGION --project $PROJECT }) {
     Write-Host "    updating scheduler $SCHED" -ForegroundColor Yellow
     gcloud scheduler jobs update http $SCHED `
         --location $REGION `
         --project $PROJECT `
-        --schedule "*/10 * * * *" `
+        --schedule "*/15 * * * *" `
         --time-zone "Asia/Singapore" `
         --uri $RUN_URI `
         --http-method POST `
@@ -349,31 +361,31 @@ if (Exists { gcloud scheduler jobs describe $SCHED --location $REGION --project 
     gcloud scheduler jobs create http $SCHED `
         --location $REGION `
         --project $PROJECT `
-        --schedule "*/10 * * * *" `
+        --schedule "*/15 * * * *" `
         --time-zone "Asia/Singapore" `
         --uri $RUN_URI `
         --http-method POST `
         --oauth-service-account-email $SCHED_AGENT
     Must "create scheduler $SCHED"
 }
-Write-Host "[OK] scheduled $SCHED (every 10 min; job self-gates on _freshness.json)"
+Write-Host "[OK] scheduled $SCHED (every 15 min; job self-gates on _freshness.json)"
 
 # =============================================================================
-# Step 8 -- Build + deploy the dash web service with its env + secrets, then make
-#           it reachable WITHOUT public IAM invoke.
+# Step 7 -- Build + deploy the status dash web service with its env + secrets, then
+#           make it reachable WITHOUT public IAM invoke.
 # =============================================================================
-Write-Host "[..] Building + deploying dash service $WEB_SERVICE" -ForegroundColor Cyan
+Write-Host "[..] Building + deploying status dash service $WEB_SERVICE" -ForegroundColor Cyan
 $webImg = "$AR_HOST/$PROJECT/$REPO/${WEB_SERVICE}:$SHA"
 
-# 8a. Build the dash image (build ONLY -- deploy ourselves below).
+# 7a. Build the dash image (build ONLY -- deploy ourselves below).
 gcloud builds submit $DASH_DIR --tag $webImg --project $PROJECT
-Must "build dash service image"
+Must "build status dash service image"
 
-# 8b. Deploy the Cloud Run service AS YOURSELF with the web SA. It mounts the
+# 7b. Deploy the Cloud Run service AS YOURSELF with the web SA. It mounts the
 #     password + session-key secrets and learns its bucket/object from env. The
-#     web SA can read the secrets (Step 4) and read the bucket (Step 3). The env
-#     and secret NAMES must match what dash/main.py reads: GCS_BUCKET, DATA_OBJECT,
-#     SESSION_SECRET (signs the session cookie), DASH_PASSWORD.
+#     web SA can read the secrets (Step 4) and read the status bucket (Step 3). The
+#     env and secret NAMES must match what dash/main.py reads: GCS_BUCKET,
+#     DATA_OBJECT, SESSION_SECRET (signs the session cookie), DASH_PASSWORD.
 #
 #     Org policy: Domain Restricted Sharing REJECTS --allow-unauthenticated, so we
 #     deploy with --no-invoker-iam-check instead -- Cloud Run skips the IAM invoker
@@ -385,12 +397,13 @@ gcloud run deploy $WEB_SERVICE `
     --project $PROJECT `
     --service-account $WEB_SA `
     --no-invoker-iam-check `
-    --set-env-vars "GCS_BUCKET=$BUCKET,DATA_OBJECT=$CLIENT.json" `
+    --set-env-vars "GCS_BUCKET=$BUCKET,DATA_OBJECT=status.json" `
     --set-secrets "SESSION_SECRET=${KEY_SECRET}:latest,DASH_PASSWORD=${PW_SECRET}:latest"
-Must "deploy dash service $WEB_SERVICE"
+Must "deploy status dash service $WEB_SERVICE"
 Write-Host "[OK] deployed $WEB_SERVICE (private invoke; app-level auth)"
 
 Write-Host ""
-Write-Host "[OK] template standup complete (tag $SHA)" -ForegroundColor Green
-Write-Host "     dash service : $WEB_SERVICE  (map $CLIENT.agoradatadriven.com to it)"
-Write-Host "     export job   : $EXPORT_JOB   (scheduler $SCHED, */10)"
+Write-Host "[OK] status dashboard standup complete (tag $SHA)" -ForegroundColor Green
+Write-Host "     dash service : $WEB_SERVICE  (map status.agoradatadriven.com to it)"
+Write-Host "     export job   : $EXPORT_JOB   (scheduler $SCHED, */15)"
+Write-Host "     RE-RUN this script when a new client bucket is created (job SA needs objectViewer on it)."

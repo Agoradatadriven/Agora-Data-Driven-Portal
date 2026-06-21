@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agora Data Driven &mdash; Portal</title>
+  {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
+  <style>
+    /* Agora Data Driven brand: light, clean -- white space + bold black type + green CTA + purple
+       accent (mirrors assets/brand.json). */
+    :root {
+      --ag-green:#4FAB4A; --ag-green-d:#347A30; --ag-green-bg:#EAF6E9;
+      --ag-purple:#9484FB; --ag-purple-d:#5C4BD0; --ag-purple-bg:#F1EFFE;
+      --ag-ink:#1A1B1E; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-canvas:#F6F7F9; --ag-white:#fff; --ag-danger:#E5413E;
+      --ag-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ag-ink);
+      background:
+        radial-gradient(900px 480px at 8% -12%, rgba(79,171,74,0.10), transparent 60%),
+        radial-gradient(820px 480px at 104% 6%, rgba(148,132,251,0.10), transparent 56%),
+        var(--ag-canvas);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    header.topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 15px 28px;
+      border-bottom: 1px solid var(--ag-line);
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 20;
+    }
+    .brand svg { display: block; height: 32px; width: auto; }
+    .nav { display: flex; align-items: center; gap: 10px; }
+    .nav .who { color: var(--ag-muted); font-size: 13px; }
+    .pill {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--ag-line);
+      color: var(--ag-charcoal);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--ag-white);
+      transition: border-color .12s, color .12s;
+    }
+    .pill:hover { border-color: var(--ag-green); color: var(--ag-ink); }
+    .pill.logout { color: var(--ag-danger); border-color: var(--ag-line); }
+    .pill.logout:hover { border-color: rgba(229,65,62,0.4); }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 36px 28px 28px; }
+    .lede h2 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin: 0 0 4px; }
+    .lede p { color: var(--ag-muted); margin: 0 0 24px; font-size: 14px; }
+    h2.section { font-size: 12px; color: var(--ag-muted); text-transform: uppercase;
+      letter-spacing: 0.9px; font-weight: 700; margin: 30px 0 14px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(264px, 1fr));
+      gap: 16px;
+    }
+    .dashcard {
+      display: flex; flex-direction: column;
+      color: var(--ag-ink);
+      background: var(--ag-white);
+      border: 1px solid var(--ag-line);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: var(--ag-shadow);
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .dashcard:hover { transform: translateY(-2px); border-color: #d7dae3;
+      box-shadow: 0 2px 4px rgba(16,24,40,.05), 0 16px 36px rgba(16,24,40,.10); }
+    .dashcard .name { font-size: 16px; font-weight: 800; margin: 0 0 2px; letter-spacing: -.2px; }
+    .dashcard .key { color: var(--ag-muted); font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .dashcard .go-row { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+    .go {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
+      text-decoration: none; border: 1px solid transparent;
+    }
+    .go.workspace { background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.24); }
+    .go.workspace:hover { background: var(--ag-green-d); }
+    .go.dashboard { background: var(--ag-white); color: var(--ag-charcoal); border-color: var(--ag-line); }
+    .go.dashboard:hover { border-color: var(--ag-purple); color: var(--ag-purple-d); }
+
+    .empty {
+      background: var(--ag-white);
+      border: 1px dashed var(--ag-line);
+      border-radius: 16px;
+      padding: 32px;
+      color: var(--ag-muted);
+      text-align: center;
+      box-shadow: var(--ag-shadow);
+    }
+
+    /* Feedback widget */
+    .feedback {
+      margin-top: 36px;
+      background: var(--ag-white);
+      border: 1px solid var(--ag-line);
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: var(--ag-shadow);
+    }
+    .feedback h3 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+    .feedback p.hint { margin: 0 0 14px; color: var(--ag-muted); font-size: 13px; }
+    .feedback textarea {
+      width: 100%;
+      min-height: 88px;
+      resize: vertical;
+      padding: 12px 13px;
+      background: var(--ag-white);
+      color: var(--ag-ink);
+      border: 1px solid var(--ag-line);
+      border-radius: 11px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .12s, box-shadow .12s;
+    }
+    .feedback textarea:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,171,74,.14); }
+    .feedback .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .btn {
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn.send { background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.24); }
+    .btn.send:hover { background: var(--ag-green-d); }
+    .btn.voice {
+      background: var(--ag-white);
+      color: var(--ag-charcoal);
+      border: 1px solid var(--ag-line);
+    }
+    .btn.voice:hover { border-color: var(--ag-purple); color: var(--ag-purple-d); }
+    .btn.voice.recording { border-color: var(--ag-danger); color: var(--ag-danger); }
+    .feedback .status { color: var(--ag-muted); font-size: 12px; margin-left: auto; }
+    footer { color: var(--ag-muted); font-size: 12px; text-align: center; padding: 28px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">{{ agora_logo|safe }}</div>
+    <nav class="nav">
+      {% if user %}<span class="who">{{ user }}</span>{% endif %}
+      {% if is_superadmin %}<a class="pill" href="/admin/atrium">Edit / Add workspaces</a>{% endif %}
+      <a class="pill logout" href="/logout">Log out</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="lede">
+      <h2>Welcome back.</h2>
+      <p>Your dashboards and co-branded workspaces, all behind one login.</p>
+    </div>
+
+    <h2 class="section">Your dashboards</h2>
+
+    {% if clients and clients|length > 0 %}
+      <div class="grid">
+        {% for c in clients %}
+          <!-- Each card offers the reverse-proxy dashboard (/d/<c>/) and the Atrium client
+               workspace (/w/<c>/), both behind the single portal login. -->
+          <div class="dashcard">
+            <p class="name">{{ c.name|default(c.key, true) }}</p>
+            <p class="key">{{ c.key }}</p>
+            <div class="go-row">
+              <a class="go workspace" href="/w/{{ c.key }}/">Open workspace &rarr;</a>
+              <a class="go dashboard" href="/d/{{ c.key }}/">Open dashboard</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">No dashboards are assigned to your account yet.</div>
+    {% endif %}
+
+    <!-- CRM: client records / notes / tasks go here -->
+
+    <section class="feedback">
+      <h3>Send feedback</h3>
+      <p class="hint">Tell us what is working or what you would like to see. You can type, or record a quick voice note.</p>
+      <form id="feedbackForm" method="post" action="/feedback">
+        <textarea id="feedbackText" name="message" placeholder="Your feedback..."></textarea>
+        <div class="row">
+          <button class="btn send" type="submit">Send feedback</button>
+          <button class="btn voice" type="button" id="voiceBtn" title="Record a voice note">Voice note</button>
+          <span class="status" id="fbStatus"></span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer>Agora Data Driven &middot; portal.agoradatadriven.com</footer>
+
+  <script>
+    // esprima-4.x-safe: classic ES5/ES2015 only -- no optional chaining (?.) or nullish (??).
+    (function () {
+      var form = document.getElementById("feedbackForm");
+      var text = document.getElementById("feedbackText");
+      var statusEl = document.getElementById("fbStatus");
+      var voiceBtn = document.getElementById("voiceBtn");
+
+      function setStatus(msg) {
+        if (statusEl) { statusEl.textContent = msg || ""; }
+      }
+
+      // Submit feedback via fetch so the page does not navigate away. Falls back to a normal
+      // form POST if fetch is unavailable in the browser.
+      if (form && window.fetch) {
+        form.addEventListener("submit", function (ev) {
+          ev.preventDefault();
+          var msg = text ? text.value : "";
+          if (!msg || msg.replace(/\s+/g, "") === "") {
+            setStatus("Please enter some feedback first.");
+            return;
+          }
+          setStatus("Sending...");
+          var body = new FormData();
+          body.append("message", msg);
+          fetch("/feedback", { method: "POST", body: body, credentials: "same-origin" })
+            .then(function (resp) {
+              if (resp && resp.ok) {
+                setStatus("Thanks! Your feedback was sent.");
+                if (text) { text.value = ""; }
+              } else {
+                setStatus("Could not send right now. Please try again.");
+              }
+            })
+            .catch(function () {
+              setStatus("Could not send right now. Please try again.");
+            });
+        });
+      }
+
+      // Optional voice note: uses the Web Speech API where available to transcribe into the
+      // textarea. Guarded carefully -- many browsers do not expose it, in which case the button
+      // simply reports that voice is unavailable and typing still works.
+      var SpeechCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+      var recog = null;
+      var recording = false;
+
+      if (voiceBtn) {
+        voiceBtn.addEventListener("click", function () {
+          if (!SpeechCtor) {
+            setStatus("Voice input is not supported in this browser. Please type instead.");
+            return;
+          }
+          if (recording) {
+            if (recog) { recog.stop(); }
+            return;
+          }
+          recog = new SpeechCtor();
+          recog.lang = "en-US";
+          recog.interimResults = false;
+          recog.continuous = false;
+
+          recog.onstart = function () {
+            recording = true;
+            voiceBtn.className = "btn voice recording";
+            voiceBtn.textContent = "Stop recording";
+            setStatus("Listening...");
+          };
+          recog.onresult = function (event) {
+            var transcript = "";
+            var i;
+            for (i = 0; i < event.results.length; i++) {
+              transcript += event.results[i][0].transcript;
+            }
+            if (text) {
+              var existing = text.value ? text.value + " " : "";
+              text.value = existing + transcript;
+            }
+          };
+          recog.onerror = function () {
+            setStatus("Voice capture failed. Please type instead.");
+          };
+          recog.onend = function () {
+            recording = false;
+            voiceBtn.className = "btn voice";
+            voiceBtn.textContent = "Voice note";
+            if (statusEl && statusEl.textContent === "Listening...") { setStatus(""); }
+          };
+          recog.start();
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

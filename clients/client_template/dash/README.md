@@ -41,7 +41,7 @@ sparkline, and the daily table.
 | `DASH_PASSWORD`  | secret `template-dash-password` | The dashboard's own password. |
 | `GCS_BUCKET`     | env (`agora-data-driven-template-dash`) | Private data bucket. |
 | `DATA_OBJECT`    | env (`template.json`) | Private data object proxied at `/data.json`. |
-| `SSO_SECRET` / `CLIENT_KEY` | wired later by `scripts/enable_platform_sso.ps1` | Additive portal SSO trust (optional). |
+| `SSO_SECRET` / `CLIENT_KEY` | wired later by `tools/enable_platform_sso.ps1` | Additive portal SSO trust (optional). |
 
 ## Deploy
 
@@ -51,11 +51,11 @@ Run **as yourself** (never Cloud Build from a laptop):
 .\deploy_dash_template.ps1
 ```
 
-The script first runs the repo `.venv` `scripts/_validate_dash_js.py` over `dashboard.html`
+The script first runs the repo `.venv` `tools/_validate_dash_js.py` over `dashboard.html`
 and **aborts on failure** -- a JS syntax error would otherwise strand the page forever on
 "Loading dashboard...". It then builds the image (`template-dash`), and `gcloud run deploy`s
 the service in `asia-southeast1` with SA `template-dash-web@...`, the env vars and secrets
 above, and `--no-invoker-iam-check`.
 
 After deploy: map `template.agoradatadriven.com` to the service, then wire SSO with
-`scripts\enable_platform_sso.ps1 -Keys template`. Record the live URL in `LIVE_URL.md`.
+`tools\enable_platform_sso.ps1 -Keys template`. Record the live URL in `LIVE_URL.md`.
