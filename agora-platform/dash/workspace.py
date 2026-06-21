@@ -365,6 +365,15 @@ def set_metrics(client, metrics):
     return _mutate(client, fn)
 
 
+def set_goal(client, goal):
+    """Store the per-client Monthly goal (label/format/target/stretch/breakthrough/current/
+    source_metric). Period is DERIVED at render time, never stored. Returns the goal dict."""
+    def fn(ws):
+        ws["goal"] = dict(goal or {})
+        return ws["goal"]
+    return _mutate(client, fn)
+
+
 def set_overview_counts(client, today=None, split=None, series=None):
     """Update the headline counts used by Overview/Dashboard. Returns the workspace dict."""
     def fn(ws):

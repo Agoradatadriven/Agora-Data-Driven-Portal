@@ -370,6 +370,118 @@ def recap_b64(ws, today):
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
+# --- Monthly goal: three-tier progress bar -----------------------------------------------------
+def _parse_number(s):
+    """Best-effort numeric value of a metric string: '$48.6k'->48600, '148'->148, '82%'->82, else None."""
+    s = str(s).strip().replace(",", "").replace("$", "").replace("%", "")
+    mult = 1.0
+    if s[-1:].lower() == "k":
+        mult, s = 1000.0, s[:-1]
+    elif s[-1:].lower() == "m":
+        mult, s = 1_000_000.0, s[:-1]
+    try:
+        return float(s) * mult
+    except ValueError:
+        return None
+
+
+def _metric_number(ws, label):
+    """The parsed numeric value of the KPI metric whose label == `label`, or None."""
+    for m in ws.get("metrics", []):
+        if m.get("label") == label:
+            return _parse_number(m.get("value", ""))
+    return None
+
+
+def _trim1(x):
+    s = "%.1f" % x
+    return s[:-2] if s.endswith(".0") else s
+
+
+def _abbrev(n):
+    a = abs(n)
+    if a >= 1_000_000:
+        return _trim1(n / 1_000_000.0) + "M"
+    if a >= 1_000:
+        return _trim1(n / 1_000.0) + "k"
+    return "{:,}".format(int(round(n)))
+
+
+def fmt_goal_value(n, fmt):
+    """Format per the goal's chosen format: 'currency' -> '$48.6k'/'$60k'; else plain int '1,480'."""
+    try:
+        n = float(n)
+    except (TypeError, ValueError):
+        n = 0.0
+    return ("$" + _abbrev(n)) if fmt == "currency" else "{:,}".format(int(round(n)))
+
+
+def goal_gauge(ws, today):
+    """Three-tier monthly-goal bar (Target / Stretch / Breakthrough): zone widths, fill %, tier and
+    pace ticks, formatted numbers, and a dynamic status. Pure (no client JS) -- the template renders
+    the zones/fill/ticks as CSS widths/offsets. Returns None if no goal is configured.
+    """
+    goal = ws.get("goal")
+    if not goal:
+        return None
+    fmt = goal.get("format", "number")
+    label = goal.get("label", "goal")
+
+    def _f(key):
+        try:
+            return float(goal.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    target = _f("target")
+    stretch = max(_f("stretch"), target)                      # keep the tiers ordered
+    breakthrough = max(_f("breakthrough"), stretch, 1.0)      # full bar width; never zero
+    current = _metric_number(ws, goal.get("source_metric")) if goal.get("source_metric") else None
+    if current is None:
+        current = _f("current")
+
+    def pct(v):
+        return round(max(0.0, min(1.0, v / breakthrough)) * 100.0, 2)
+
+    dim = _calendar.monthrange(today.year, today.month)[1]
+    elapsed = max(1, min(today.day, dim))
+    pace_value = target * elapsed / float(dim)                # baseline pace uses the Target tier
+    projected = current / elapsed * dim
+
+    client_name = ws.get("display_name") or "your business"
+    if current >= breakthrough:
+        status = {"level": "breakthrough", "icon": "trophy",
+                  "text": "Breakthrough — exceptional month for %s" % client_name}
+    elif current >= stretch:
+        status = {"level": "exceeding", "icon": "trending",
+                  "text": "Exceeding expectations — on track for a breakthrough month"}
+    elif current >= target:
+        status = {"level": "ontrack", "icon": "check",
+                  "text": "Target hit — now pushing to exceed with %s %s" % (fmt_goal_value(stretch, fmt), label)}
+    elif current >= pace_value:
+        status = {"level": "ontrack", "icon": "check",
+                  "text": "On pace — on track for ~%s %s by month end" % (fmt_goal_value(projected, fmt), label)}
+    else:
+        status = {"level": "behind", "icon": "trending",
+                  "text": "Behind pace — pushing toward your %s %s target" % (fmt_goal_value(target, fmt), label)}
+
+    tp, sp = pct(target), pct(stretch)
+    return {
+        "label": label,
+        "current_fmt": fmt_goal_value(current, fmt),
+        "target_fmt": fmt_goal_value(target, fmt),
+        "stretch_fmt": fmt_goal_value(stretch, fmt),
+        "breakthrough_fmt": fmt_goal_value(breakthrough, fmt),
+        "fill_pct": pct(current),
+        "target_pct": tp,
+        "stretch_pct": sp,
+        "pace_pct": pct(pace_value),
+        "zone_stretch": round(sp - tp, 2),
+        "zone_break": round(100.0 - sp, 2),
+        "status": status,
+    }
+
+
 # --- The full view context ----------------------------------------------------------------------
 def build(ws, client, user, active_tab, now=None):
     """Assemble the `view` dict the Atrium template needs beyond the raw workspace `ws`."""
@@ -393,4 +505,5 @@ def build(ws, client, user, active_tab, now=None):
         "progress": project_progress(ws, cal_events, today),
         "freshness": data_freshness(ws, now_dt),
         "recap_b64": recap_b64(ws, today),
+        "goal": goal_gauge(ws, today),
     }

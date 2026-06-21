@@ -223,6 +223,23 @@ def logout():
     return resp
 
 
+@app.route("/r", methods=["GET"])
+def shared_recap():
+    """Public, capability-URL recap page for the Overview "Share recap" button.
+
+    DELIBERATELY UNAUTHENTICATED so a client can forward the link to a colleague who has no login.
+    This does NOT weaken the "never make the data JSON public" rule: the recap data rides ENTIRELY in
+    the URL #fragment (ROAS / leads / revenue / wins, base64), which browsers never send to the
+    server -- so this route reads no client data, touches no bucket, and stores nothing. It serves a
+    static branded shell that decodes the fragment and renders it client-side. The only thing exposed
+    is what the client themselves chose to put in the link.
+
+    TODO(recap-pdf): add a PDF export of this recap -- e.g. a "Download PDF" button here that renders
+    the same recap to PDF (server-side via a headless renderer, or client-side). Copy-link ships now.
+    """
+    return render_template("recap.html", workspace_name=WORKSPACE_NAME, **_brand_ctx())
+
+
 # --- Reverse proxy: /d/<client>/<path> ---------------------------------------------------
 def _upstream_base_url(client_key):
     """Resolve the upstream dashboard's base URL.
@@ -952,6 +969,34 @@ def atrium_admin_metrics(client):
         })
     if metrics:
         workspace.set_metrics(client, metrics)
+    return jsonify(ok=True)
+
+
+@app.route("/w/<client>/admin/goal", methods=["POST"])
+def atrium_admin_goal(client):
+    """Set the per-client Monthly goal: label / format / three tiers / current / optional source metric."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    if workspace.load_workspace(client) is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+
+    def _num(name):
+        try:
+            return float(request.form.get(name, "") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    fmt = request.form.get("goal_format", "number").strip()
+    workspace.set_goal(client, {
+        "label": request.form.get("goal_label", "").strip() or "goal",
+        "format": "currency" if fmt == "currency" else "number",
+        "target": _num("goal_target"),
+        "stretch": _num("goal_stretch"),
+        "breakthrough": _num("goal_breakthrough"),
+        "current": _num("goal_current"),
+        "source_metric": request.form.get("goal_source_metric", "").strip(),
+    })
     return jsonify(ok=True)
 
 

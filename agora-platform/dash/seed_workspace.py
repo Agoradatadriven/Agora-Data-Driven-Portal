@@ -91,6 +91,12 @@ def riverdance_workspace():
         "split": {"paid": 86, "organic": 62},
         "series": [6, 5, 8, 7, 9, 8, 11, 9, 10, 12, 11, 13, 12, 14],
 
+        # Monthly goal: three independently-configurable tiers (Target / Stretch / Breakthrough).
+        # `current` is pulled live from the matching KPI when `source_metric` is set.
+        "goal": {"label": "leads", "format": "number",
+                 "target": 150, "stretch": 180, "breakthrough": 220,
+                 "current": 148, "source_metric": "New leads"},
+
         "activity": [
             {"icon": "check", "text": "You approved the riverside email (RVR-015).",
              "time_label": "Today, 9:12 AM"},
