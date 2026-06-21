@@ -226,11 +226,25 @@ def run():
     _check("remove-creative ok", r.status_code == 200)
     _check("creative 404 after removal", c.get("/w/%s/creative/RVR-099" % CLIENT).status_code == 404)
 
-    # Reject a non-image upload and an oversize upload.
+    # A short VIDEO creative is accepted, served with its mime, and rendered as a <video>.
+    mp4 = b"\x00\x00\x00\x18ftypmp42" + b"riverdance-clip-bytes"
+    r = c.post("/w/%s/admin/upload-creative" % CLIENT,
+               data={"content_id": "RVR-099", "file": (io.BytesIO(mp4), "reel.mp4", "video/mp4")},
+               content_type="multipart/form-data")
+    _check("video upload ok", r.status_code == 200 and r.get_json().get("ok") is True)
+    _camp, vitem = workspace._find_content(workspace.load_workspace(CLIENT), "RVR-099")
+    _check("video mime stored", vitem.get("image_mime") == "video/mp4")
+    served = c.get("/w/%s/creative/RVR-099" % CLIENT)
+    _check("video served with mime", served.status_code == 200 and served.mimetype == "video/mp4")
+    _check("workspace renders a <video> for the clip",
+           ('<video src="/w/%s/creative/RVR-099"' % CLIENT) in c.get("/w/%s/" % CLIENT).get_data(as_text=True))
+    c.post("/w/%s/admin/remove-creative" % CLIENT, data={"content_id": "RVR-099"})
+
+    # Reject a non-media upload (neither image nor video).
     r = c.post("/w/%s/admin/upload-creative" % CLIENT,
                data={"content_id": "RVR-099", "file": (io.BytesIO(b"x"), "a.txt", "text/plain")},
                content_type="multipart/form-data")
-    _check("non-image upload rejected", r.status_code == 400)
+    _check("non-media upload rejected", r.status_code == 400)
 
     # Delete the content piece in place.
     r = c.post("/w/%s/admin/delete-content" % CLIENT, data={"content_id": "RVR-099"})

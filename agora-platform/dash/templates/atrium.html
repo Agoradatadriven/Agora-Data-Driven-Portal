@@ -311,7 +311,7 @@
     .ax-thumb .ax-thumb-r { font-size: 17px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; }
     /* When a real creative is uploaded, show it IN FULL (no crop) and let the box grow to fit it. */
     .ax-thumb.has-img { background: var(--ax-canvas); border: 1px solid var(--ax-line); padding: 0; min-height: 0; }
-    .ax-thumb.has-img img { position: static; width: 100%; height: auto; max-height: 480px; object-fit: contain; border-radius: 11px; }
+    .ax-thumb.has-img img, .ax-thumb.has-img video { position: static; width: 100%; height: auto; max-height: 480px; object-fit: contain; border-radius: 11px; display: block; background: #000; }
     .ax-thumb.has-img .ax-thumb-k, .ax-thumb.has-img .ax-thumb-r { display: none; }
     .ax-content-main { min-width: 0; }
     .ax-tagrow { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 8px; }
@@ -916,14 +916,14 @@
             {% for p in c.content %}
             <div class="ax-card ax-content" data-content="{{ p.id }}" data-status="{{ p.status }}">
               <div class="ax-thumb {{ chan }}{{ ' has-img' if (p.image_object or p.image) else '' }}">
-                {% if p.image_object %}<img src="/w/{{ view.client }}/creative/{{ p.id }}" alt="{{ p.ref }}">{% elif p.image %}<img src="{{ p.image }}" alt="{{ p.ref }}">{% endif %}
+                {% if p.image_object %}{% if p.image_mime and p.image_mime.startswith('video/') %}<video src="/w/{{ view.client }}/creative/{{ p.id }}" controls preload="metadata"></video>{% else %}<img src="/w/{{ view.client }}/creative/{{ p.id }}" alt="{{ p.ref }}">{% endif %}{% elif p.image %}<img src="{{ p.image }}" alt="{{ p.ref }}">{% endif %}
                 <span class="ax-thumb-k">{{ p.type_tag }}</span>
                 <span class="ax-thumb-r">{{ p.ref }}</span>
                 {% if is_superadmin %}
                 <div class="ax-thumb-upload">
                   <button class="ax-btn small" type="button" data-uploadbtn="{{ p.id }}">{{ 'Replace' if p.image_object else 'Upload' }}</button>
                   {% if p.image_object %}<button class="ax-btn small" type="button" data-removecreative="{{ p.id }}">Remove</button>{% endif %}
-                  <input type="file" accept="image/*" data-uploadinput="{{ p.id }}" style="display:none">
+                  <input type="file" accept="image/*,video/*" data-uploadinput="{{ p.id }}" style="display:none">
                 </div>
                 {% endif %}
               </div>
@@ -1727,7 +1727,7 @@
         postData("/admin/upload-creative", body)
           .then(function () { window.location.reload(); })
           .catch(function () {
-            adminMsg("Upload failed — use an image under 8 MB.", false);
+            adminMsg("Upload failed — use an image (≤8 MB) or a video (≤30 MB).", false);
             btn.removeAttribute("disabled");
           });
       });

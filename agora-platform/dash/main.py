@@ -79,7 +79,7 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="None" if _secure_cookies else "Lax",
 )
 # Cap request bodies. The largest legitimate POST is a voice feedback note; keep it bounded.
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MiB
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32 MiB (Cloud Run's request cap; fits short video creatives)
 
 # Per-upstream-dashboard proxy sessions, keyed by client key. Each holds the upstream <c>-dash
 # login cookie so we only log into a dashboard ONCE server-side, then reuse the session. This is
@@ -694,11 +694,18 @@ def atrium_creative(client, content_id):
 # These power the inline edit affordances rendered into atrium.html for super-admins, so the team
 # edits the REAL client workspace in place instead of the separate dark console below. Every action
 # reuses the same workspace.py mutators; all are gated super-admin via _atrium_admin_json_gate.
-ATRIUM_UPLOAD_MAX_BYTES = 8 * 1024 * 1024  # reject creatives larger than 8 MB
+ATRIUM_UPLOAD_MAX_BYTES = 8 * 1024 * 1024    # images: reject larger than 8 MB
+ATRIUM_VIDEO_MAX_BYTES = 30 * 1024 * 1024    # videos: kept under Cloud Run's ~32 MiB request cap
 _ATRIUM_IMAGE_EXT = {
     "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
     "image/webp": "webp", "image/svg+xml": "svg",
 }
+_ATRIUM_VIDEO_EXT = {
+    "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
+}
+# Creatives accept images AND short videos; the stored mime tells the template which to render.
+_ATRIUM_MEDIA_EXT = dict(_ATRIUM_IMAGE_EXT)
+_ATRIUM_MEDIA_EXT.update(_ATRIUM_VIDEO_EXT)
 
 
 def _strategy_from_form():
@@ -893,7 +900,7 @@ def atrium_admin_content_comment(client):
 
 @app.route("/w/<client>/admin/upload-creative", methods=["POST"])
 def atrium_admin_upload_creative(client):
-    """Upload an image creative for a content piece (stored as a private object; ≤ 8 MB)."""
+    """Upload an image or short video creative for a content piece (private object; image ≤8MB, video ≤30MB)."""
     gate = _atrium_admin_json_gate(client)
     if gate:
         return gate
@@ -902,10 +909,11 @@ def atrium_admin_upload_creative(client):
     if upload is None or not upload.filename:
         return Response('{"error":"no_file"}', status=400, mimetype="application/json")
     mime = (upload.mimetype or "").lower()
-    if mime not in _ATRIUM_IMAGE_EXT:
+    if mime not in _ATRIUM_MEDIA_EXT:
         return Response('{"error":"unsupported_type"}', status=400, mimetype="application/json")
-    data = upload.read(ATRIUM_UPLOAD_MAX_BYTES + 1)
-    if len(data) > ATRIUM_UPLOAD_MAX_BYTES:
+    max_bytes = ATRIUM_VIDEO_MAX_BYTES if mime in _ATRIUM_VIDEO_EXT else ATRIUM_UPLOAD_MAX_BYTES
+    data = upload.read(max_bytes + 1)
+    if len(data) > max_bytes:
         return Response('{"error":"too_large"}', status=413, mimetype="application/json")
     ws = workspace.load_workspace(client)
     _camp, item = workspace._find_content(ws, content_id) if ws else (None, None)
