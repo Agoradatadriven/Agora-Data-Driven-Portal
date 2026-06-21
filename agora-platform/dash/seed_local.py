@@ -5,7 +5,7 @@ It builds a portal you can actually log into on your laptop:
 
   * riverdance -- the full demo workspace (seed_workspace) + a known password, so you can see a
     single-client login drop STRAIGHT onto the company overview (/w/riverdance/overview).
-  * three more clients (Honey Tribe, Melo Yelo, RHE) onboarded via onboard_client, each with a
+  * three more clients (Honey Tribe, Melo Yelo, Rooming House Expert) onboarded via onboard_client, each with a
     starter workspace + known password, to compare against.
 
 Every client here gets a DISTINCT password on purpose: portal login matches a password to a client
@@ -29,7 +29,7 @@ DEMO_PW = "riverdance-demo"
 OTHER_CLIENTS = [
     ("honeytribe", "Honey Tribe", "honeytribe-demo"),
     ("meloyelo", "Melo Yelo", "meloyelo-demo"),
-    ("rhe", "RHE", "rhe-demo"),
+    ("rhe", "Rooming House Expert", "rhe-demo"),
 ]
 
 

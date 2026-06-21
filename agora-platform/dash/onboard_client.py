@@ -66,21 +66,28 @@ def _generate_password():
 def onboard(key, display_name=None, password=None, seed=True):
     """Register a client, set its portal password, and seed a starter workspace. Returns the password.
 
-    Idempotent in the safe direction: an existing registry entry and an existing workspace are left
-    intact (never clobbered); only the password is (re)set so a rerun can recover a lost login.
+    Idempotent in the safe direction: existing registry/workspace CONTENT is left intact (never
+    clobbered); the password is (re)set so a rerun can recover a lost login, and when an explicit
+    display_name is given it is refreshed in both the registry and the workspace -- so renaming a
+    client in the caller (e.g. seed_local) takes effect on the next run without wiping any data.
     """
     name = display_name or key.title()
 
-    # 1. Registry entry (idempotent: add_client never clobbers an existing key).
+    # 1. Registry entry (add_client never clobbers; set_client_name keeps the display name current).
     store.add_client(key, name)
+    if display_name:
+        store.set_client_name(key, name)
 
     # 2. Portal login: set a password (generated if not supplied).
     pw = password or _generate_password()
     store.set_client_password(key, pw)
 
-    # 3. Workspace to land on -- only if absent, so we never overwrite real content on a rerun.
+    # 3. Workspace to land on. Seed a starter only if absent (never overwrite real content); if it
+    #    already exists, refresh just the display name so a rename propagates.
     if seed and not workspace.workspace_exists(key):
         workspace.save_workspace(key, starter_workspace(key, name))
+    elif display_name and workspace.workspace_exists(key):
+        workspace.set_display_name(key, name)
 
     return pw
 

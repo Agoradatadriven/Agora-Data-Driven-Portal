@@ -157,9 +157,7 @@
     <div class="brand">{{ agora_logo|safe }}</div>
     <nav class="nav">
       {% if user %}<span class="who">{{ user }}</span>{% endif %}
-      {% if is_superadmin %}<a class="pill" href="/admin/atrium">Workspaces</a>{% endif %}
-      {% if is_superadmin %}<a class="pill" href="/admin">Add client</a>{% endif %}
-      {% if is_superadmin %}<a class="pill" href="/superadmin">Super admin</a>{% endif %}
+      {% if is_superadmin %}<a class="pill" href="/admin/atrium">Edit / Add workspaces</a>{% endif %}
       <a class="pill logout" href="/logout">Log out</a>
     </nav>
   </header>

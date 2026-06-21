@@ -11,6 +11,14 @@
 #
 # Stop with Ctrl+C. Delete .local_portal_data to reset the demo. This NEVER touches the real bucket,
 # and the no-password mode can ONLY activate locally (it is tied to the relaxed-cookie local posture).
+#
+#   -WithLogin   show the REAL login page (no auto super-admin) so you can sign in AS A CLIENT.
+#   -Port <n>    serve on a different port (default 8080) so a login instance can run alongside.
+
+param(
+    [switch]$WithLogin,
+    [int]$Port = 8080
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -35,27 +43,36 @@ New-Item -ItemType Directory -Force -Path $data | Out-Null
 $env:REGISTRY_LOCAL_DIR = $data
 $env:WORKSPACE_LOCAL_DIR = $data
 
-# 3. Local-dev app config: a dummy session secret, relaxed cookies so it works over http, and the
-#    no-password preview mode (DEV_NOAUTH). PORTAL_SECURE_COOKIES=0 is what gates DEV_NOAUTH on, so
-#    these two MUST stay together -- it can never activate in the https production deploy.
+# 3. Local-dev app config: a dummy session secret, relaxed cookies so it works over http, and (unless
+#    -WithLogin) the no-password preview mode (DEV_NOAUTH). PORTAL_SECURE_COOKIES=0 is what gates
+#    DEV_NOAUTH on, so these two stay together -- it can never activate in the https production deploy.
 $env:SESSION_SECRET = "local-dev-secret-not-for-production"
 $env:PORTAL_SECURE_COOKIES = "0"
-$env:PORTAL_DEV_NOAUTH = "1"
-$env:PORT = "8080"
+$env:PORT = "$Port"
+if ($WithLogin) {
+    Remove-Item Env:\PORTAL_DEV_NOAUTH -ErrorAction SilentlyContinue   # show the REAL login page
+} else {
+    $env:PORTAL_DEV_NOAUTH = "1"                                       # no-password super-admin
+}
 
 # 4. Seed the demo clients + workspaces (idempotent). No passwords are needed to log in (DEV_NOAUTH
 #    auto-signs you in as super-admin), but seeding gives you real clients/workspaces to click into.
 & $py (Join-Path $dash "seed_local.py")
 
 Write-Host ""
-Write-Host "[run_local] starting portal at http://localhost:8080  (no password -- Ctrl+C to stop)" -ForegroundColor Green
-Write-Host "[run_local] you are auto-signed-in as super-admin: every client + in-place editing." -ForegroundColor Green
+if ($WithLogin) {
+    Write-Host "[run_local] starting portal at http://localhost:$Port  (LOGIN PAGE -- Ctrl+C to stop)" -ForegroundColor Green
+    Write-Host "[run_local] sign in with ANY email + a client password (e.g. riverdance-demo) for the CLIENT view." -ForegroundColor Green
+} else {
+    Write-Host "[run_local] starting portal at http://localhost:$Port  (no password -- Ctrl+C to stop)" -ForegroundColor Green
+    Write-Host "[run_local] you are auto-signed-in as super-admin: every client + in-place editing." -ForegroundColor Green
+}
 Write-Host ""
 
 # 5. Open the browser once the server is up (a detached helper waits a moment, then opens the URL),
 #    then serve in the foreground (this call blocks until Ctrl+C).
 Start-Process powershell -WindowStyle Hidden -ArgumentList @(
     "-NoProfile", "-Command",
-    "Start-Sleep -Seconds 3; Start-Process 'http://localhost:8080/'"
+    "Start-Sleep -Seconds 3; Start-Process 'http://localhost:$Port/'"
 )
 & $py (Join-Path $dash "main.py")

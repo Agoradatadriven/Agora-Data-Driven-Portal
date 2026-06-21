@@ -494,18 +494,42 @@ def set_metrics(client, metrics):
 
 
 def set_goal(client, goal):
-    """Store the per-client Monthly goal (label/format/target/stretch/breakthrough/current/
-    source_metric). Period is DERIVED at render time, never stored. Returns the goal dict."""
+    """Store the per-client Monthly goal (label/format/target/exceed/breakthrough/current/
+    source_metric; legacy 'stretch' is read as 'exceed'). Period is DERIVED at render time, never
+    stored. Returns the goal dict."""
     def fn(ws):
         ws["goal"] = dict(goal or {})
         return ws["goal"]
     return _mutate(client, fn)
 
 
-def set_dashboard_url(client, url):
-    """Set the per-client Looker Studio embed URL (empty string hides the dashboard from the client)."""
+def set_reach(client, current, previous):
+    """Store the per-client Total reach headline (this month + last month) shown on the Overview card."""
+    def fn(ws):
+        ws["reach"] = {"current": current, "previous": previous}
+        return ws["reach"]
+    return _mutate(client, fn)
+
+
+def set_display_name(client, name):
+    """Update the workspace's display name in place (a client rename), leaving all other content
+    untouched. Returns the new name."""
+    def fn(ws):
+        ws["display_name"] = name
+        return ws["display_name"]
+    return _mutate(client, fn)
+
+
+def set_dashboard_url(client, url, height=None):
+    """Set the per-client Looker Studio embed URL (empty string hides the dashboard from the client)
+    and, optionally, the report height in px. Both are read by atrium_view.dashboard()."""
     def fn(ws):
         ws["dashboard_url"] = (url or "").strip()
+        if height is not None:
+            try:
+                ws["dashboard_height"] = int(height)
+            except (TypeError, ValueError):
+                pass
         return ws["dashboard_url"]
     return _mutate(client, fn)
 

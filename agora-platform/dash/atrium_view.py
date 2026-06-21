@@ -344,21 +344,14 @@ def recap(ws, today):
             headline.append({"label": m.get("label", label), "value": m.get("value", ""),
                              "trend": m.get("trend", ""), "up": bool(m.get("trend_up"))})
 
-    # Wins: mirror the Overview exactly -- curated ws['wins'] if present, else top-3 positive KPIs.
-    wins = []
-    if ws.get("wins"):
-        for w in ws["wins"]:
-            wins.append({"title": w.get("title", ""), "detail": w.get("detail", "")})
-    else:
-        for m in [x for x in metrics if x.get("trend_up")][:3]:
-            wins.append({"title": "%s up %s" % (m.get("label", ""), m.get("trend", "")),
-                         "detail": "%s is now %s." % (m.get("label", ""), m.get("value", ""))})
+    # Wins: mirror the Overview exactly -- the same auto-generated (or curated) wins().
+    recap_wins = [{"title": w.get("title", ""), "detail": w.get("detail", "")} for w in wins(ws)]
 
     return {
         "client": ws.get("display_name") or "",
         "month": "%s %d" % (_MONTHS[today.month], today.year),
         "headline": headline,
-        "wins": wins,
+        "wins": recap_wins,
     }
 
 
@@ -417,7 +410,7 @@ def fmt_goal_value(n, fmt):
 
 
 def goal_gauge(ws, today):
-    """Three-tier monthly-goal bar (Target / Stretch / Breakthrough): zone widths, fill %, tier and
+    """Three-tier monthly-goal bar (Target / Exceed / Breakthrough): zone widths, fill %, tier and
     pace ticks, formatted numbers, and a dynamic status. Pure (no client JS) -- the template renders
     the zones/fill/ticks as CSS widths/offsets. Returns None if no goal is configured.
     """
@@ -427,15 +420,19 @@ def goal_gauge(ws, today):
     fmt = goal.get("format", "number")
     label = goal.get("label", "goal")
 
-    def _f(key):
-        try:
-            return float(goal.get(key, 0) or 0)
-        except (TypeError, ValueError):
-            return 0.0
+    def _f(key, *alts):
+        for k in (key,) + alts:
+            v = goal.get(k)
+            if v not in (None, ""):
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    pass
+        return 0.0
 
     target = _f("target")
-    stretch = max(_f("stretch"), target)                      # keep the tiers ordered
-    breakthrough = max(_f("breakthrough"), stretch, 1.0)      # full bar width; never zero
+    exceed = max(_f("exceed", "stretch"), target)             # 'exceed' tier (legacy key: 'stretch')
+    breakthrough = max(_f("breakthrough"), exceed, 1.0)       # full bar width; never zero
     current = _metric_number(ws, goal.get("source_metric")) if goal.get("source_metric") else None
     if current is None:
         current = _f("current")
@@ -452,12 +449,12 @@ def goal_gauge(ws, today):
     if current >= breakthrough:
         status = {"level": "breakthrough", "icon": "trophy",
                   "text": "Breakthrough — exceptional month for %s" % client_name}
-    elif current >= stretch:
+    elif current >= exceed:
         status = {"level": "exceeding", "icon": "trending",
                   "text": "Exceeding expectations — on track for a breakthrough month"}
     elif current >= target:
         status = {"level": "ontrack", "icon": "check",
-                  "text": "Target hit — now pushing to exceed with %s %s" % (fmt_goal_value(stretch, fmt), label)}
+                  "text": "Target hit — now pushing to exceed with %s %s" % (fmt_goal_value(exceed, fmt), label)}
     elif current >= pace_value:
         status = {"level": "ontrack", "icon": "check",
                   "text": "On pace — on track for ~%s %s by month end" % (fmt_goal_value(projected, fmt), label)}
@@ -465,21 +462,143 @@ def goal_gauge(ws, today):
         status = {"level": "behind", "icon": "trending",
                   "text": "Behind pace — pushing toward your %s %s target" % (fmt_goal_value(target, fmt), label)}
 
-    tp, sp = pct(target), pct(stretch)
+    tp, sp = pct(target), pct(exceed)
     return {
         "label": label,
         "current_fmt": fmt_goal_value(current, fmt),
         "target_fmt": fmt_goal_value(target, fmt),
-        "stretch_fmt": fmt_goal_value(stretch, fmt),
+        "exceed_fmt": fmt_goal_value(exceed, fmt),
         "breakthrough_fmt": fmt_goal_value(breakthrough, fmt),
         "fill_pct": pct(current),
         "target_pct": tp,
-        "stretch_pct": sp,
+        "exceed_pct": sp,
         "pace_pct": pct(pace_value),
-        "zone_stretch": round(sp - tp, 2),
+        "zone_exceed": round(sp - tp, 2),
         "zone_break": round(100.0 - sp, 2),
         "status": status,
     }
+
+
+# --- Auto-generated "Wins for the week" --------------------------------------------------------
+def _positive_trend_pct(trend):
+    """Parse a '+22%' style trend into its positive magnitude, or None unless it's a positive %."""
+    s = str(trend or "").strip()
+    if not s.endswith("%"):
+        return None
+    s = s[:-1].replace("+", "").replace(",", "").strip()
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    return v if v > 0 else None
+
+
+def wins(ws):
+    """The 'Wins for the week' rows: the top-3 KPIs whose % trend is a positive (favourable) move.
+
+    Ranks metrics with a literal positive percentage trend (e.g. '+22%') by magnitude. If nothing
+    improved, returns a single encouraging 'holding steady' line. A curated ws['wins'] (hand-tuned
+    production) still wins. Pure -- no I/O.
+    """
+    if ws.get("wins"):
+        return list(ws["wins"])
+    scored = []
+    for m in ws.get("metrics", []):
+        p = _positive_trend_pct(m.get("trend"))
+        if p is not None:
+            scored.append((p, m))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    out = []
+    for _p, m in scored[:3]:
+        label, trend, value = m.get("label", ""), m.get("trend", ""), m.get("value", "")
+        out.append({
+            "icon": m.get("icon", "check"),
+            "title": "%s up %s" % (label, trend),
+            "detail": "%s is now %s, a %s move in your favour." % (label, value, trend),
+        })
+    if not out:
+        out = [{"icon": "trending", "steady": True, "detail": "",
+                "title": "Holding steady — your campaigns are maintaining performance."}]
+    return out
+
+
+# --- Total reach (Overview card; admin-set) ----------------------------------------------------
+def organic_reach(ws):
+    """Total reach headline for the Overview card: formatted value + month-over-month %. Admin-set.
+
+    Returns None if no reach is configured. MoM % is this month vs last month. Pure.
+    """
+    reach = ws.get("reach")
+    if not reach:
+        return None
+    cur = _parse_number(reach.get("current", ""))
+    if cur is None:
+        return None
+    prev = _parse_number(reach.get("previous", ""))
+    trend_pct = int(round((cur - prev) / prev * 100.0)) if prev else None
+    return {
+        "value_fmt": "{:,}".format(int(round(cur))),
+        "trend_pct": trend_pct,
+        "trend_abs": abs(trend_pct) if trend_pct is not None else None,
+        "up": trend_pct is not None and trend_pct >= 0,
+    }
+
+
+# --- Deliverables (Overview card; from the Content Calendar) ------------------------------------
+def deliverables(ws, today):
+    """Content Calendar progress for the Overview card: complete vs total, % and delivered-early.
+
+    'Complete' mirrors the Calendar tab's green-forward logic: an event is done once its date has
+    passed OR it was marked ready/done; 'early' = a still-future event already marked ready/done.
+    Returns None if there are no dated calendar events. Pure.
+    """
+    total = done = early = 0
+    for e in ws.get("calendar") or []:
+        try:
+            d = datetime.date.fromisoformat(str(e.get("date", "")))
+        except ValueError:
+            continue
+        total += 1
+        ready = e.get("status") in ("ready", "done")
+        if d < today or ready:
+            done += 1
+            if d > today and ready:
+                early += 1
+    if total == 0:
+        return None
+    return {"done": done, "total": total,
+            "pct": int(round(done * 100.0 / total)), "early": early}
+
+
+# --- Dashboard tab: per-workspace Looker Studio embed (URL + height) ----------------------------
+# Known per-client defaults so the Dashboard works the moment a workspace exists; an admin save
+# overrides them (and saving an empty URL clears it -- see dashboard()). Onboarding a new client
+# needs no code change: the agency just pastes the URL in admin.
+_DASHBOARD_DEFAULTS = {
+    "riverdance": {"url": "https://datastudio.google.com/embed/reporting/6a0bd089-bf0d-453b-a98e-222c4fb26815/page/p_21bylmxn4d", "height": 900},
+    "rhe":        {"url": "https://datastudio.google.com/embed/reporting/e9edb3ba-486c-4ddc-b33d-410258422aa4/page/1yCWF", "height": 500},
+    "honeytribe": {"url": "https://datastudio.google.com/embed/reporting/ff946d72-068c-4482-97c8-a6e9170af646/page/p_1okvtle2vd", "height": 500},
+    "meloyelo":   {"url": "https://datastudio.google.com/embed/reporting/815f5d0b-2b3b-47da-8faf-0dc6cea77488/page/p_rm3oxf9l3d", "height": 2200},
+}
+
+
+def dashboard(ws, client):
+    """Resolve the Dashboard tab embed for ONE workspace: the stored per-workspace URL + height,
+    else a known per-client default (pre-fill), else empty (the client hides the tab; the admin sees
+    a placeholder). An admin who saves an empty URL clears it (the 'dashboard_url' key is then
+    present, so the default is NOT re-applied). Height is clamped to a sane 200..5000. Pure.
+    """
+    default = _DASHBOARD_DEFAULTS.get(client, {})
+    if "dashboard_url" in ws:
+        url = (ws.get("dashboard_url") or "").strip()
+    else:
+        url = (default.get("url") or "").strip()
+    height = ws.get("dashboard_height") or default.get("height") or 800
+    try:
+        height = int(height)
+    except (TypeError, ValueError):
+        height = 800
+    return {"url": url, "height": max(200, min(height, 5000))}
 
 
 # --- The full view context ----------------------------------------------------------------------
@@ -506,4 +625,8 @@ def build(ws, client, user, active_tab, now=None):
         "freshness": data_freshness(ws, now_dt),
         "recap_b64": recap_b64(ws, today),
         "goal": goal_gauge(ws, today),
+        "wins": wins(ws),
+        "reach": organic_reach(ws),
+        "deliverables": deliverables(ws, today),
+        "dashboard": dashboard(ws, client),
     }

@@ -164,6 +164,17 @@
         &nbsp;·&nbsp; <a href="/w/{{ client }}/" target="_blank">Open workspace ↗</a>
       </h2>
 
+      <!-- Client login (portal password) — folded in from the old Super admin console -->
+      <h2 class="section">Client login</h2>
+      <form class="panel" method="post" action="/admin/atrium/{{ client }}/password">
+        <p class="meta">The client logs in with <strong>any email</strong> + this password (the email is only a label).</p>
+        <div class="row">
+          <div><label>Current password</label><input type="text" value="{{ revealed_pw|default('', true) }}" readonly placeholder="(none set yet)"></div>
+          <div><label>Set a new password</label><input type="text" name="password" placeholder="leave blank to auto-generate"></div>
+        </div>
+        <button class="btn violet" type="submit">Save password</button>
+      </form>
+
       {% if not ws %}
         <div class="panel">
           <h3>No workspace yet</h3>

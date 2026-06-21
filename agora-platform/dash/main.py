@@ -1179,7 +1179,7 @@ def atrium_admin_goal(client):
         "label": request.form.get("goal_label", "").strip() or "goal",
         "format": "currency" if fmt == "currency" else "number",
         "target": _num("goal_target"),
-        "stretch": _num("goal_stretch"),
+        "exceed": _num("goal_exceed"),
         "breakthrough": _num("goal_breakthrough"),
         "current": _num("goal_current"),
         "source_metric": request.form.get("goal_source_metric", "").strip(),
@@ -1187,9 +1187,24 @@ def atrium_admin_goal(client):
     return jsonify(ok=True)
 
 
+@app.route("/w/<client>/admin/reach", methods=["POST"])
+def atrium_admin_reach(client):
+    """Set the per-client Total reach headline (this vs last month) shown on the Overview card."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    if workspace.load_workspace(client) is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    workspace.set_reach(client,
+                        request.form.get("reach_current", "").strip(),
+                        request.form.get("reach_previous", "").strip())
+    return jsonify(ok=True)
+
+
 @app.route("/w/<client>/admin/dashboard-url", methods=["POST"])
 def atrium_admin_dashboard_url(client):
-    """Set the per-client Looker Studio embed URL (https only; empty hides the dashboard)."""
+    """Set the per-client Looker Studio embed URL (https only; empty hides the dashboard) and the
+    report height in px (default 800, clamped 200..5000)."""
     gate = _atrium_admin_json_gate(client)
     if gate:
         return gate
@@ -1198,7 +1213,11 @@ def atrium_admin_dashboard_url(client):
     url = (request.form.get("url", "") or "").strip()
     if url and not url.lower().startswith("https://"):
         return Response('{"error":"must_be_https"}', status=400, mimetype="application/json")
-    workspace.set_dashboard_url(client, url)
+    try:
+        height = int(request.form.get("height", "") or 800)
+    except (TypeError, ValueError):
+        height = 800
+    workspace.set_dashboard_url(client, url, max(200, min(height, 5000)))
     return jsonify(ok=True)
 
 
@@ -1335,9 +1354,25 @@ def admin_atrium_client(client):
         today = atrium_view.business_today()
         calendars = atrium_view.calendar_months(ws.get("calendar", []), today)
     return render_template("admin_atrium.html", clients=None, client=client, ws=ws,
-                           calendars=calendars,
+                           calendars=calendars, revealed_pw=store.reveal_password(client),
                            user=current_user(), workspace_name=WORKSPACE_NAME,
                            msg=request.args.get("msg"), **_brand_ctx())
+
+
+@app.route("/admin/atrium/<client>/password", methods=["POST"])
+def admin_atrium_password(client):
+    """Set the client's PORTAL login password from the Workspaces console -- folds in the old
+    super-admin helpdesk (any email + this password logs the client in; the email is just a label)."""
+    if not is_superadmin():
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    if store.get_client(client) is None:
+        return _atrium_admin_redirect(client, "Unknown client '%s'." % client)
+    pw = request.form.get("password", "").strip()
+    if not pw:
+        import secrets  # lazy: only when auto-generating
+        pw = secrets.token_urlsafe(9)
+    store.set_client_password(client, pw)
+    return _atrium_admin_redirect(client, "Portal password for '%s' set to: %s" % (client, pw))
 
 
 @app.route("/admin/atrium/<client>/campaign", methods=["POST"])

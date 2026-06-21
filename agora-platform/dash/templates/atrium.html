@@ -179,8 +179,6 @@
     .ax-card:hover { box-shadow: var(--ax-shadow-lg); transform: translateY(-2px); }
     .ax-panel { background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: var(--ax-radius); box-shadow: var(--ax-shadow); padding: 18px; }
 
-    /* KPI rows */
-    .ax-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
     /* Dashboard: embedded Looker Studio report (gradient border + soft green glow) */
     .ax-dash-frame {
       border: 2px solid transparent; border-radius: var(--ax-radius); padding: 5px;
@@ -192,6 +190,7 @@
     .ax-dash-frame iframe { display: block; width: 100%; border: 0; border-radius: 9px; overflow: hidden; background: var(--ax-white); }
     .ax-dashurl-row { display: flex; gap: 8px; align-items: center; }
     .ax-dashurl-row .ax-editbox { flex: 1; margin-bottom: 0; }
+    .ax-dashurl-row .ax-dashheight { flex: 0 0 120px; }
     .ax-dash-hint { color: var(--ax-sub); font-size: 13px; margin: 10px 0 0; }
     /* Overview hero (ROAS) + stat row + wins */
     .ax-hero { padding: 20px 22px; margin-bottom: 14px; border: 1px solid #cdeccf; background: linear-gradient(180deg, var(--ax-green-bg), var(--ax-white) 62%); }
@@ -212,7 +211,7 @@
     .ax-stat-ic .ax-ic { width: 17px; height: 17px; }
     .ax-stat-note { font-size: 12.5px; color: var(--ax-sub); margin-top: 2px; }
     .ax-stat-note.up { color: var(--ax-green-d); font-weight: 700; }
-    /* Monthly goal: three-tier horizontal bar (Target / Stretch / Breakthrough) */
+    /* Monthly goal: three-tier horizontal bar (Target / Exceed / Breakthrough) */
     .ax-goal { padding: 20px 22px; margin-bottom: 22px; }
     .ax-goal-head { display: flex; align-items: center; gap: 8px; color: var(--ax-sub); font-size: 12.5px; font-weight: 700; margin-bottom: 12px; }
     .ax-goal-head .ax-ic { width: 18px; height: 18px; color: var(--ax-green-d); }
@@ -224,7 +223,7 @@
     .ax-bar-zones { position: absolute; inset: 0; border-radius: 999px; overflow: hidden; background: #F1F2F4; box-shadow: inset 0 1px 2px rgba(16,24,40,.06); }
     .ax-zone { position: absolute; top: 0; height: 100%; }
     .ax-zone.target { background: #F1F2F4; }
-    .ax-zone.stretch { background: #F0FDF4; }
+    .ax-zone.exceed { background: #F0FDF4; }
     .ax-zone.break { background: #DCFCE7; }
     .ax-bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: linear-gradient(90deg, var(--ax-green), #6fcf6a); box-shadow: 0 1px 4px rgba(79,171,74,.35); }
     .ax-bar-tick { position: absolute; top: -3px; width: 2px; height: 22px; background: #AEB4C0; border-radius: 2px; transform: translateX(-1px); }
@@ -243,14 +242,18 @@
     .ax-goal-status.breakthrough { color: #166534; background: #BBF7D0; }
     .ax-wins { margin-bottom: 22px; }
     .ax-row-ic.ax-win-ic { background: var(--ax-green-bg); color: var(--ax-green-d); }
-    .ax-kpi { padding: 16px; }
-    .ax-kpi .ax-kpi-top { display: flex; align-items: center; gap: 8px; color: var(--ax-sub); font-size: 12.5px; font-weight: 600; }
-    .ax-kpi .ax-kpi-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--ax-green-bg); color: var(--ax-green-d); }
-    .ax-kpi .ax-kpi-ic .ax-ic { width: 17px; height: 17px; }
-    .ax-kpi .ax-val { font-size: 26px; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.6px; }
-    .ax-trend { font-size: 12.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
-    .ax-trend.up { color: var(--ax-green-d); }
-    .ax-trend.down { color: var(--ax-bad); }
+    /* Overview: two equal cards (Total reach | Deliverables) — same surface as the stat row. */
+    .ax-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px; }
+    @media (max-width: 720px) { .ax-duo { grid-template-columns: 1fr; } }
+    .ax-duo .ax-stat { padding: 16px; }
+    .ax-duo .ax-val { font-size: 26px; font-weight: 800; margin: 10px 0 2px; letter-spacing: -.6px; }
+    .ax-deliv-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 10px; }
+    .ax-deliv-num { font-size: 26px; font-weight: 800; letter-spacing: -.6px; }
+    .ax-deliv-of { font-size: 12.5px; color: var(--ax-sub); font-weight: 600; }
+    .ax-deliv-pct { font-size: 15px; font-weight: 800; color: var(--ax-green-d); }
+    .ax-deliv-bar { height: 8px; border-radius: 999px; background: #F1F2F4; box-shadow: inset 0 1px 2px rgba(16,24,40,.06); overflow: hidden; margin: 9px 0 6px; }
+    .ax-deliv-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ax-green), #6fcf6a); box-shadow: 0 1px 4px rgba(79,171,74,.35); }
+    .ax-stat-note .ax-ic { width: 14px; height: 14px; vertical-align: -2px; }
 
     /* Two-column area */
     .ax-cols2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; align-items: start; }
@@ -278,14 +281,7 @@
     .ax-status.awaiting { background: #FEF1E2; color: var(--ax-warn); }
     .ax-status.changes { background: #FDECEC; color: var(--ax-bad); }
 
-    /* Dashboard split bar + spark */
-    .ax-spark { width: 100%; height: 84px; display: block; }
-    .ax-split-bar { display: flex; height: 30px; border-radius: var(--ax-pill); overflow: hidden; margin: 8px 0 14px; }
-    .ax-split-bar > span { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; }
-    .ax-split-bar .paid { background: var(--ax-violet-d); }
-    .ax-split-bar .organic { background: var(--ax-green); }
-    .ax-split-legend { display: flex; gap: 18px; font-size: 13px; color: var(--ax-sub); }
-    .ax-split-legend b { color: var(--ax-ink); }
+    /* Calendar legend dots */
     .ax-dot-i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: middle; }
 
     /* Campaign / strategy */
@@ -691,36 +687,7 @@
           <div class="ax-fresh"><span class="ax-fresh-dot"></span>Synced from {{ view.freshness.sources }} &middot; updated {{ view.freshness.label }}</div>
           {% endif %}
 
-          {% if ws.headline and ws.headline.stats %}
-          <div class="ax-stats">
-            {% for s in ws.headline.stats %}
-            <div class="ax-card ax-stat">
-              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic(s.icon|default('trending', true)) }}</span>{{ s.label }}</div>
-              <div class="ax-val">{{ s.value }}</div>
-              <div class="ax-stat-note {{ 'up' if s.note_up else '' }}">{% if s.note_up %}&uarr; {% endif %}{{ s.note }}</div>
-            </div>
-            {% endfor %}
-          </div>
-          {% elif ws.today %}
-          {#- Derived "today" snapshot — mirrors the admin console's Leads/Visitors/Bookings today. -#}
-          <div class="ax-stats">
-            <div class="ax-card ax-stat">
-              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('users') }}</span>Leads today</div>
-              <div class="ax-val">{{ ws.today.leads }}</div>
-              <div class="ax-stat-note up">&uarr; New enquiries since midnight</div>
-            </div>
-            <div class="ax-card ax-stat">
-              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('trending') }}</span>Visitors today</div>
-              <div class="ax-val">{{ ws.today.visitors }}</div>
-              <div class="ax-stat-note">Sessions across your funnel</div>
-            </div>
-            <div class="ax-card ax-stat">
-              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('calendar') }}</span>Bookings today</div>
-              <div class="ax-val">{{ ws.today.bookings }}</div>
-              <div class="ax-stat-note up">&uarr; Confirmed reservations</div>
-            </div>
-          </div>
-          {% endif %}
+          {# Daily snapshot cards removed — Overview now leads with the goal gauge + reach/deliverables. #}
 
           {% if view.goal or is_superadmin %}
           <div class="ax-card ax-goal">
@@ -733,19 +700,19 @@
             <div class="ax-bar">
               <div class="ax-bar-track">
                 <div class="ax-bar-zones">
-                  <div class="ax-zone target"  style="left:0;width:{{ g.target_pct }}%"></div>
-                  <div class="ax-zone stretch" style="left:{{ g.target_pct }}%;width:{{ g.zone_stretch }}%"></div>
-                  <div class="ax-zone break"   style="left:{{ g.stretch_pct }}%;width:{{ g.zone_break }}%"></div>
+                  <div class="ax-zone target" style="left:0;width:{{ g.target_pct }}%"></div>
+                  <div class="ax-zone exceed" style="left:{{ g.target_pct }}%;width:{{ g.zone_exceed }}%"></div>
+                  <div class="ax-zone break"  style="left:{{ g.exceed_pct }}%;width:{{ g.zone_break }}%"></div>
                   <div class="ax-bar-fill" style="width:{{ g.fill_pct }}%"></div>
                 </div>
                 <div class="ax-bar-tick" style="left:{{ g.target_pct }}%"></div>
-                <div class="ax-bar-tick" style="left:{{ g.stretch_pct }}%"></div>
+                <div class="ax-bar-tick" style="left:{{ g.exceed_pct }}%"></div>
                 <div class="ax-bar-tick" style="left:100%"></div>
                 <div class="ax-bar-pace" style="left:{{ g.pace_pct }}%"><span class="ax-bar-pace-lab">today</span></div>
               </div>
               <div class="ax-bar-labels">
                 <span class="ax-bar-lab"     style="left:{{ g.target_pct }}%"><b>Target</b><i>{{ g.target_fmt }}</i></span>
-                <span class="ax-bar-lab"     style="left:{{ g.stretch_pct }}%"><b>Stretch</b><i>{{ g.stretch_fmt }}</i></span>
+                <span class="ax-bar-lab"     style="left:{{ g.exceed_pct }}%"><b>Exceed</b><i>{{ g.exceed_fmt }}</i></span>
                 <span class="ax-bar-lab end" style="left:100%"><b>Breakthrough</b><i>{{ g.breakthrough_fmt }}</i></span>
               </div>
             </div>
@@ -766,7 +733,7 @@
               </div>
               <div class="ax-editrow" style="grid-template-columns:1fr 1fr 1fr">
                 <input class="ax-editbox" data-gf="goal_target"       value="{{ goal.target|default('', true) }}"       placeholder="Target (e.g. 150)">
-                <input class="ax-editbox" data-gf="goal_stretch"      value="{{ goal.stretch|default('', true) }}"      placeholder="Stretch (e.g. 180)">
+                <input class="ax-editbox" data-gf="goal_exceed"       value="{{ goal.exceed|default(goal.stretch|default('', true), true) }}" placeholder="Exceed (e.g. 180)">
                 <input class="ax-editbox" data-gf="goal_breakthrough" value="{{ goal.breakthrough|default('', true) }}" placeholder="Breakthrough (e.g. 220)">
               </div>
               <div class="ax-editrow" style="grid-template-columns:1fr 1fr">
@@ -782,17 +749,56 @@
           </div>
           {% endif %}
 
-          {% set wins = ws.wins if ws.wins else ((ws.metrics|selectattr('trend_up')|list)[:3] if ws.metrics else []) %}
-          {% if wins %}
+          {# Two headline cards: Total reach (admin-set) | Deliverables (from the Content Calendar). #}
+          <div class="ax-duo">
+            <div class="ax-card ax-stat">
+              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('users') }}</span>Total reach</div>
+              {% if view.reach %}
+              <div class="ax-val">{{ view.reach.value_fmt }}</div>
+              {% if view.reach.trend_pct is not none %}
+              <div class="ax-stat-note {{ 'up' if view.reach.up else '' }}">{{ '&#9650;' if view.reach.up else '&#9660;' }} {{ view.reach.trend_abs }}% this month</div>
+              {% else %}<div class="ax-stat-note">Audience reached this month</div>{% endif %}
+              {% else %}
+              <div class="ax-val">&mdash;</div>
+              <div class="ax-stat-note">{% if is_superadmin %}Set total reach below{% else %}Reach coming soon{% endif %}</div>
+              {% endif %}
+              {% if is_superadmin %}
+              <div class="ax-admin-tools" data-reachform>
+                <span class="ax-doc-label" style="width:100%">Total reach — this vs last month</span>
+                <div class="ax-editrow" style="grid-template-columns:1fr 1fr">
+                  <input class="ax-editbox" data-rf="reach_current"  value="{{ ws.reach.current|default('', true)  if ws.reach else '' }}" placeholder="This month (e.g. 38400)">
+                  <input class="ax-editbox" data-rf="reach_previous" value="{{ ws.reach.previous|default('', true) if ws.reach else '' }}" placeholder="Last month (e.g. 31500)">
+                </div>
+                <button class="ax-btn violet small" type="button" data-reachsave>Save reach</button>
+              </div>
+              {% endif %}
+            </div>
+            <div class="ax-card ax-stat">
+              <div class="ax-stat-top"><span class="ax-stat-ic">{{ ic('calendar') }}</span>Deliverables</div>
+              {% if view.deliverables %}{% set d = view.deliverables %}
+              <div class="ax-deliv-head">
+                <span><span class="ax-deliv-num">{{ d.done }}</span> <span class="ax-deliv-of">of {{ d.total }} complete</span></span>
+                <span class="ax-deliv-pct">{{ d.pct }}%</span>
+              </div>
+              <div class="ax-deliv-bar"><div class="ax-deliv-fill" style="width:{{ d.pct }}%"></div></div>
+              {% if d.early %}<div class="ax-stat-note up">{{ ic('check') }} {{ d.early }} delivered early</div>{% endif %}
+              {% else %}
+              <div class="ax-val">&mdash;</div>
+              <div class="ax-stat-note">No calendar items yet</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if view.wins %}
           <div class="ax-panel ax-wins">
             <h2 class="ax-h2">{{ ic('trophy') }} Wins for the week</h2>
             <div class="ax-list">
-              {% for w in wins %}
+              {% for w in view.wins %}
               <div class="ax-row">
                 <span class="ax-row-ic ax-win-ic">{{ ic(w.icon|default('check', true)) }}</span>
                 <div class="ax-row-main">
-                  <div class="ax-row-t">{{ w.title if w.title else (w.label ~ ' up ' ~ w.trend) }}</div>
-                  <div class="ax-row-s">{{ w.detail if w.detail else (w.label ~ ' is now ' ~ w.value ~ ', a ' ~ w.trend ~ ' move in your favour.') }}</div>
+                  <div class="ax-row-t">{{ w.title }}</div>
+                  {% if w.detail %}<div class="ax-row-s">{{ w.detail }}</div>{% endif %}
                 </div>
               </div>
               {% endfor %}
@@ -850,15 +856,16 @@
           <h1 class="ax-greet">Dashboard</h1>
           <p class="ax-lede">Your live campaign data — updated automatically.</p>
 
-          {% set _default_dash = 'https://datastudio.google.com/embed/reporting/6a0bd089-bf0d-453b-a98e-222c4fb26815/page/p_21bylmxn4d' %}
-          {% set dash_url = (ws.dashboard_url if ws.dashboard_url is defined else _default_dash)|trim %}
+          {% set dash_url = view.dashboard.url %}
+          {% set dash_height = view.dashboard.height %}
 
           {% if is_superadmin %}
           <div class="ax-addpanel" data-dashurlform style="margin-bottom:16px">
             <h3>Looker Studio dashboard</h3>
             <div class="ax-dashurl-row">
-              <input class="ax-editbox" data-dashurl value="{{ dash_url }}" placeholder="Paste your Looker Studio embed URL…" style="margin-bottom:0">
-              <button class="ax-btn violet small" type="button" data-dashurlsave>Save URL</button>
+              <input class="ax-editbox" data-dashurl value="{{ dash_url }}" placeholder="Looker Studio embed URL…" style="margin-bottom:0">
+              <input class="ax-editbox ax-dashheight" data-dashheight type="number" min="200" max="5000" value="{{ dash_height }}" placeholder="Height" aria-label="Report height (px)" style="margin-bottom:0">
+              <button class="ax-btn violet small" type="button" data-dashurlsave>Save</button>
             </div>
             {% if not dash_url %}<p class="ax-dash-hint">Paste your Looker Studio embed URL to activate the dashboard.</p>{% endif %}
           </div>
@@ -866,7 +873,7 @@
 
           {% if dash_url %}
           <div class="ax-dash-frame">
-            <iframe src="{{ dash_url }}" width="100%" height="900" frameborder="0" style="border:0" allowfullscreen
+            <iframe src="{{ dash_url }}" width="100%" height="{{ dash_height }}" frameborder="0" style="border:0" allowfullscreen
                     sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
           </div>
           {% endif %}
@@ -2008,11 +2015,20 @@
       });
     });
 
-    // --- Looker Studio dashboard URL ---
+    // --- Looker Studio dashboard URL + report height ---
     qsa("[data-dashurlsave]").forEach(function (btn) {
       var input = document.querySelector("[data-dashurl]");
+      var hinput = document.querySelector("[data-dashheight]");
       btn.addEventListener("click", function () {
-        adminAction("/admin/dashboard-url", { url: input ? input.value : "" }, btn);
+        adminAction("/admin/dashboard-url", { url: input ? input.value : "", height: hinput ? hinput.value : "" }, btn);
+      });
+    });
+
+    // --- Total reach (this vs last month) ---
+    qsa("[data-reachsave]").forEach(function (btn) {
+      var panel = document.querySelector("[data-reachform]");
+      btn.addEventListener("click", function () {
+        adminAction("/admin/reach", fieldsFrom(panel, "data-rf", {}), btn);
       });
     });
 

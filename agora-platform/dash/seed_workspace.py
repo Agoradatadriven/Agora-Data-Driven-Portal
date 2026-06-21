@@ -94,8 +94,11 @@ def riverdance_workspace():
         # Monthly goal: three independently-configurable tiers (Target / Stretch / Breakthrough).
         # `current` is pulled live from the matching KPI when `source_metric` is set.
         "goal": {"label": "leads", "format": "number",
-                 "target": 150, "stretch": 180, "breakthrough": 220,
+                 "target": 150, "exceed": 180, "breakthrough": 220,
                  "current": 148, "source_metric": "New leads"},
+
+        # Total reach headline (Overview card): this month vs last month -> ~ +22% MoM.
+        "reach": {"current": "38400", "previous": "31500"},
 
         "activity": [
             {"icon": "check", "text": "You approved the riverside email (RVR-015).",
@@ -209,7 +212,7 @@ def riverdance_workspace():
             {"date": "2026-06-16", "label": "Weekly sync", "kind": "milestone"},
             {"date": "2026-06-18", "label": "June nurture email sent", "kind": "organic"},
             {"date": "2026-06-22", "label": "UTM tracking due", "kind": "due"},
-            {"date": "2026-06-24", "label": "SEO blog post live", "kind": "organic"},
+            {"date": "2026-06-24", "label": "SEO blog post live", "kind": "organic", "status": "done"},
             {"date": "2026-06-25", "label": "Retargeting reel live", "kind": "paid"},
             {"date": "2026-06-26", "label": "Lead magnet deliverables due", "kind": "due"},
             {"date": "2026-06-30", "label": "June deliverables review", "kind": "milestone"},

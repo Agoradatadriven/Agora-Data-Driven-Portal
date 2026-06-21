@@ -136,6 +136,18 @@ def add_client(key, name=None, registry=None):
     return reg
 
 
+def set_client_name(key, name, registry=None):
+    """Update a client's display name in the registry (a rename). No-op if the client is unknown,
+    the name is blank, or it is already current. Persists and returns the registry."""
+    reg = registry if registry is not None else load_registry()
+    client = get_client(key, reg)
+    if client is None or not name or client.get("name") == name:
+        return reg
+    client["name"] = name
+    save_registry(reg)
+    return reg
+
+
 # --- Password hashing helpers -------------------------------------------------------------------
 def _hash_password(password, salt_hex):
     """Return the pbkdf2_hmac hex digest of `password` with the given hex salt."""
