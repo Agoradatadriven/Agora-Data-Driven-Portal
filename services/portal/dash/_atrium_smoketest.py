@@ -209,8 +209,11 @@ def run():
     _check("video mime stored", vitem.get("image_mime") == "video/mp4")
     served = c.get("/w/%s/creative/RVR-099" % CLIENT)
     _check("video served with mime", served.status_code == 200 and served.mimetype == "video/mp4")
-    _check("workspace renders a <video> for the clip",
-           ('<video src="/w/%s/creative/RVR-099"' % CLIENT) in c.get("/w/%s/" % CLIENT).get_data(as_text=True))
+    vpage = c.get("/w/%s/" % CLIENT).get_data(as_text=True)
+    _check("workspace renders a playable video thumbnail for the clip",
+           ('data-playvideo="/w/%s/creative/RVR-099"' % CLIENT) in vpage)
+    _check("uploaded video creative shows a Remove-video button",
+           'data-removecreative="RVR-099"' in vpage)
     c.post("/w/%s/admin/remove-creative" % CLIENT, data={"content_id": "RVR-099"})
 
     # Add-video "link" half: a pasted URL is stored on the piece, rendered for the client, then cleared.
@@ -220,8 +223,8 @@ def run():
     _camp, litem = workspace._find_content(workspace.load_workspace(CLIENT), "RVR-099")
     _check("video_url stored", litem.get("video_url") == "https://example.com/clip.mp4")
     page = c.get("/w/%s/" % CLIENT).get_data(as_text=True)
-    _check("workspace renders <video> for a direct mp4 link",
-           '<video src="https://example.com/clip.mp4"' in page)
+    _check("workspace renders a playable video thumbnail for a direct mp4 link",
+           'data-playvideo="https://example.com/clip.mp4"' in page)
     _check("type thumbnail is a clickable play link when a video is attached",
            'ax-ch-playable' in page and 'href="https://example.com/clip.mp4"' in page)
     r = c.post("/w/%s/admin/video-link" % CLIENT,
