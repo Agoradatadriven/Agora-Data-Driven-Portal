@@ -341,8 +341,9 @@
     .ax-shots-admin .ax-btn:hover { background: rgba(0,0,0,.6); }
     .ax-thumb.has-shots .ax-shots-admin .ax-btn { background: var(--ax-white); color: var(--ax-violet-d); border: 1px solid var(--ax-line); }
     .ax-thumb.has-shots .ax-shots-admin .ax-btn:hover { background: var(--ax-violet-bg); }
-    /* Add-video admin form: one compact row (input grows, buttons hug the right) to save space */
-    .ax-videoform { margin-top: 7px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    /* Add-video admin form: full-width row under the card header (escapes the 150px media column),
+       input grows, buttons hug the right so the panel fits the buttons and uses all the space. */
+    .ax-videoform { grid-column: 1 / -1; margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
                     padding: 8px; border: 1px solid var(--ax-line); border-radius: 12px; background: var(--ax-violet-bg); }
     .ax-videoform .ax-editbox { flex: 1 1 200px; min-width: 0; width: auto; margin: 0; }
     .ax-videoform-row { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: nowrap; }
@@ -1123,14 +1124,6 @@
                     <button class="ax-btn small" type="button" data-addvideo="{{ p.id }}">＋ Add video</button>
                     <input type="file" accept="video/mp4,.mp4" data-addvideoinput="{{ p.id }}" style="display:none">
                   </div>
-                  <div class="ax-videoform ax-edit-hidden" data-videoform="{{ p.id }}">
-                    <input class="ax-editbox" data-videourl value="{{ p.video_url|default('', true) }}" placeholder="Paste a video link (.mp4, YouTube, Vimeo…)">
-                    <div class="ax-videoform-row">
-                      <button class="ax-btn violet small" type="button" data-videolinksave="{{ p.id }}">Save link</button>
-                      <button class="ax-btn small" type="button" data-videoupload="{{ p.id }}">Upload .mp4</button>
-                      {% if p.video_url %}<button class="ax-btn danger small" type="button" data-videoremove="{{ p.id }}">Remove video</button>{% endif %}
-                    </div>
-                  </div>
                   {% endif %}
                 </div>
                 <button class="ax-cardhead-toggle" type="button" data-cardtoggle aria-expanded="false">
@@ -1144,6 +1137,16 @@
                     <span class="ax-chev" aria-hidden="true">&#9662;</span>
                   </span>
                 </button>
+                {% if is_superadmin %}
+                <div class="ax-videoform ax-edit-hidden" data-videoform="{{ p.id }}">
+                  <input class="ax-editbox" data-videourl value="{{ p.video_url|default('', true) }}" placeholder="Paste a video link (.mp4, YouTube, Vimeo…)">
+                  <div class="ax-videoform-row">
+                    <button class="ax-btn violet small" type="button" data-videolinksave="{{ p.id }}">Save link</button>
+                    <button class="ax-btn small" type="button" data-videoupload="{{ p.id }}">Upload .mp4</button>
+                    {% if p.video_url %}<button class="ax-btn danger small" type="button" data-videoremove="{{ p.id }}">Remove video</button>{% endif %}
+                  </div>
+                </div>
+                {% endif %}
               </div>
               <div class="ax-detail">
               {% endif %}
