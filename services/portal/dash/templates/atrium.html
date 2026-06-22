@@ -164,7 +164,9 @@
     .ax-share .ax-share-arrow { font-weight: 800; }
     .ax-share.copied { background: var(--ax-violet-d); box-shadow: 0 6px 16px rgba(92,75,208,.30); }
 
-    .ax-body { padding: 26px 28px 60px; max-width: 1120px; width: 100%; }
+    .ax-body { padding: 26px 28px 60px; max-width: 1600px; width: 100%; }
+    /* When the sidebar is tucked away, let content stretch into the freed-up space. */
+    .atrium.nav-collapsed .ax-body { max-width: none; }
     .ax-pane { display: none; }
     .ax-pane.is-active { display: block; animation: axfade .18s ease; }
     @keyframes axfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
