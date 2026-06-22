@@ -604,10 +604,12 @@ _DASHBOARD_DEFAULTS = {
 
 
 def dashboard(ws, client):
-    """Resolve the Dashboard tab embed for ONE workspace: the stored per-workspace URL + height,
-    else a known per-client default (pre-fill), else empty (the client hides the tab; the admin sees
-    a placeholder). An admin who saves an empty URL clears it (the 'dashboard_url' key is then
-    present, so the default is NOT re-applied). Height is clamped to a sane 200..5000. Pure.
+    """Resolve the Dashboard tab embed for ONE workspace: the stored per-workspace URL + height +
+    width, else a known per-client default (pre-fill), else empty (the client hides the tab; the
+    admin sees a placeholder). An admin who saves an empty URL clears it (the 'dashboard_url' key is
+    then present, so the default is NOT re-applied). `height`/`width` are the report's native canvas
+    size; the template scales the embed so the native width fills the container (no dead strip on the
+    right). Height clamped to 200..5000, width to 320..5000 (default 1200, the Looker canvas). Pure.
     """
     default = _DASHBOARD_DEFAULTS.get(client, {})
     if "dashboard_url" in ws:
@@ -619,7 +621,12 @@ def dashboard(ws, client):
         height = int(height)
     except (TypeError, ValueError):
         height = 800
-    return {"url": url, "height": max(200, min(height, 5000))}
+    width = ws.get("dashboard_width") or default.get("width") or 1200
+    try:
+        width = int(width)
+    except (TypeError, ValueError):
+        width = 1200
+    return {"url": url, "height": max(200, min(height, 5000)), "width": max(320, min(width, 5000))}
 
 
 # --- The full view context ----------------------------------------------------------------------
