@@ -1363,8 +1363,9 @@ def atrium_admin_communication(client):
 
 @app.route("/w/<client>/admin/dashboard-url", methods=["POST"])
 def atrium_admin_dashboard_url(client):
-    """Set the per-client Looker Studio embed URL (https only; empty hides the dashboard) and the
-    report height in px (default 800, clamped 200..5000)."""
+    """Set the per-client Looker Studio embed URL (https only; empty hides the dashboard), the report
+    native height in px (default 800, clamped 200..5000) and native width (default 1200, clamped
+    320..5000). The embed scales so the native width fills the container -- no dead strip on the right."""
     gate = _atrium_admin_json_gate(client)
     if gate:
         return gate
@@ -1377,7 +1378,11 @@ def atrium_admin_dashboard_url(client):
         height = int(request.form.get("height", "") or 800)
     except (TypeError, ValueError):
         height = 800
-    workspace.set_dashboard_url(client, url, max(200, min(height, 5000)))
+    try:
+        width = int(request.form.get("width", "") or 1200)
+    except (TypeError, ValueError):
+        width = 1200
+    workspace.set_dashboard_url(client, url, max(200, min(height, 5000)), max(320, min(width, 5000)))
     return jsonify(ok=True)
 
 

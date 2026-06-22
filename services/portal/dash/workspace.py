@@ -539,14 +539,21 @@ def set_display_name(client, name):
     return _mutate(client, fn)
 
 
-def set_dashboard_url(client, url, height=None):
+def set_dashboard_url(client, url, height=None, width=None):
     """Set the per-client Looker Studio embed URL (empty string hides the dashboard from the client)
-    and, optionally, the report height in px. Both are read by atrium_view.dashboard()."""
+    and, optionally, the report's native height + width in px. All read by atrium_view.dashboard().
+    Width is the report's native canvas width; the embed scales to fill the container preserving
+    aspect (see the Dashboard tab in atrium.html), so it no longer leaves a dead strip on the right."""
     def fn(ws):
         ws["dashboard_url"] = (url or "").strip()
         if height is not None:
             try:
                 ws["dashboard_height"] = int(height)
+            except (TypeError, ValueError):
+                pass
+        if width is not None:
+            try:
+                ws["dashboard_width"] = int(width)
             except (TypeError, ValueError):
                 pass
         return ws["dashboard_url"]
