@@ -999,12 +999,6 @@
                 <button class="ax-btn ghost small" type="button" data-stratcancel="{{ c.id }}">Cancel</button>
               </div>
             </div>
-            <div class="ax-strat-doc">
-              <span class="ax-doc-label">Strategy doc → AI strategy</span>
-              <input class="ax-strat-doc-in" data-docurl="{{ c.id }}" value="{{ c.strategy_doc|default('', true) }}" placeholder="Paste a Google Doc link…">
-              <button class="ax-btn admin small" type="button" data-docsave="{{ c.id }}">Save link</button>
-              <button class="ax-btn violet small" type="button" data-docgen="{{ c.id }}">{{ ic('sparkle') }} Generate strategy</button>
-            </div>
             {% endif %}
 
             <div class="ax-filter" data-contentfilter>
@@ -1205,21 +1199,6 @@
               {% if collapsible %}</div>{% endif %}
             </div>
             {% endfor %}
-
-            <div class="ax-ai" data-aiwrap="{{ c.id }}"{% if not c.ai_summary and not is_superadmin %} style="display:none"{% endif %}>
-              <span class="ax-ai-ic">{{ ic('sparkle') }}</span>
-              <div style="flex:1">
-                <div class="ax-ai-label">AI summary</div>
-                <p data-aitext="{{ c.id }}">{{ c.ai_summary }}</p>
-                {% if is_superadmin %}
-                <textarea class="ax-editbox ax-edit-hidden" data-aiedit="{{ c.id }}" placeholder="AI summary (client-facing)">{{ c.ai_summary }}</textarea>
-                <div class="ax-actions" style="margin-top:4px">
-                  <button class="ax-btn admin small" type="button" data-aiedittoggle="{{ c.id }}">Edit summary</button>
-                  <button class="ax-btn violet small ax-edit-hidden" type="button" data-aisave="{{ c.id }}">Save summary</button>
-                </div>
-                {% endif %}
-              </div>
-            </div>
 
             {% if is_superadmin %}
             <div class="ax-modal" data-modal="addcontent-{{ c.id }}" hidden>
