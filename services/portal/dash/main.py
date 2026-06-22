@@ -1404,6 +1404,21 @@ def atrium_admin_calendar(client):
         if event is None:
             return Response('{"error":"not_found"}', status=404, mimetype="application/json")
         return jsonify(ok=True, event=event)
+    if op == "edit":
+        # Edit an existing event's date / label / kind (paid|organic|due|milestone) in place.
+        try:
+            index = int(request.form.get("index", "-1"))
+        except (TypeError, ValueError):
+            index = -1
+        date = request.form.get("date", "").strip()
+        if not date:
+            return Response('{"error":"date_required"}', status=400, mimetype="application/json")
+        kind = request.form.get("kind", "milestone").strip() or "milestone"
+        event = workspace.edit_calendar_event(client, index, date,
+                                              request.form.get("label", "").strip(), kind)
+        if event is None:
+            return Response('{"error":"not_found"}', status=404, mimetype="application/json")
+        return jsonify(ok=True, event=event)
     date = request.form.get("date", "").strip()
     if not date:
         return Response('{"error":"date_required"}', status=400, mimetype="application/json")

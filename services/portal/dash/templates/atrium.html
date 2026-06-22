@@ -441,6 +441,52 @@
     .ax-cal-mhead { display: flex; align-items: center; gap: 10px; margin: 0 2px 12px; }
     .ax-cal-mname { font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
     .ax-cal-now { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #fff; background: var(--ax-grad-green); padding: 2px 9px; border-radius: 999px; }
+    /* Clickable day cells (AGORA only) + the click-a-day editor popup */
+    .ax-cal-edit { cursor: pointer; transition: box-shadow .12s, border-color .12s; }
+    .ax-cal-edit:hover { border-color: var(--ax-violet); box-shadow: 0 0 0 1px var(--ax-violet) inset; }
+    .ax-cal-edit:focus-visible { outline: none; border-color: var(--ax-violet); box-shadow: 0 0 0 2px var(--ax-violet-bg); }
+    .ax-caldlg { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .ax-caldlg[hidden] { display: none; }
+    .ax-caldlg-back { position: absolute; inset: 0; background: rgba(14,15,18,.46); }
+    .ax-caldlg-card { position: relative; width: 100%; max-width: 460px; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 16px; box-shadow: 0 24px 60px rgba(14,15,18,.28); padding: 20px 22px 22px; max-height: 86vh; overflow: auto; }
+    .ax-caldlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .ax-caldlg-head h3 { font-size: 18px; font-weight: 800; letter-spacing: -.3px; margin: 0; color: var(--ax-ink); }
+    .ax-caldlg-x { width: 32px; height: 32px; flex: 0 0 auto; border: 1px solid var(--ax-line); background: var(--ax-white); border-radius: 9px; font-size: 20px; line-height: 1; color: var(--ax-sub); cursor: pointer; }
+    .ax-caldlg-x:hover { color: var(--ax-ink); border-color: #d6d8e0; }
+    .ax-caldlg-row { display: flex; align-items: center; gap: 8px; padding: 11px 0; border-top: 1px solid var(--ax-line); flex-wrap: wrap; }
+    .ax-caldlg-row:first-child { border-top: 0; }
+    .ax-caldlg-lab { flex: 1 1 100%; font-size: 14px; font-weight: 700; color: var(--ax-ink); }
+    .ax-caldlg-row .ax-cdlg-kind { flex: 0 0 auto; padding: 6px 9px; font-size: 12.5px; font-weight: 700; color: var(--ax-ink); border: 1px solid var(--ax-line); border-radius: 8px; background: var(--ax-white); cursor: pointer; }
+    .ax-caldlg-empty { color: var(--ax-sub); font-size: 13.5px; padding: 2px 0 10px; }
+    .ax-caldlg-add { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ax-line); }
+    .ax-caldlg-addhd { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--ax-sub); margin-bottom: 9px; }
+    .ax-caldlg-addrow { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
+    .ax-caldlg-addrow .ax-editbox { margin: 0; }
+    @media (max-width: 480px) { .ax-caldlg-addrow { grid-template-columns: 1fr; } }
+    /* Month-history popup: read-only, navigable month/year + events & status list */
+    .ax-hist-btn { width: 100%; margin-top: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 14px; font: inherit; font-size: 13.5px; font-weight: 800; color: var(--ax-violet-d); background: var(--ax-violet-bg); border: 1px solid transparent; border-radius: 11px; cursor: pointer; transition: border-color .12s; }
+    .ax-hist-btn:hover { border-color: var(--ax-violet); }
+    .ax-hist-btn .ax-ic { width: 16px; height: 16px; }
+    .ax-histcard { max-width: 560px; }
+    .ax-hist-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
+    .ax-cal-pick { display: flex; align-items: center; gap: 8px; }
+    .ax-cal-msel, .ax-cal-ysel { font: inherit; font-size: 15px; font-weight: 800; letter-spacing: -.2px; color: var(--ax-ink); background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 9px; padding: 7px 10px; cursor: pointer; }
+    .ax-cal-ysel { width: 90px; cursor: text; }
+    .ax-cal-msel:focus, .ax-cal-ysel:focus { outline: none; border-color: var(--ax-violet); box-shadow: 0 0 0 3px var(--ax-violet-bg); }
+    .ax-cal-arrow { width: 34px; height: 34px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1; color: var(--ax-ink); background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 9px; cursor: pointer; transition: border-color .12s, color .12s; }
+    .ax-cal-arrow:hover { border-color: var(--ax-violet); color: var(--ax-violet-d); }
+    .ax-hist-grid { pointer-events: none; }   /* read-only: clicking a day does nothing */
+    .ax-hist-grid .ax-cal-cell { min-height: 60px; }
+    .ax-hist-list { margin-top: 18px; }
+    .ax-hist-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--ax-line); }
+    .ax-hist-row:first-child { border-top: 0; }
+    .ax-hist-d { font-size: 11.5px; font-weight: 800; color: var(--ax-sub); min-width: 50px; flex: 0 0 auto; }
+    .ax-hist-lab { flex: 1 1 auto; font-size: 13.5px; font-weight: 700; color: var(--ax-ink); }
+    .ax-hist-empty { color: var(--ax-sub); font-size: 13.5px; padding: 10px 0; text-align: center; }
+    .ax-hist-status { flex: 0 0 auto; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+    .ax-hist-status.done { color: var(--ax-green-d); background: var(--ax-green-bg); }
+    .ax-hist-status.today { color: var(--ax-violet-d); background: var(--ax-violet-bg); }
+    .ax-hist-status.upcoming { color: var(--ax-sub); background: var(--ax-canvas); }
     /* Project progress header */
     .ax-progress { padding: 16px 20px; margin-bottom: 16px; }
     .ax-progress-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -1297,8 +1343,9 @@
           </div>
 
           <div class="ax-callayout">
-            <div class="ax-cal-stack">
-              {#- Previous / current / next month, anchored on today's month so it rolls forward. -#}
+            <div class="ax-cal-stack"{% if is_superadmin %} data-caldata='{{ view.calendar_admin | tojson }}'{% endif %}>
+              {#- Previous / current / next month, anchored on today so the window rolls forward on its
+                  own as time passes. For AGORA, every in-month day is clickable to open the day editor. -#}
               {% for cal in view.calendars %}
               <div class="ax-panel ax-cal-month {{ 'is-current' if cal.is_current else 'is-side' }}">
                 <div class="ax-cal-mhead">
@@ -1309,7 +1356,7 @@
                   {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="ax-cal-dow">{{ d }}</div>{% endfor %}
                   {% for week in cal.weeks %}{% for cell in week %}
                   {% set cell_emptypast = cell.is_past and cell.in_month and not cell.events and not cell.done and not cell.ahead and not cell.is_today %}
-                  <div class="ax-cal-cell {{ 'out' if not cell.in_month else '' }} {{ 'past' if cell.is_past else '' }} {{ 'pastempty' if cell_emptypast else '' }} {{ 'done' if cell.done else '' }} {{ 'ahead' if cell.ahead else '' }} {{ 'today' if cell.is_today else '' }}">
+                  <div class="ax-cal-cell {{ 'out' if not cell.in_month else '' }} {{ 'past' if cell.is_past else '' }} {{ 'pastempty' if cell_emptypast else '' }} {{ 'done' if cell.done else '' }} {{ 'ahead' if cell.ahead else '' }} {{ 'today' if cell.is_today else '' }}{{ ' ax-cal-edit' if (is_superadmin and cell.in_month) else '' }}"{% if is_superadmin and cell.in_month %} data-cal-day="{{ cell.iso }}" role="button" tabindex="0"{% endif %}>
                     <div class="ax-cal-day">{{ cell.day }}{% if cell.done %} <span class="ax-cal-check">✓</span>{% endif %}</div>
                     {% for ev in cell.events %}
                     <div class="ax-cal-ev"><span class="ax-evd {{ ev.kind }}"></span><span>{{ ev.label }}</span></div>
@@ -1339,37 +1386,70 @@
               {% else %}
               <div class="ax-empty">No milestones yet.</div>
               {% endif %}
+              {#- Read-only month history: pick any month/year and review its events + status. -#}
+              <button class="ax-hist-btn" type="button" data-histopen
+                      data-events='{{ view.calendar_admin | tojson }}'
+                      data-today="{{ view.calendar_today }}">
+                {{ ic('calendar') }} Month history
+              </button>
+            </div>
+          </div>
+
+          {#- Month history popup (everyone): editable month/year, read-only events + status. -#}
+          <div class="ax-caldlg ax-histdlg" id="ax-histdlg" hidden>
+            <div class="ax-caldlg-back" data-histclose></div>
+            <div class="ax-caldlg-card ax-histcard" role="dialog" aria-modal="true" aria-labelledby="ax-histdlg-title">
+              <div class="ax-caldlg-head">
+                <h3 id="ax-histdlg-title">Month history</h3>
+                <button class="ax-caldlg-x" type="button" data-histclose aria-label="Close">&times;</button>
+              </div>
+              <div class="ax-hist-nav">
+                <button class="ax-cal-arrow" type="button" data-histprev aria-label="Previous month">&lsaquo;</button>
+                <div class="ax-cal-pick">
+                  <select class="ax-cal-msel" data-histmonth aria-label="Month">
+                    <option value="1">January</option><option value="2">February</option>
+                    <option value="3">March</option><option value="4">April</option>
+                    <option value="5">May</option><option value="6">June</option>
+                    <option value="7">July</option><option value="8">August</option>
+                    <option value="9">September</option><option value="10">October</option>
+                    <option value="11">November</option><option value="12">December</option>
+                  </select>
+                  <input class="ax-cal-ysel" type="number" data-histyear aria-label="Year" min="2000" max="2100" step="1">
+                </div>
+                <button class="ax-cal-arrow" type="button" data-histnext aria-label="Next month">&rsaquo;</button>
+              </div>
+              <div class="ax-cal-grid ax-hist-grid" data-histgrid>
+                <div class="ax-cal-dow">Sun</div><div class="ax-cal-dow">Mon</div><div class="ax-cal-dow">Tue</div><div class="ax-cal-dow">Wed</div><div class="ax-cal-dow">Thu</div><div class="ax-cal-dow">Fri</div><div class="ax-cal-dow">Sat</div>
+              </div>
+              <div class="ax-hist-list" data-histlist></div>
             </div>
           </div>
 
           {% if is_superadmin %}
-          <div class="ax-addpanel" data-calform style="margin-top:18px">
-            <h3>Add a calendar event</h3>
-            <div class="ax-editrow" style="grid-template-columns:1fr 2fr 1fr">
-              <input class="ax-editbox" type="date" data-cev="date">
-              <input class="ax-editbox" data-cev="label" placeholder="Label (e.g. Reel goes live)">
-              <select class="ax-editbox" data-cev="kind">
-                <option value="paid">Paid</option>
-                <option value="organic">Organic</option>
-                <option value="due">Due</option>
-                <option value="milestone">Milestone</option>
-              </select>
-            </div>
-            <button class="ax-btn violet small" type="button" data-caladd>Add event</button>
-            {% if ws.calendar %}
-            <div style="margin-top:14px">
-              <div class="ax-com-label">Existing events</div>
-              {% for ev in ws.calendar %}
-              <div class="ax-set-row" style="padding:8px 0">
-                <div class="ax-set-d"><span class="ax-evd {{ ev.kind }}" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>{{ ev.date }} &middot; {{ ev.label }} <span class="ax-tag plain">{{ ev.kind }}</span>{% if ev.status == 'done' %} <span class="ax-tag organic">✓ Done</span>{% endif %}</div>
-                <div style="display:flex;gap:8px;flex-shrink:0">
-                  <button class="ax-btn ghost small" type="button" data-caldone="{{ loop.index0 }}" data-calstatus="{{ 'done' if ev.status == 'done' else '' }}">{{ 'Mark as not done' if ev.status == 'done' else 'Mark as done' }}</button>
-                  <button class="ax-btn danger small" type="button" data-caldel="{{ loop.index0 }}">Delete</button>
+          {#- Day editor: click any day in the calendar above to add an event, recategorise it
+              (paid/organic/due/milestone), mark it done/not done, or delete it. -#}
+          <div class="ax-caldlg" id="ax-caldlg" hidden>
+            <div class="ax-caldlg-back" data-calclose></div>
+            <div class="ax-caldlg-card" role="dialog" aria-modal="true" aria-labelledby="ax-caldlg-title">
+              <div class="ax-caldlg-head">
+                <h3 id="ax-caldlg-title" data-caldlg-title>Events</h3>
+                <button class="ax-caldlg-x" type="button" data-calclose aria-label="Close">&times;</button>
+              </div>
+              <div class="ax-caldlg-list" data-caldlg-list></div>
+              <div class="ax-caldlg-add">
+                <div class="ax-caldlg-addhd">Add an event</div>
+                <div class="ax-caldlg-addrow">
+                  <input class="ax-editbox" data-cdlg="label" placeholder="Label (e.g. Reel goes live)">
+                  <select class="ax-editbox" data-cdlg="kind">
+                    <option value="paid">Paid</option>
+                    <option value="organic">Organic</option>
+                    <option value="due">Due</option>
+                    <option value="milestone">Milestone</option>
+                  </select>
+                  <button class="ax-btn violet small" type="button" data-cdlg-add>Add event</button>
                 </div>
               </div>
-              {% endfor %}
             </div>
-            {% endif %}
           </div>
           {% endif %}
         </section>
@@ -2035,6 +2115,177 @@
     });
   }
 
+  // ---- Month history: read-only popup; pick any month/year, review its events + status ----
+  // Available to everyone (incl. clients). The grid is non-interactive (pointer-events:none) so a
+  // day click never edits anything; the list spells out each event's status for the chosen month.
+  (function () {
+    var btn = document.querySelector("[data-histopen]");
+    var dlg = document.getElementById("ax-histdlg");
+    if (!btn || !dlg) { return; }
+    var grid = dlg.querySelector("[data-histgrid]");
+    var listEl = dlg.querySelector("[data-histlist]");
+    var monthSel = dlg.querySelector("[data-histmonth]");
+    var yearInp = dlg.querySelector("[data-histyear]");
+
+    var events = [];
+    try { events = JSON.parse(btn.getAttribute("data-events") || "[]"); } catch (e) { events = []; }
+    var today = btn.getAttribute("data-today") || "";
+    var MON = ["January", "February", "March", "April", "May", "June",
+               "July", "August", "September", "October", "November", "December"];
+
+    var byDate = {};
+    events.forEach(function (e) {
+      var k = String(e.date || "");
+      if (!byDate[k]) { byDate[k] = []; }
+      byDate[k].push(e);
+    });
+
+    function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+    function isoOf(y, m, d) { return y + "-" + pad2(m) + "-" + pad2(d); }
+    var curY, curM;
+
+    function clearCells() {
+      Array.prototype.slice.call(grid.children).forEach(function (k) {
+        if (k.className.indexOf("ax-cal-dow") === -1) { grid.removeChild(k); }
+      });
+    }
+    // Status mirrors atrium_view.milestones(): past or ready/done -> done (ahead if future), else today/upcoming.
+    function statusOf(e) {
+      var d = e.date || "";
+      var s = e.status || "";
+      var done = (today !== "" && d < today) || s === "ready" || s === "done";
+      if (done) { return { cls: "done", text: (today !== "" && d > today) ? "Done ahead" : "Done" }; }
+      if (today !== "" && d === today) { return { cls: "today", text: "Today" }; }
+      return { cls: "upcoming", text: "Upcoming" };
+    }
+
+    function renderGrid() {
+      clearCells();
+      var startDow = new Date(Date.UTC(curY, curM - 1, 1)).getUTCDay();
+      var daysInMonth = new Date(Date.UTC(curY, curM, 0)).getUTCDate();
+      var daysPrev = new Date(Date.UTC(curY, curM - 1, 0)).getUTCDate();
+      var totalCells = Math.ceil((startDow + daysInMonth) / 7) * 7;
+      for (var i = 0; i < totalCells; i++) {
+        var dayNum, cy, cm, inMonth;
+        if (i < startDow) {
+          dayNum = daysPrev - startDow + 1 + i; cy = curY; cm = curM - 1;
+          if (cm < 1) { cm = 12; cy = curY - 1; } inMonth = false;
+        } else if (i < startDow + daysInMonth) {
+          dayNum = i - startDow + 1; cy = curY; cm = curM; inMonth = true;
+        } else {
+          dayNum = i - startDow - daysInMonth + 1; cy = curY; cm = curM + 1;
+          if (cm > 12) { cm = 1; cy = curY + 1; } inMonth = false;
+        }
+        var key = isoOf(cy, cm, dayNum);
+        var ce = byDate[key] || [];
+        var isPast = today !== "" && key < today;
+        var isToday = today !== "" && key === today;
+        var hasReady = ce.some(function (ev) { return ev.status === "ready" || ev.status === "done"; });
+        var done = ce.length > 0 && (isPast || hasReady);
+        var ahead = !isPast && !isToday && hasReady;
+        var emptyPast = isPast && inMonth && ce.length === 0 && !done && !ahead && !isToday;
+        var cls = "ax-cal-cell";
+        if (!inMonth) { cls += " out"; }
+        if (isPast) { cls += " past"; }
+        if (emptyPast) { cls += " pastempty"; }
+        if (done) { cls += " done"; }
+        if (ahead) { cls += " ahead"; }
+        if (isToday) { cls += " today"; }
+        var cell = document.createElement("div");
+        cell.className = cls;
+        var dd = document.createElement("div");
+        dd.className = "ax-cal-day";
+        dd.textContent = "" + dayNum;
+        if (done) {
+          var chk = document.createElement("span");
+          chk.className = "ax-cal-check";
+          chk.textContent = " ✓";
+          dd.appendChild(chk);
+        }
+        cell.appendChild(dd);
+        ce.forEach(function (ev) {
+          var ed = document.createElement("div");
+          ed.className = "ax-cal-ev";
+          var dot = document.createElement("span");
+          dot.className = "ax-evd " + (ev.kind || "milestone");
+          var lb = document.createElement("span");
+          lb.textContent = ev.label || "";
+          ed.appendChild(dot);
+          ed.appendChild(lb);
+          cell.appendChild(ed);
+        });
+        grid.appendChild(cell);
+      }
+    }
+
+    function renderList() {
+      listEl.innerHTML = "";
+      var ym = curY + "-" + pad2(curM);
+      var evs = events.filter(function (e) { return String(e.date || "").indexOf(ym) === 0; });
+      evs.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+      if (!evs.length) {
+        var em = document.createElement("div");
+        em.className = "ax-hist-empty";
+        em.textContent = "No events recorded for this month.";
+        listEl.appendChild(em);
+        return;
+      }
+      evs.forEach(function (e) {
+        var row = document.createElement("div");
+        row.className = "ax-hist-row";
+        var dcol = document.createElement("div");
+        dcol.className = "ax-hist-d";
+        var p = String(e.date).split("-");
+        dcol.textContent = (p.length === 3) ? (MON[parseInt(p[1], 10) - 1].substring(0, 3) + " " + parseInt(p[2], 10)) : e.date;
+        row.appendChild(dcol);
+        var dot = document.createElement("span");
+        dot.className = "ax-evd " + (e.kind || "milestone");
+        dot.setAttribute("style", "width:8px;height:8px;border-radius:50%;flex:0 0 auto;");
+        row.appendChild(dot);
+        var lab = document.createElement("div");
+        lab.className = "ax-hist-lab";
+        lab.textContent = e.label || "(untitled)";
+        row.appendChild(lab);
+        var st = statusOf(e);
+        var badge = document.createElement("span");
+        badge.className = "ax-hist-status " + st.cls;
+        badge.textContent = st.text;
+        row.appendChild(badge);
+        listEl.appendChild(row);
+      });
+    }
+
+    function render() {
+      renderGrid();
+      renderList();
+      if (monthSel) { monthSel.value = "" + curM; }
+      if (yearInp) { yearInp.value = "" + curY; }
+    }
+    function step(delta) {
+      curM += delta;
+      if (curM < 1) { curM = 12; curY -= 1; } else if (curM > 12) { curM = 1; curY += 1; }
+      render();
+    }
+    function openHist() {
+      var base = today || "1970-01-01";
+      curY = parseInt(base.substring(0, 4), 10);
+      curM = parseInt(base.substring(5, 7), 10);
+      render();
+      dlg.hidden = false;
+    }
+    function closeHist() { dlg.hidden = true; }
+
+    btn.addEventListener("click", openHist);
+    qsa("[data-histclose]", dlg).forEach(function (b) { b.addEventListener("click", closeHist); });
+    if (monthSel) { monthSel.addEventListener("change", function () { var m = parseInt(monthSel.value, 10); if (m >= 1 && m <= 12) { curM = m; render(); } }); }
+    if (yearInp) { yearInp.addEventListener("change", function () { var y = parseInt(yearInp.value, 10); if (y >= 1900 && y <= 3000) { curY = y; render(); } }); }
+    var hprev = dlg.querySelector("[data-histprev]");
+    var hnext = dlg.querySelector("[data-histnext]");
+    if (hprev) { hprev.addEventListener("click", function () { step(-1); }); }
+    if (hnext) { hnext.addEventListener("click", function () { step(1); }); }
+    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !dlg.hidden) { closeHist(); } });
+  })();
+
   // ======================================================================
   // Super-admin inline editing (only wired when the workspace is opened by AGORA).
   // Every control reads its values from data-* inputs and posts to /w/<c>/admin/*; on success
@@ -2333,26 +2584,148 @@
       });
     });
 
-    // --- Calendar add / delete ---
-    qsa("[data-caladd]").forEach(function (btn) {
-      var panel = document.querySelector("[data-calform]");
-      btn.addEventListener("click", function () {
-        var fields = fieldsFrom(panel, "data-cev", { op: "add" });
-        if (!fields.date) { adminMsg("Pick a date for the event.", false); return; }
-        adminAction("/admin/calendar", fields, btn);
+    // --- Calendar: click a day -> popup to add / recategorise / mark done / delete ---
+    (function () {
+      var stack = document.querySelector("[data-caldata]");
+      var dlg = document.getElementById("ax-caldlg");
+      if (!stack || !dlg) { return; }
+      var allEvents = [];
+      try { allEvents = JSON.parse(stack.getAttribute("data-caldata") || "[]"); } catch (e) { allEvents = []; }
+      var listEl = dlg.querySelector("[data-caldlg-list]");
+      var titleEl = dlg.querySelector("[data-caldlg-title]");
+      var addLabel = dlg.querySelector('[data-cdlg="label"]');
+      var addKind = dlg.querySelector('[data-cdlg="kind"]');
+      var addBtn = dlg.querySelector("[data-cdlg-add]");
+      var openDay = "";
+      var MON = ["January", "February", "March", "April", "May", "June",
+                 "July", "August", "September", "October", "November", "December"];
+      var KINDS = [["paid", "Paid"], ["organic", "Organic"], ["due", "Due"], ["milestone", "Milestone"]];
+
+      function prettyDay(d) {
+        var p = (d || "").split("-");
+        if (p.length !== 3) { return "Events"; }
+        return parseInt(p[2], 10) + " " + MON[parseInt(p[1], 10) - 1] + " " + p[0];
+      }
+      function eventsFor(day) {
+        return allEvents.filter(function (e) { return e.date === day; });
+      }
+      // Post a calendar op, then reload (server is the source of truth; indices shift on add/delete).
+      // The day is stashed in the hash so the popup re-opens on the same day after the reload.
+      function calPost(fields, btn) {
+        if (btn) { btn.setAttribute("disabled", "disabled"); }
+        post("/admin/calendar", fields)
+          .then(function (data) {
+            if (data && data.ok === false) {
+              adminMsg(data.message || "Could not save.", false);
+              if (btn) { btn.removeAttribute("disabled"); }
+              return;
+            }
+            window.location.hash = "calday=" + openDay;
+            window.location.reload();
+          })
+          .catch(function () {
+            adminMsg("Could not save. Please try again.", false);
+            if (btn) { btn.removeAttribute("disabled"); }
+          });
+      }
+      function kindSelect(selected) {
+        var s = document.createElement("select");
+        s.className = "ax-cdlg-kind";
+        KINDS.forEach(function (k) {
+          var o = document.createElement("option");
+          o.value = k[0];
+          o.textContent = k[1];
+          if (k[0] === selected) { o.selected = true; }
+          s.appendChild(o);
+        });
+        return s;
+      }
+      function renderList(day) {
+        listEl.innerHTML = "";
+        var evs = eventsFor(day);
+        if (!evs.length) {
+          var empty = document.createElement("div");
+          empty.className = "ax-caldlg-empty";
+          empty.textContent = "No events on this day yet — add one below.";
+          listEl.appendChild(empty);
+          return;
+        }
+        evs.forEach(function (e) {
+          var row = document.createElement("div");
+          row.className = "ax-caldlg-row";
+          var lab = document.createElement("div");
+          lab.className = "ax-caldlg-lab";
+          lab.textContent = e.label || "(untitled)";
+          if (e.status === "done") {
+            var tag = document.createElement("span");
+            tag.className = "ax-tag organic";
+            tag.textContent = "✓ Done";
+            lab.appendChild(document.createTextNode(" "));
+            lab.appendChild(tag);
+          }
+          row.appendChild(lab);
+
+          var ksel = kindSelect(e.kind || "milestone");
+          ksel.addEventListener("change", function () {
+            calPost({ op: "edit", index: e.index, date: e.date, label: e.label || "", kind: ksel.value }, ksel);
+          });
+          row.appendChild(ksel);
+
+          var doneBtn = document.createElement("button");
+          doneBtn.type = "button";
+          doneBtn.className = "ax-btn ghost small";
+          doneBtn.textContent = e.status === "done" ? "Mark as not done" : "Mark as done";
+          doneBtn.addEventListener("click", function () {
+            calPost({ op: "status", index: e.index, status: e.status === "done" ? "" : "done" }, doneBtn);
+          });
+          row.appendChild(doneBtn);
+
+          var delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "ax-btn danger small";
+          delBtn.textContent = "Delete";
+          delBtn.addEventListener("click", function () {
+            calPost({ op: "delete", index: e.index }, delBtn);
+          });
+          row.appendChild(delBtn);
+          listEl.appendChild(row);
+        });
+      }
+      function openDayDlg(day) {
+        openDay = day;
+        if (titleEl) { titleEl.textContent = prettyDay(day); }
+        if (addLabel) { addLabel.value = ""; }
+        if (addKind) { addKind.value = "paid"; }
+        renderList(day);
+        dlg.hidden = false;
+      }
+      function closeDlg() { dlg.hidden = true; openDay = ""; }
+
+      qsa("[data-cal-day]").forEach(function (cell) {
+        cell.addEventListener("click", function () { openDayDlg(cell.getAttribute("data-cal-day")); });
+        cell.addEventListener("keydown", function (ev) {
+          if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
+            ev.preventDefault();
+            openDayDlg(cell.getAttribute("data-cal-day"));
+          }
+        });
       });
-    });
-    qsa("[data-caldel]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        adminAction("/admin/calendar", { op: "delete", index: btn.getAttribute("data-caldel") }, btn);
+      qsa("[data-calclose]", dlg).forEach(function (b) { b.addEventListener("click", closeDlg); });
+      if (addBtn) {
+        addBtn.addEventListener("click", function () {
+          if (!openDay) { return; }
+          calPost({ op: "add", date: openDay, label: addLabel ? addLabel.value : "", kind: addKind ? addKind.value : "milestone" }, addBtn);
+        });
+      }
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape" && !dlg.hidden) { closeDlg(); }
       });
-    });
-    qsa("[data-caldone]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var next = btn.getAttribute("data-calstatus") === "done" ? "" : "done";
-        adminAction("/admin/calendar", { op: "status", index: btn.getAttribute("data-caldone"), status: next }, btn);
-      });
-    });
+      // Re-open the same day after a reload triggered by one of the actions above.
+      if (window.location.hash.indexOf("calday=") !== -1) {
+        var d = window.location.hash.split("calday=")[1];
+        if (d) { openDayDlg(d); }
+      }
+    })();
   }
 
   // ===== Approval pictures: click-to-enlarge lightbox + admin add/remove =====

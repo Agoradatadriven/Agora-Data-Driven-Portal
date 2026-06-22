@@ -214,6 +214,25 @@ def calendar_months(events, today, before=1, after=1):
     return grids
 
 
+def calendar_payload(events):
+    """Flatten events to {index,date,label,kind,status} for the admin day-editor popup.
+
+    The calendar tab renders the prev/current/next months server-side; on top of that, AGORA can click
+    any day to open a popup that adds/recategorises/marks-done/deletes events. The popup keys actions
+    by `index` (the event's position in the stored ws['calendar'] list, which the /admin/calendar route
+    expects), so each item carries its stored index."""
+    out = []
+    for i, e in enumerate(events or []):
+        out.append({
+            "index": i,
+            "date": str(e.get("date", "")),
+            "label": e.get("label", ""),
+            "kind": e.get("kind", "milestone"),
+            "status": e.get("status", ""),
+        })
+    return out
+
+
 def _fmt_md(d):
     """A short 'Jun 24' label for a date."""
     return "%s %d" % (_MONTHS[d.month][:3], d.day)
@@ -622,6 +641,10 @@ def build(ws, client, user, active_tab, now=None):
         "campaigns_live": len(ws.get("campaigns", [])),
         "calendar": month_grid(cal_events, today),
         "calendars": calendar_months(cal_events, today),
+        # Per-day events (with their stored index) for the admin click-a-day editor popup AND the
+        # read-only "Month history" viewer (client-facing). today drives the done/upcoming status.
+        "calendar_admin": calendar_payload(cal_events),
+        "calendar_today": today.isoformat(),
         "milestones": milestones(cal_events, today),
         "progress": project_progress(ws, cal_events, today),
         "freshness": data_freshness(ws, now_dt),

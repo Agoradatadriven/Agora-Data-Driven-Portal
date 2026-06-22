@@ -791,6 +791,23 @@ def add_calendar_event(client, date, label, kind):
     return _mutate(client, fn)
 
 
+def edit_calendar_event(client, index, date, label, kind):
+    """Edit the calendar event at `index` (date/label/kind) in place. Returns it, or None if out of range.
+    A blank date or kind is ignored (the existing value is kept); the label is set as given (may be empty)."""
+    def fn(ws):
+        events = ws.get("calendar", [])
+        if 0 <= index < len(events):
+            event = events[index]
+            if date:
+                event["date"] = date
+            event["label"] = label or ""
+            if kind:
+                event["kind"] = kind
+            return event
+        return None
+    return _mutate(client, fn)
+
+
 def delete_calendar_event(client, index):
     """Remove the calendar event at `index` (as ordered in the stored list). Returns it, or None."""
     def fn(ws):
