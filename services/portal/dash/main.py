@@ -86,6 +86,13 @@ app.config.update(
 # production always serves over https with secure cookies ON, so even if this env var ever leaked into
 # a deploy it would stay inert. Only the local launcher (run_local.ps1) ever sets it.
 DEV_NOAUTH = os.environ.get("PORTAL_DEV_NOAUTH", "") == "1" and not _secure_cookies
+# Deliberate LIVE-demo "no password" mode. Unlike DEV_NOAUTH (interlocked to the local http posture
+# so it stays inert in prod), DEMO_NOAUTH works over https with secure cookies ON -- an operator can
+# flip it on for a presentation and every request is auto-signed-in as a super-admin. OFF by default;
+# only a deploy that sets PORTAL_DEMO_NOAUTH=1 turns it on. Pair it with the "View as client" toggle
+# (the /viewas route + the header button) to demo the clean client-facing view without a 2nd account.
+DEMO_NOAUTH = os.environ.get("PORTAL_DEMO_NOAUTH", "") == "1"
+AUTO_LOGIN = DEV_NOAUTH or DEMO_NOAUTH
 # Cap request bodies. The largest legitimate POST is a voice feedback note; keep it bounded.
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32 MiB (Cloud Run's request cap; fits short video creatives)
 
@@ -125,9 +132,19 @@ def can_open(client_key):
     return "*" in allowed or client_key in allowed
 
 
-def is_superadmin():
-    """A "*" grant marks a super-admin (the operator console)."""
+def real_superadmin():
+    """True iff this session actually holds the super-admin ("*") grant, regardless of view mode."""
     return "*" in allowed_clients()
+
+
+def is_superadmin():
+    """Effective super-admin: a real super-admin who has NOT toggled "View as client".
+
+    The toggle lets an operator preview the exact client-facing view (no admin edit affordances)
+    without logging out. Admin POST routes gate on this too, so while previewing as a client the
+    operator genuinely cannot mutate -- matching what the client can do. Flip back via /viewas/admin.
+    """
+    return real_superadmin() and not session.get("view_as_client")
 
 
 @app.before_request
@@ -139,7 +156,7 @@ def _dev_auto_login():
     (authed / can_open / is_superadmin) pass and the in-place admin edit affordances render. It is a
     no-op unless DEV_NOAUTH is on, which only happens locally (see the DEV_NOAUTH definition above).
     """
-    if DEV_NOAUTH and not session.get("ok"):
+    if AUTO_LOGIN and not session.get("ok"):
         session["ok"] = True
         session["user"] = "dev@localhost"
         session["clients"] = ["*"]
@@ -148,7 +165,7 @@ def _dev_auto_login():
 def _visible_clients():
     """The client dicts this session is allowed to see, for the portal landing page."""
     clients = store.list_clients()
-    if is_superadmin():
+    if real_superadmin():
         return clients
     allowed = set(allowed_clients())
     return [c for c in clients if c.get("key") in allowed]
@@ -177,7 +194,7 @@ def _post_login_destination(granted, next_url):
     if "*" not in granted and len(granted) == 1:
         only = granted[0]
         if workspace.workspace_exists(only):
-            return url_for("atrium", client=only, tab="overview")
+            return url_for("atrium", client=only, tab="dashboard")
     return next_url or "/"
 
 
@@ -211,6 +228,19 @@ def client_dashboard(client):
     return render_template("dashboard_view.html", client=client, name=name,
                            dash=atrium_view.dashboard(ws, client),
                            user=current_user(), **_brand_ctx())
+
+
+@app.route("/viewas/<mode>", methods=["GET"])
+def view_as(mode):
+    """Toggle an operator between the admin (edit) view and the clean client view, in place.
+
+    Only meaningful for a real super-admin; for anyone else it's a harmless no-op redirect. The
+    choice lives in the session, so it persists across pages until toggled back. `mode` is
+    'client' (hide admin affordances, preview as the client) or anything else (back to admin)."""
+    if real_superadmin():
+        session["view_as_client"] = (mode == "client")
+    dest = request.args.get("next") or request.referrer or "/"
+    return redirect(dest)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -597,6 +627,10 @@ def atrium(client, tab):
         return Response("No workspace exists for this client yet.", status=404, mimetype="text/plain")
     if tab not in ATRIUM_TABS:
         tab = "overview"
+    if tab == "overview":
+        # Overview is hidden in the nav for the demo; land on Dashboard instead so the bare
+        # workspace URL never opens on the hidden tab. (Revert with the nav list to restore it.)
+        tab = "dashboard"
     user = current_user()
     view = atrium_view.build(ws, client, user, tab)
     return render_template(
@@ -607,6 +641,8 @@ def atrium(client, tab):
         user=user,
         user_notify=workspace.get_notify(ws, user or ""),
         is_superadmin=is_superadmin(),
+        real_superadmin=real_superadmin(),
+        viewing_as_client=bool(session.get("view_as_client")),
         admin_name=_admin_sender_name(user),
         favicon=brand.FAVICON_DATA_URI,
     )

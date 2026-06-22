@@ -8,6 +8,9 @@
 # broken merge or delete unmerged work. This session is the cautionary tale.
 #
 # What it does:
+#   0. if your working tree has local changes, commit + push them to THIS machine's
+#      own dev branch first (delegates to push-branch.ps1) -- otherwise the dirty tree
+#      blocks the integration checkout AND your work would be left out of the merge
 #   1. fetch + discover every per-machine branch on origin (everything except main)
 #   2. create a throwaway integration branch off origin/main
 #   3. merge each branch in turn -- on the FIRST conflict it aborts that merge and
@@ -37,6 +40,18 @@ function Must([string]$w) { if ($LASTEXITCODE -ne 0) { Die "$w (exit $LASTEXITCO
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path   # tools/ -> repo root
 Set-Location $repo
+
+# 0. Capture any local working changes BEFORE we touch branches. A dirty tree both
+#    blocks the integration checkout below AND means this machine has unpushed work --
+#    so commit + push it to this machine's own dev branch first (delegates to
+#    push-branch.ps1: add -A -> secret guard -> commit -> push). It then gets discovered
+#    and integrated in this same run. Skipped for the prune-only -DeleteMerged path.
+if (-not $DeleteMerged -and -not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
+    Write-Host "[..] Local changes detected -- committing + pushing them to your branch first" -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot "push-branch.ps1")
+    Must "push-branch (commit + push local changes)"
+    Write-Host "[OK] local work pushed -- it will be integrated below" -ForegroundColor Green
+}
 
 # 1. Fresh view of remotes, then discover the dev branches (origin/* minus main/HEAD).
 Write-Host "[..] Fetching origin" -ForegroundColor Cyan

@@ -356,8 +356,10 @@
     @media (max-width: 720px) { .ax-cardhead { grid-template-columns: 120px 1fr; } }
     .ax-ch-thumb { height: 64px; border-radius: 10px; background-size: cover; background-position: center; display: grid; place-items: center; overflow: hidden; color: #fff; }
     .ax-ch-thumb.organic { background-color: #347A30; background-image: linear-gradient(140deg, #5FBE57, #347A30); }
+    .ax-ch-thumb.paid { background-color: #5C4BD0; background-image: linear-gradient(140deg, #8C7BF8, #5C4BD0); }
     .ax-ch-k { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
     .ax-ch-main { min-width: 0; }
+    .ax-ch-type { display: inline-block; margin-bottom: 6px; }
     .ax-ch-meta { display: block; font-size: 12px; font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ax-violet-d); margin-bottom: 4px; }
     .ax-ch-cap { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; color: #3a4050; line-height: 1.4; }
     .ax-ch-right { display: flex; align-items: center; gap: 10px; }
@@ -653,7 +655,7 @@
       </div>
 
       <nav class="ax-nav" id="ax-nav">
-        {% for key, label in [('overview','Overview'),('dashboard','Dashboard'),('leadgen','Lead Generation'),('organic','Organic Content'),('calendar','Content Calendar'),('conversations','Client Communications')] %}
+        {% for key, label in [('dashboard','Dashboard'),('leadgen','Lead Generation'),('organic','Organic Content'),('calendar','Content Calendar'),('conversations','Client Communications')] %}
         <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
           {{ ic(key) }}<span>{{ label }}</span>
           {% if key in ('leadgen','organic') %}
@@ -689,6 +691,7 @@
           <button class="ax-share" type="button" id="ax-sharebtn" data-recap="{{ view.recap_b64 }}"
                   title="Copy a shareable link to this month's recap"
                   {% if view.active_tab != 'overview' %}style="display:none"{% endif %}>Share recap <span class="ax-share-arrow">&rarr;</span></button>
+          {% if real_superadmin %}<a class="ax-backadmin" href="/viewas/{{ 'admin' if viewing_as_client else 'client' }}?next={{ request.path|urlencode }}" title="Switch between the admin edit view and the client view">{{ ic('overview') }}<span>{{ 'Back to admin view' if viewing_as_client else 'View as client' }}</span></a>{% endif %}
           {% if is_superadmin %}<a class="ax-backadmin" href="/admin/atrium" title="Back to all client workspaces">{{ ic('overview') }}<span>All clients</span></a>{% endif %}
           <a class="ax-signout" href="/logout">{{ ic('logout') }}<span>Sign out</span></a>
         </div>
@@ -1009,8 +1012,9 @@
             {% elif p.image_object %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id, 'mime': p.image_mime|default('', true), 'id': ''}) %}
             {% elif p.image %}{% set _ = _shots.append({'url': p.image, 'mime': '', 'id': ''}) %}{% endif %}
             {% set is_org = chan == 'organic' %}
-            <div class="ax-card ax-content{% if is_org %} ax-collapse{% endif %}" data-content="{{ p.id }}" data-status="{{ p.status }}" data-type="{{ p.type_tag }}">
-              {% if is_org %}
+            {% set collapsible = True %}
+            <div class="ax-card ax-content{% if collapsible %} ax-collapse{% endif %}" data-content="{{ p.id }}" data-status="{{ p.status }}" data-type="{{ p.type_tag }}">
+              {% if collapsible %}
               <div class="ax-cardhead">
                 <div class="ax-ch-media" data-shots>
                   {% if _shots %}
@@ -1041,6 +1045,7 @@
                 </div>
                 <button class="ax-cardhead-toggle" type="button" data-cardtoggle aria-expanded="false">
                   <span class="ax-ch-main">
+                    <span class="ax-tag plain ax-ch-type">{{ p.type_tag }}</span>
                     <span class="ax-ch-meta">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</span>
                     <span class="ax-ch-cap">{{ p.caption }}</span>
                   </span>
@@ -1052,7 +1057,7 @@
               </div>
               <div class="ax-detail">
               {% endif %}
-              {% if not is_org %}
+              {% if not collapsible %}
               <div class="ax-thumb {{ chan }}{{ ' has-shots' if _shots else '' }}" data-shots>
                 {% if _shots and is_org %}
                 <div class="ax-carousel" data-carousel>
@@ -1175,7 +1180,7 @@
                 </div>
                 {% endif %}
               </div>
-              {% if is_org %}</div>{% endif %}
+              {% if collapsible %}</div>{% endif %}
             </div>
             {% endfor %}
 
