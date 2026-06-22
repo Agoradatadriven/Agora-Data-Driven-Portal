@@ -219,8 +219,11 @@ def run():
     _check("video-link save ok", r.status_code == 200 and r.get_json().get("ok") is True)
     _camp, litem = workspace._find_content(workspace.load_workspace(CLIENT), "RVR-099")
     _check("video_url stored", litem.get("video_url") == "https://example.com/clip.mp4")
+    page = c.get("/w/%s/" % CLIENT).get_data(as_text=True)
     _check("workspace renders <video> for a direct mp4 link",
-           '<video src="https://example.com/clip.mp4"' in c.get("/w/%s/" % CLIENT).get_data(as_text=True))
+           '<video src="https://example.com/clip.mp4"' in page)
+    _check("type thumbnail is a clickable play link when a video is attached",
+           'ax-ch-playable' in page and 'href="https://example.com/clip.mp4"' in page)
     r = c.post("/w/%s/admin/video-link" % CLIENT,
                data={"content_id": "RVR-099", "url": "javascript:alert(1)"})
     _check("video-link rejects non-http url", r.status_code == 400 and r.get_json().get("ok") is False)
