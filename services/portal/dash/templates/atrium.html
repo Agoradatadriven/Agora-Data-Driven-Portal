@@ -959,9 +959,9 @@
             </a>
             {% endif %}
             <div class="ax-card ax-strategy">
-              <div class="ax-strat-col what"><h3>What happened</h3><p data-strat="what">{{ c.strategy.what }}</p></div>
-              <div class="ax-strat-col why"><h3>Why it happened</h3><p data-strat="why">{{ c.strategy.why }}</p></div>
-              <div class="ax-strat-col next"><h3>What to do next</h3><p data-strat="next">{{ c.strategy.next }}</p></div>
+              <div class="ax-strat-col what"><h3>Insight</h3><p data-strat="what">{{ c.strategy.what }}</p></div>
+              <div class="ax-strat-col why"><h3>Action</h3><p data-strat="why">{{ c.strategy.why }}</p></div>
+              <div class="ax-strat-col next"><h3>What to do next?</h3><p data-strat="next">{{ c.strategy.next }}</p></div>
             </div>
 
             {% if is_superadmin %}
@@ -975,9 +975,9 @@
                 <input class="ax-editbox" data-sf="name" value="{{ c.name }}" placeholder="Campaign name">
                 <input class="ax-editbox" data-sf="eyebrow" value="{{ c.eyebrow }}" placeholder="Eyebrow">
               </div>
-              <textarea class="ax-editbox" data-sf="what" placeholder="What happened">{{ c.strategy.what }}</textarea>
-              <textarea class="ax-editbox" data-sf="why" placeholder="Why it happened">{{ c.strategy.why }}</textarea>
-              <textarea class="ax-editbox" data-sf="next" placeholder="What to do next">{{ c.strategy.next }}</textarea>
+              <textarea class="ax-editbox" data-sf="what" placeholder="Insight — why we're running this campaign">{{ c.strategy.what }}</textarea>
+              <textarea class="ax-editbox" data-sf="why" placeholder="Action — our solution">{{ c.strategy.why }}</textarea>
+              <textarea class="ax-editbox" data-sf="next" placeholder="What to do next? — what to make (e.g. Lead Magnet, Static Post)">{{ c.strategy.next }}</textarea>
               <div class="ax-actions">
                 <button class="ax-btn violet small" type="button" data-stratsave="{{ c.id }}">Save strategy</button>
                 <button class="ax-btn ghost small" type="button" data-stratcancel="{{ c.id }}">Cancel</button>
@@ -1256,7 +1256,7 @@
             <div class="ax-strat-doc" style="margin-top:14px">
               <span class="ax-doc-label">{{ ic('sparkle') }} Strategy doc → AI writes the strategy</span>
               <input class="ax-strat-doc-in" data-ac="strategy_doc" placeholder="Paste a Google Doc link…">
-              <p class="ax-doc-help">AI reads the doc and writes the &ldquo;What happened / Why it happened / What to do next&rdquo; sections for you. The client also gets a &ldquo;View the full breakdown&rdquo; link to the doc. Optional &mdash; you can skip it and write the strategy by hand later.</p>
+              <p class="ax-doc-help">AI reads the doc and writes the &ldquo;Insight / Action / What to do next?&rdquo; sections for you. The client also gets a &ldquo;View the full breakdown&rdquo; link to the doc. Optional &mdash; you can skip it and write the strategy by hand later.</p>
             </div>
             <button class="ax-btn violet small" type="button" data-addcampaignbtn="{{ chan }}" style="margin-top:14px">{{ ic('sparkle') }} Add campaign</button>
               </div>
