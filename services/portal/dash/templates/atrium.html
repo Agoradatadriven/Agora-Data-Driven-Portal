@@ -581,6 +581,14 @@
     .ax-admin-tools .ax-btn.admin:hover { background: linear-gradient(135deg, var(--ax-violet-d) 0%, #4A3BB4 100%); }
     .ax-admin-tools .ax-btn.danger { background: linear-gradient(135deg, var(--ax-bad) 0%, #C9302D 100%); color: #fff; border-color: transparent; }  /* Delete -> brand red (destructive) */
     .ax-admin-tools .ax-btn.danger:hover { background: linear-gradient(135deg, #C9302D 0%, #A8211F 100%); }
+    /* Campaign-card controls (Lead Gen + Organic): neutral slate / navy / red-outline, per request. */
+    .ax-camp-tools .ax-btn.green { background: linear-gradient(135deg, #3F4654 0%, #2D3340 100%); }                  /* Add content -> slate */
+    .ax-camp-tools .ax-btn.green:hover { background: linear-gradient(135deg, #2D3340 0%, #1E222B 100%); }
+    /* Content-card Edit details / Delete share the campaign-tools look (navy / red-outline) -- one source of truth. */
+    .ax-camp-tools .ax-btn.admin, [data-contenttools] .ax-btn.admin { background: linear-gradient(135deg, #283568 0%, #18204A 100%); }                  /* Edit strategy + Edit details -> navy */
+    .ax-camp-tools .ax-btn.admin:hover, [data-contenttools] .ax-btn.admin:hover { background: linear-gradient(135deg, #18204A 0%, #0F1530 100%); }
+    .ax-camp-tools .ax-btn.danger, [data-contenttools] .ax-btn.danger { background: var(--ax-white); color: var(--ax-bad); border-color: rgba(229,65,62,.55); box-shadow: none; }  /* Delete campaign + Delete -> red outline */
+    .ax-camp-tools .ax-btn.danger:hover, [data-contenttools] .ax-btn.danger:hover { background: rgba(229,65,62,.08); border-color: var(--ax-bad); color: var(--ax-bad); }
     .ax-editbox { width: 100%; font: inherit; font-size: 13.5px; padding: 9px 11px; border: 1px solid var(--ax-violet); border-radius: 9px; background: #fbfbff; outline: none; margin-bottom: 8px; }
     textarea.ax-editbox { min-height: 60px; resize: vertical; }
     .ax-editrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -965,7 +973,7 @@
             </div>
 
             {% if is_superadmin %}
-            <div class="ax-admin-tools">
+            <div class="ax-admin-tools ax-camp-tools">
               <button class="ax-btn green small" type="button" data-modalopen="addcontent-{{ c.id }}">＋ Add content</button>
               <button class="ax-btn admin small" type="button" data-stratedit="{{ c.id }}">Edit strategy</button>
               <button class="ax-btn danger small" type="button" data-campdelete="{{ c.id }}" data-campname="{{ c.name }}">Delete campaign</button>
