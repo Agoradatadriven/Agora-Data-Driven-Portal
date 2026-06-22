@@ -75,7 +75,13 @@ if (-not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
     Write-Host "[push-branch] nothing new to commit -- pushing the branch as-is." -ForegroundColor Yellow
 }
 
-# 6. Push with upstream. --force-with-lease so re-running updates YOUR branch safely
+# 6. Prune stale remote-tracking refs first. After a branch is merged-and-deleted on
+#    the server, our local origin/<branch> ref lingers; --force-with-lease then leases
+#    against that ghost and the push is rejected with "stale info". Pruning clears it so
+#    the next push cleanly re-creates the branch. (Non-fatal: offline still pushes below.)
+git fetch --prune origin 2>$null
+
+# 7. Push with upstream. --force-with-lease so re-running updates YOUR branch safely
 #    (it only overwrites if the remote is where we last saw it -- never clobbers someone else).
 git push -u origin $branch --force-with-lease
 Must "push $branch"
