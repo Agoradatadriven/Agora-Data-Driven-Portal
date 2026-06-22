@@ -247,9 +247,9 @@
 
           <form method="post" action="/admin/atrium/{{ client }}/campaign">
             <input type="hidden" name="campaign_id" value="{{ c.id }}">
-            <label>What we did</label><textarea name="what">{{ c.strategy.what }}</textarea>
-            <label>Why (the data)</label><textarea name="why">{{ c.strategy.why }}</textarea>
-            <label>What's next</label><textarea name="next">{{ c.strategy.next }}</textarea>
+            <label>Insight (why this campaign)</label><textarea name="what">{{ c.strategy.what }}</textarea>
+            <label>Action (our solution)</label><textarea name="why">{{ c.strategy.why }}</textarea>
+            <label>What to do next? (what to make)</label><textarea name="next">{{ c.strategy.next }}</textarea>
             <label>AI summary</label><textarea name="ai_summary">{{ c.ai_summary }}</textarea>
             <button class="btn" type="submit">Save strategy &amp; summary</button>
           </form>

@@ -931,7 +931,7 @@ def atrium_admin_add_campaign(client):
     """Add a campaign in place. With just a name + a Google Doc link, AI writes the strategy.
 
     If a doc link is supplied (and the strategy fields weren't typed by hand) we best-effort read
-    the doc and let AI write the campaign's "What happened / Why it happened / What to do next"
+    the doc and let AI write the campaign's "Insight / Action / What to do next?"
     sections, so the campaign lands fully formed from the doc alone. The doc link is ALWAYS saved
     regardless of whether AI is wired, so the client still gets the "View the full breakdown" link
     on a default (no-Docs/no-AI) deploy -- the admin then fills the sections via "Edit strategy".
