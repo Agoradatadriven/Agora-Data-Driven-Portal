@@ -131,8 +131,14 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   dashboard, leadgen, organic, calendar, conversations, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,resolve-comment,send-message,save-notify}` +
   creative GET above; admin POSTs `/w/<c>/admin/*` gated `is_superadmin()`. Team console
-  `/admin/atrium[/<c>][/campaign|content|conversation|reply|metrics]` gated `is_superadmin()`. The
-  portal landing shows **Open workspace** beside **Open dashboard**.
+  `/admin/atrium[/<c>][/campaign|content|conversation|reply|metrics|logo|delete]` gated
+  `is_superadmin()`. The console **landing** (`/admin/atrium`) is one card per client showing the
+  client's logo on the right with an **Upload logo** control (POST `/admin/atrium/<c>/logo` — embeds
+  the image inline as a `brand.client_logo` `<img>` data-URI, ≤512 KB; same posture as seeded logos)
+  and a confirmed **Delete** control (POST `/admin/atrium/<c>/delete` — `store.remove_client` +
+  `workspace.delete_workspace`). **Add a new client** asks ONLY for a display name (key auto-derives,
+  password auto-generates) and on success redirects STRAIGHT to the new client's blank `/w/<c>/`.
+  The portal landing shows **Open workspace** beside **Open dashboard**.
 - **Strategy doc → AI strategy (optional, opt-in):** an admin attaches a Google Doc to a campaign and
   clicks "Generate strategy". `dash/atrium_docs.py` reads it (public-export fetch by default, or the
   **Google Drive API** when `ATRIUM_DOCS_ENABLED=1`) and `feedback_ai.summarize_strategy_sections`
