@@ -125,10 +125,11 @@ def summarize_strategy_sections(doc_text):
     """Turn a strategy doc into a campaign's three client-facing sections. Returns a dict, or None.
 
     The dict has keys "what", "why", "next" -- short, warm, plain-English paragraphs that populate a
-    campaign's "What happened / Why it happened / What to do next" strategy card. Used by Agora
-    Atrium's "generate strategy from doc" action (atrium_docs.generate_strategy). No-op (returns
-    None) unless enrichment is enabled, configured, and the SDK is installed -- the caller then falls
-    back to a plain excerpt of the doc.
+    campaign's "Insight / Action / What to do next?" strategy card (the keys keep their original
+    names for backward compatibility, but map positionally to Insight / Action / What to do next?).
+    Used by Agora Atrium's "generate strategy from doc" action (atrium_docs.generate_strategy).
+    No-op (returns None) unless enrichment is enabled, configured, and the SDK is installed -- the
+    caller then falls back to a plain excerpt of the doc.
     """
     client = _client()
     if client is None or not (doc_text or "").strip():
@@ -141,9 +142,13 @@ def summarize_strategy_sections(doc_text):
                 "You write the AGORA marketing team's client-facing campaign strategy from an "
                 "internal strategy document. Produce exactly three short, warm, plain-English "
                 "paragraphs (2-3 sentences each, no jargon, no headings, no markdown):\n"
-                "  what -- what we did / are doing in this campaign,\n"
-                "  why  -- why we did it and how it helps the client,\n"
-                "  next -- what we will do next.\n"
+                "  what -- the Insight: WHY we are running this campaign (the audience need, gap, or "
+                "data point that makes it worth doing),\n"
+                "  why  -- the Action: WHAT our solution is (the approach / angle we are taking to "
+                "act on that insight),\n"
+                "  next -- What to do next?: the concrete deliverables we will MAKE, named explicitly "
+                "(e.g. Lead Magnet, Static Post, Email, Blog Post). Choose deliverables that follow "
+                "directly from the Insight and Action above.\n"
                 "Respond with ONLY a JSON object of the form "
                 '{\"what\": \"...\", \"why\": \"...\", \"next\": \"...\"} -- no preamble, no code fences.'
             ),

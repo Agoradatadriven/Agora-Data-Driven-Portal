@@ -165,8 +165,9 @@ def generate_summary(doc_url):
 def generate_strategy(doc_url):
     """Produce a campaign's three strategy sections from a strategy doc. Returns (strategy, source).
 
-    strategy is a dict {"what", "why", "next"} of client-facing paragraphs, or None when the doc
-    could not be read. source is one of:
+    strategy is a dict {"what", "why", "next"} of client-facing paragraphs (mapping positionally to
+    the Insight / Action / What to do next? columns), or None when the doc could not be read.
+    source is one of:
       "ai"      -- Claude wrote the three sections from the doc text,
       "excerpt" -- AI is off, so we put a trimmed excerpt of the doc in "what" (why/next blank),
       "none"    -- the doc could not be read (disabled / unshared / no URL).
