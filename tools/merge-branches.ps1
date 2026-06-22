@@ -84,6 +84,14 @@ function Must([string]$w) { if ($LASTEXITCODE -ne 0) { Die "$w (exit $LASTEXITCO
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path   # tools/ -> repo root
 Set-Location $repo
 
+$origBranch = (git rev-parse --abbrev-ref HEAD 2>$null)   # remembered so -DryRun can restore it
+
+# -DryRun integrates locally; it never commits your WIP, so a dirty tree would block the
+# integration checkout. Require a clean tree for the preview (the real run commits first).
+if ($DryRun -and -not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
+    Die "-DryRun needs a clean working tree (it won't commit your changes). Commit/stash first, or run without -DryRun (the live flow commits your WIP to your dev branch automatically)."
+}
+
 # -----------------------------------------------------------------------------
 # Map the files that changed in this merge to the deploy script(s) that ship them.
 # This is the SINGLE SOURCE OF TRUTH for "what gets deployed when X changes". Each
@@ -92,42 +100,44 @@ Set-Location $repo
 # to nothing (docs, tools, assets, repo-root files) are correctly ignored.
 # -----------------------------------------------------------------------------
 function Resolve-DeployPlan {
+    # Returns an ARRAY (possibly empty) of @{Service; Script; Prio}, deduped by Script,
+    # sorted by Prio. NO closures / no outer-state mutation -- each rule just EMITS a row
+    # to the pipeline (the closure-mutates-an-ArrayList pattern silently no-ops when this
+    # function runs inside the larger script, so it is deliberately avoided here).
     param([string[]]$Changed, [string]$RepoRoot)
-    $plan = New-Object System.Collections.ArrayList
 
-    $add = {
-        param($svc, $full, $prio)
-        if (-not (Test-Path $full)) {
-            Write-Host "    [skip] $svc -- deploy script missing: $full" -ForegroundColor Yellow
-            return
-        }
-        foreach ($e in $plan) { if ($e.Script -eq $full) { return } }   # dedupe
-        [void]$plan.Add([pscustomobject]@{ Service = $svc; Script = $full; Prio = $prio })
-    }
-
-    # A changed file under clients/<c>/<sub>/ -> the deploy_*_<c>.ps1 in that dir (found
-    # by glob so it works for any client key without re-typing the name).
-    $addClient = {
-        param($c, $sub, $pattern, $prio)
+    # For a client path clients/<c>/<sub>/..., find the deploy_*.ps1 in that dir by glob
+    # (works for any client key without re-typing it). Returns a row, or $null if none.
+    function ClientRow([string]$c, [string]$sub, [string]$pattern, [int]$prio) {
         $dir = Join-Path $RepoRoot "clients/$c/$sub"
-        if (-not (Test-Path $dir)) { return }
+        if (-not (Test-Path $dir)) { return $null }
         $f = Get-ChildItem -Path $dir -Filter $pattern -File -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($f) { & $add "client '$c' ($sub)" $f.FullName $prio }
-        else { Write-Host "    [skip] client '$c' $sub changed but no $pattern in $dir" -ForegroundColor Yellow }
+        if ($f) { return [pscustomobject]@{ Service = "client '$c' ($sub)"; Script = $f.FullName; Prio = $prio } }
+        Write-Host "    [skip] client '$c' $sub changed but no $pattern in $dir" -ForegroundColor Yellow
+        return $null
     }
 
-    foreach ($cf in $Changed) {
+    $rows = foreach ($cf in $Changed) {
         $p = ($cf -replace '\\', '/')
-        if     ($p -match '^services/portal/')                { & $add 'platform-dash (portal + Atrium)'   (Join-Path $RepoRoot 'services/portal/dash/deploy_dash_platform.ps1') 50 }
-        elseif ($p -match '^services/ingest/')                { & $add 'ingest jobs (raw_windsor writers)' (Join-Path $RepoRoot 'tools/deploy_ingest_jobs.ps1')                    60 }
-        elseif ($p -match '^services/status-dashboard/dash/') { & $add 'status-dash (web)'                  (Join-Path $RepoRoot 'services/status-dashboard/dash/deploy_dash_status.ps1') 70 }
-        elseif ($p -match '^services/status-dashboard/job/')  { & $add 'status-export (job)'                (Join-Path $RepoRoot 'services/status-dashboard/job/deploy_job_status.ps1')   65 }
-        elseif ($p -match '^clients/([^/]+)/sql/')            { & $addClient $Matches[1] 'sql'  'deploy_views_*.ps1' 10 }
-        elseif ($p -match '^clients/([^/]+)/job/')            { & $addClient $Matches[1] 'job'  'deploy_job_*.ps1'   20 }
-        elseif ($p -match '^clients/([^/]+)/dash/')           { & $addClient $Matches[1] 'dash' 'deploy_dash_*.ps1'  30 }
+        if     ($p -match '^services/portal/')                { [pscustomobject]@{ Service = 'platform-dash (portal + Atrium)';   Script = (Join-Path $RepoRoot 'services/portal/dash/deploy_dash_platform.ps1');     Prio = 50 } }
+        elseif ($p -match '^services/ingest/')                { [pscustomobject]@{ Service = 'ingest jobs (raw_windsor writers)'; Script = (Join-Path $RepoRoot 'tools/deploy_ingest_jobs.ps1');                     Prio = 60 } }
+        elseif ($p -match '^services/status-dashboard/dash/') { [pscustomobject]@{ Service = 'status-dash (web)';                  Script = (Join-Path $RepoRoot 'services/status-dashboard/dash/deploy_dash_status.ps1'); Prio = 70 } }
+        elseif ($p -match '^services/status-dashboard/job/')  { [pscustomobject]@{ Service = 'status-export (job)';                Script = (Join-Path $RepoRoot 'services/status-dashboard/job/deploy_job_status.ps1');   Prio = 65 } }
+        elseif ($p -match '^clients/([^/]+)/sql/')            { ClientRow $Matches[1] 'sql'  'deploy_views_*.ps1' 10 }
+        elseif ($p -match '^clients/([^/]+)/job/')            { ClientRow $Matches[1] 'job'  'deploy_job_*.ps1'   20 }
+        elseif ($p -match '^clients/([^/]+)/dash/')           { ClientRow $Matches[1] 'dash' 'deploy_dash_*.ps1'  30 }
         # else: docs/, tools/, assets/, preview/, repo-root files -> nothing to deploy.
     }
-    return , ($plan | Sort-Object Prio)
+
+    # Drop nulls, keep only deploy scripts that exist, dedupe by Script path, sort by Prio.
+    $seen = @{}
+    $out = foreach ($r in (@($rows) | Where-Object { $_ } | Sort-Object Prio)) {
+        if (-not (Test-Path $r.Script)) { Write-Host "    [skip] $($r.Service) -- deploy script missing: $($r.Script)" -ForegroundColor Yellow; continue }
+        if ($seen.ContainsKey($r.Script)) { continue }
+        $seen[$r.Script] = $true
+        $r
+    }
+    return @($out)
 }
 
 # =============================================================================
@@ -234,7 +244,7 @@ Write-Host "[OK] integration tests green" -ForegroundColor Green
 #    Compute the deploy plan now (used by -DryRun, -NoPush, and the live path).
 # =============================================================================
 $changed = git diff --name-only $baseMain $intg | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-$plan = Resolve-DeployPlan -Changed $changed -RepoRoot $repo
+$plan = @(Resolve-DeployPlan -Changed $changed -RepoRoot $repo)   # @() => always a real array
 
 # =============================================================================
 # -NoPush / -DryRun: stop here. Print exactly what WOULD happen, change nothing live.
@@ -244,14 +254,18 @@ if ($NoPush -or $DryRun) {
     $tag = if ($DryRun) { "[dry-run]" } else { "[no-push]" }
     Write-Host "$tag $intg is clean + green. It was NOT landed or deployed." -ForegroundColor Green
     Write-Host "$tag would LAND:   git switch main; git merge --ff-only $intg; git push origin main"
-    if ($plan -and $plan.Count) {
+    if ($plan.Count -gt 0) {
         Write-Host "$tag would DEPLOY (changed services):"
         foreach ($s in $plan) { Write-Host "           - $($s.Service)  ->  $($s.Script)" }
     } else {
         Write-Host "$tag would DEPLOY: (nothing -- no deployable service changed)"
     }
     Write-Host "$tag would PRUNE:  dev branches once contained in main (.\tools\merge-branches.ps1 -DeleteMerged)"
-    if ($DryRun) { git switch main *>$null; git branch -D $intg *>$null }   # leave no throwaway branch behind
+    if ($DryRun) {
+        # Restore the branch we started on and drop the throwaway integration branch.
+        if ($origBranch -and $origBranch -ne 'HEAD' -and $origBranch -ne $intg) { git switch $origBranch *>$null } else { git switch main *>$null }
+        git branch -D $intg *>$null
+    }
     exit 0
 }
 
@@ -271,7 +285,7 @@ Write-Host "[OK] landed -- main is now $(git rev-parse --short HEAD)" -Foregroun
 if ($NoDeploy) {
     Write-Host "[OK] -NoDeploy: skipping deploy. Changed services that would have deployed:" -ForegroundColor Yellow
     foreach ($s in $plan) { Write-Host "      - $($s.Service)  ->  $($s.Script)" }
-} elseif (-not $plan -or $plan.Count -eq 0) {
+} elseif ($plan.Count -eq 0) {
     Write-Host "[OK] no deployable service changed -- nothing to deploy." -ForegroundColor Green
 } else {
     $acct = (gcloud config get-value account 2>$null)
