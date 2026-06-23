@@ -89,8 +89,8 @@ DEV_NOAUTH = os.environ.get("PORTAL_DEV_NOAUTH", "") == "1" and not _secure_cook
 # Deliberate LIVE-demo "no password" mode. Unlike DEV_NOAUTH (interlocked to the local http posture
 # so it stays inert in prod), DEMO_NOAUTH works over https with secure cookies ON -- an operator can
 # flip it on for a presentation and every request is auto-signed-in as a super-admin. OFF by default;
-# only a deploy that sets PORTAL_DEMO_NOAUTH=1 turns it on. Pair it with the "View as client" toggle
-# (the /viewas route + the header button) to demo the clean client-facing view without a 2nd account.
+# only a deploy that sets PORTAL_DEMO_NOAUTH=1 turns it on. To demo the client-facing view, log in with
+# a client password (role is fixed at login -- there is no in-session "view as client" toggle).
 DEMO_NOAUTH = os.environ.get("PORTAL_DEMO_NOAUTH", "") == "1"
 AUTO_LOGIN = DEV_NOAUTH or DEMO_NOAUTH
 # Cap request bodies. On Cloud Run the platform caps requests at ~32 MiB, so live large videos use the
@@ -137,18 +137,18 @@ def can_open(client_key):
 
 
 def real_superadmin():
-    """True iff this session actually holds the super-admin ("*") grant, regardless of view mode."""
+    """True iff this session actually holds the super-admin ("*") grant."""
     return "*" in allowed_clients()
 
 
 def is_superadmin():
-    """Effective super-admin: a real super-admin who has NOT toggled "View as client".
+    """Super-admin: the session holds the "*" grant. Role is fixed at LOGIN, not toggleable.
 
-    The toggle lets an operator preview the exact client-facing view (no admin edit affordances)
-    without logging out. Admin POST routes gate on this too, so while previewing as a client the
-    operator genuinely cannot mutate -- matching what the client can do. Flip back via /viewas/admin.
+    There is deliberately no "view as client" override: who you are (admin vs client) is decided by
+    which password you logged in with (store.verify_portal_login -> ["*"] for admin, else the client
+    keys). Removing the in-session toggle keeps the admin/client boundary a hard, login-derived line.
     """
-    return real_superadmin() and not session.get("view_as_client")
+    return real_superadmin()
 
 
 @app.before_request
@@ -236,19 +236,6 @@ def client_dashboard(client):
     return render_template("dashboard_view.html", client=client, name=name,
                            dash=atrium_view.dashboard(ws, client),
                            user=current_user(), **_brand_ctx())
-
-
-@app.route("/viewas/<mode>", methods=["GET"])
-def view_as(mode):
-    """Toggle an operator between the admin (edit) view and the clean client view, in place.
-
-    Only meaningful for a real super-admin; for anyone else it's a harmless no-op redirect. The
-    choice lives in the session, so it persists across pages until toggled back. `mode` is
-    'client' (hide admin affordances, preview as the client) or anything else (back to admin)."""
-    if real_superadmin():
-        session["view_as_client"] = (mode == "client")
-    dest = request.args.get("next") or request.referrer or "/"
-    return redirect(dest)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -649,8 +636,6 @@ def atrium(client, tab):
         user=user,
         user_notify=workspace.get_notify(ws, user or ""),
         is_superadmin=is_superadmin(),
-        real_superadmin=real_superadmin(),
-        viewing_as_client=bool(session.get("view_as_client")),
         admin_name=_admin_sender_name(user),
         favicon=brand.FAVICON_DATA_URI,
     )
