@@ -1121,6 +1121,7 @@ def atrium_admin_add_content(client):
         "sub_tag": request.form.get("sub_tag", "").strip(),
         "platform": request.form.get("platform", "").strip(),
         "caption": request.form.get("caption", "").strip(),
+        "social_caption": request.form.get("social_caption", "").strip(),
         "video_url": request.form.get("video_url", "").strip(),
         # An optional publish date mirrors the piece onto the Content Calendar as a linked event.
         "date": request.form.get("date", "").strip(),
@@ -1143,7 +1144,7 @@ def atrium_admin_edit_content(client):
         return gate
     content_id = request.form.get("content_id", "").strip()
     fields = {}
-    for key in ("ref", "type_tag", "sub_tag", "platform", "caption", "video_url", "date"):
+    for key in ("ref", "type_tag", "sub_tag", "platform", "caption", "social_caption", "video_url", "date"):
         if request.form.get(key) is not None:
             fields[key] = request.form.get(key, "").strip()
     try:
