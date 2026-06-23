@@ -210,8 +210,10 @@ def creative_image_object_name(client, content_id, image_id):
     return "%screatives/%s/%s.img/%s" % (_prefix(), client, content_id, image_id)
 
 
-def add_content_image(client, content_id, image_id, data, mime):
-    """Store one image (private object) and append {id, mime} to the piece's `images` list."""
+def add_content_image(client, content_id, image_id, data, mime, name=""):
+    """Store one attached file (private object) and append {id, mime, name} to the piece's `images`
+    list. Any file type is accepted -- images/videos render inline, others as a download chip; `name`
+    is the original filename, used to label/download non-media files."""
     _write_object(creative_image_object_name(client, content_id, image_id), data,
                   content_type=mime or "application/octet-stream")
 
@@ -219,7 +221,7 @@ def add_content_image(client, content_id, image_id, data, mime):
         _camp, item = _find_content(ws, content_id)
         if item is None:
             raise KeyError("no content '%s'" % content_id)
-        item.setdefault("images", []).append({"id": image_id, "mime": mime or ""})
+        item.setdefault("images", []).append({"id": image_id, "mime": mime or "", "name": name or ""})
         return item["images"]
     return _mutate(client, fn)
 

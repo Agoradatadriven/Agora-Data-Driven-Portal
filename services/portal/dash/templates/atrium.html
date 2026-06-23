@@ -35,7 +35,16 @@
 {%- elif name == 'image' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.7"/><path d="M21 16l-5-5L5 20"/></svg>
 {%- elif name == 'target' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6"/></svg>
 {%- elif name == 'menu' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="6" x2="20.5" y2="6"/><line x1="3.5" y1="12" x2="20.5" y2="12"/><line x1="3.5" y1="18" x2="20.5" y2="18"/></svg>
+{%- elif name == 'file' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8L19 7v14.5H6z"/><path d="M14 2.5V7h4"/></svg>
 {%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
+{%- endif -%}
+{%- endmacro %}
+{#- Render ONE attached file (`s` = {url, mime, id, name}) inside a slide: image -> zoomable <img>,
+   video -> playable thumb, anything else -> a download chip. Used by every carousel/shot row. -#}
+{% macro shot_media(s, alt) -%}
+{%- if s.mime.startswith('video/') -%}<button type="button" class="ax-shot-media ax-vidthumb" data-playvideo="{{ s.url }}" aria-label="Play video"><video class="ax-vidthumb-v" src="{{ s.url }}" muted preload="metadata"></video><span class="ax-ch-play" aria-hidden="true">▶</span></button>
+{%- elif s.mime.startswith('image/') or not s.mime -%}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ alt }}">
+{%- else -%}<a class="ax-shot-media ax-shot-file" href="{{ s.url }}" target="_blank" rel="noopener noreferrer" download title="Download {{ s.name or 'file' }}">{{ ic('file') }}<span class="ax-shot-file-name">{{ s.name or 'Download file' }}</span></a>
 {%- endif -%}
 {%- endmacro %}
 {% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','settings':'Notification settings'} %}
@@ -380,6 +389,11 @@
     .ax-vidthumb-v { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
     .ax-vidthumb:hover { filter: brightness(1.06); }
     .ax-vidthumb .ax-ch-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; }
+    /* Non-media attachment (PDF, doc, zip, …): a download chip in place of the image/video. */
+    .ax-shot-file { cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 14px; box-sizing: border-box; background: #f4f3fb; color: var(--ax-purple-d, #5C4BD0); text-decoration: none; }
+    .ax-shot-file:hover { background: #ecebf8; }
+    .ax-shot-file .ax-ic { width: 30px; height: 30px; }
+    .ax-shot-file-name { font-size: 12px; font-weight: 600; line-height: 1.3; word-break: break-word; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     /* Organic content: collapsible dropdown card (brand-kit themed) */
     .ax-content.ax-collapse { display: block; padding: 0; overflow: hidden; }
     .ax-cardhead { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; width: 100%; padding: 12px 16px; }
@@ -729,7 +743,45 @@
        would make the main content auto-place into it and squash to ~0 -- that was the bug. */
     .atrium.nav-collapsed .ax-app { grid-template-columns: 1fr; }
     .atrium.nav-collapsed .ax-side { display: none; }
-    @media (max-width: 720px) { .ax-app { grid-template-columns: 1fr; } .ax-side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; } .ax-side-card, .ax-nav .ax-count { display: none; } .ax-nav { flex-direction: row; flex-wrap: wrap; } .ax-editrow { grid-template-columns: 1fr; } }
+    /* ---- Phones: the sidebar folds into a compact top header, the topbar action pills wrap
+       instead of forcing a horizontal scroll, and content padding tightens. ---- */
+    @media (max-width: 720px) {
+      .ax-app { grid-template-columns: 1fr; }
+      .ax-side {
+        position: static; height: auto; flex-direction: column; gap: 10px;
+        padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--ax-line);
+      }
+      .ax-brand { padding: 2px 2px 10px; }
+      .ax-side-card, .ax-nav .ax-count { display: none; }
+      /* Nav becomes a single horizontal strip you can swipe through (no multi-row wrap). */
+      .ax-nav { flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+      .ax-nav::-webkit-scrollbar { height: 0; }
+      .ax-nav a { flex: 0 0 auto; white-space: nowrap; padding: 9px 12px; }
+      .ax-top { padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
+      .ax-top h1 { font-size: 16px; }
+      .ax-top-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .ax-clock { display: none; }
+      .ax-body { padding: 18px 16px 48px; }
+      /* Inline grid-template-columns on the admin edit rows beats the stylesheet, so force the
+         single column with !important — otherwise these never stack on a phone. */
+      .ax-editrow { grid-template-columns: 1fr !important; }
+      .ax-greet { font-size: 22px; }
+      .ax-hero-val { font-size: 36px; }
+      .ax-goal-cur { font-size: 28px; }
+    }
+    /* ---- Small phones: collapse the verbose action pills to their icons and tighten the
+       7-column calendar so a full week fits a narrow screen. ---- */
+    @media (max-width: 480px) {
+      .ax-top { padding: 10px 12px; }
+      .ax-body { padding: 16px 12px 44px; }
+      .ax-backadmin span, .ax-signout span { display: none; }
+      .ax-backadmin, .ax-signout { padding: 9px; }
+      .ax-share { padding: 8px 12px; font-size: 12px; }
+      .ax-cal-grid { gap: 3px; }
+      .ax-cal-cell { min-height: 56px; padding: 4px 5px; border-radius: 8px; }
+      .ax-cal-month.is-side .ax-cal-cell { min-height: 40px; }
+      .ax-hero-val { font-size: 32px; }
+    }
   </style>
 </head>
 <body>
@@ -1105,9 +1157,9 @@
 
             {% for p in c.content %}
             {% set _shots = [] %}
-            {% if p.images %}{% for im in p.images %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id ~ '/' ~ im.id, 'mime': im.mime|default('', true), 'id': im.id}) %}{% endfor %}
-            {% elif p.image_object %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id, 'mime': p.image_mime|default('', true), 'id': ''}) %}
-            {% elif p.image %}{% set _ = _shots.append({'url': p.image, 'mime': '', 'id': ''}) %}{% endif %}
+            {% if p.images %}{% for im in p.images %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id ~ '/' ~ im.id, 'mime': im.mime|default('', true), 'id': im.id, 'name': im.name|default('', true)}) %}{% endfor %}
+            {% elif p.image_object %}{% set _ = _shots.append({'url': '/w/' ~ view.client ~ '/creative/' ~ p.id, 'mime': p.image_mime|default('', true), 'id': '', 'name': ''}) %}
+            {% elif p.image %}{% set _ = _shots.append({'url': p.image, 'mime': '', 'id': '', 'name': ''}) %}{% endif %}
             {% set is_org = chan == 'organic' %}
             {% set collapsible = True %}
             <div class="ax-card ax-content{% if collapsible %} ax-collapse{% endif %}" data-content="{{ p.id }}" data-status="{{ p.status }}" data-type="{{ p.type_tag }}">
@@ -1119,7 +1171,7 @@
                     <div class="ax-car-track" data-cartrack>
                       {% for s in _shots %}
                       <div class="ax-car-slide">
-                        {% if s.mime.startswith('video/') %}<button type="button" class="ax-shot-media ax-vidthumb" data-playvideo="{{ s.url }}" aria-label="Play video"><video class="ax-vidthumb-v" src="{{ s.url }}" muted preload="metadata"></video><span class="ax-ch-play" aria-hidden="true">▶</span></button>{% else %}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ p.ref }} — picture {{ loop.index }}">{% endif %}
+                        {{ shot_media(s, p.ref ~ ' — file ' ~ loop.index) }}
                         {% if is_superadmin and s.id %}<button class="ax-shot-x" type="button" data-removeimg="{{ p.id }}" data-imgid="{{ s.id }}" title="Remove this picture">&times;</button>{% endif %}
                       </div>
                       {% endfor %}
@@ -1140,10 +1192,8 @@
                   {% endif %}
                   {% if is_superadmin %}
                   <div class="ax-shots-admin">
-                    <button class="ax-btn small" type="button" data-addimages="{{ p.id }}">＋ Add picture(s)</button>
-                    <input type="file" accept="image/*,video/*" multiple data-addinput="{{ p.id }}" style="display:none">
-                    <button class="ax-btn small" type="button" data-addvideo="{{ p.id }}">＋ Add video</button>
-                    <input type="file" accept="video/mp4,.mp4" data-addvideoinput="{{ p.id }}" style="display:none">
+                    <button class="ax-btn small" type="button" data-addimages="{{ p.id }}">＋ Attach File</button>
+                    <input type="file" multiple data-addinput="{{ p.id }}" style="display:none">
                     {% if p.image_object and (p.image_mime|default('', true)).startswith('video/') %}
                     <button class="ax-btn danger small" type="button" data-removecreative="{{ p.id }}">Remove video</button>
                     {% endif %}
@@ -1161,16 +1211,6 @@
                     <span class="ax-chev" aria-hidden="true">&#9662;</span>
                   </span>
                 </button>
-                {% if is_superadmin %}
-                <div class="ax-videoform ax-edit-hidden" data-videoform="{{ p.id }}">
-                  <input class="ax-editbox" data-videourl value="{{ p.video_url|default('', true) }}" placeholder="Paste a video link (.mp4, YouTube, Vimeo…)">
-                  <div class="ax-videoform-row">
-                    <button class="ax-btn violet small" type="button" data-videolinksave="{{ p.id }}">Save link</button>
-                    <button class="ax-btn small" type="button" data-videoupload="{{ p.id }}">Upload .mp4 (≤1&nbsp;GB)</button>
-                    {% if p.video_url %}<button class="ax-btn danger small" type="button" data-videoremove="{{ p.id }}">Remove video</button>{% endif %}
-                  </div>
-                </div>
-                {% endif %}
               </div>
               <div class="ax-detail">
               {% endif %}
@@ -1181,7 +1221,7 @@
                   <div class="ax-car-track" data-cartrack>
                     {% for s in _shots %}
                     <div class="ax-car-slide">
-                      {% if s.mime.startswith('video/') %}<button type="button" class="ax-shot-media ax-vidthumb" data-playvideo="{{ s.url }}" aria-label="Play video"><video class="ax-vidthumb-v" src="{{ s.url }}" muted preload="metadata"></video><span class="ax-ch-play" aria-hidden="true">▶</span></button>{% else %}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ p.ref }} picture {{ loop.index }}">{% endif %}
+                      {{ shot_media(s, p.ref ~ ' file ' ~ loop.index) }}
                       {% if is_superadmin and s.id %}<button class="ax-shot-x" type="button" data-removeimg="{{ p.id }}" data-imgid="{{ s.id }}" title="Remove this picture">&times;</button>{% endif %}
                     </div>
                     {% endfor %}
@@ -1199,7 +1239,7 @@
                 <div class="ax-shots{{ ' multi' if _shots|length > 1 else '' }}">
                   {% for s in _shots %}
                   <div class="ax-shot">
-                    {% if s.mime.startswith('video/') %}<button type="button" class="ax-shot-media ax-vidthumb" data-playvideo="{{ s.url }}" aria-label="Play video"><video class="ax-vidthumb-v" src="{{ s.url }}" muted preload="metadata"></video><span class="ax-ch-play" aria-hidden="true">▶</span></button>{% else %}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ p.ref }} picture {{ loop.index }}">{% endif %}
+                    {{ shot_media(s, p.ref ~ ' file ' ~ loop.index) }}
                     {% if is_superadmin and s.id %}<button class="ax-shot-x" type="button" data-removeimg="{{ p.id }}" data-imgid="{{ s.id }}" title="Remove this picture">&times;</button>{% endif %}
                   </div>
                   {% endfor %}
@@ -1210,8 +1250,8 @@
                 {% endif %}
                 {% if is_superadmin %}
                 <div class="ax-shots-admin">
-                  <button class="ax-btn small" type="button" data-addimages="{{ p.id }}">＋ Add picture(s)</button>
-                  <input type="file" accept="image/*,video/*" multiple data-addinput="{{ p.id }}" style="display:none">
+                  <button class="ax-btn small" type="button" data-addimages="{{ p.id }}">＋ Attach File</button>
+                  <input type="file" multiple data-addinput="{{ p.id }}" style="display:none">
                 </div>
                 {% endif %}
               </div>
@@ -1345,10 +1385,8 @@
               <textarea class="ax-editbox" data-nc="caption" placeholder="Description the client will review…"></textarea>
               <input class="ax-editbox" data-nc="video_url" placeholder="Video link (optional) — paste an .mp4 or YouTube/Vimeo URL">
               <div class="ax-newpics">
-                <button class="ax-btn ghost small" type="button" data-newcontentpick="{{ c.id }}">＋ Add picture(s)</button>
-                <input type="file" accept="image/*" multiple data-newcontentinput="{{ c.id }}" style="display:none">
-                <button class="ax-btn ghost small" type="button" data-newvideopick="{{ c.id }}">＋ Add Video</button>
-                <input type="file" accept="video/mp4,video/*" data-newvideoinput="{{ c.id }}" style="display:none">
+                <button class="ax-btn ghost small" type="button" data-newcontentpick="{{ c.id }}">＋ Attached Files</button>
+                <input type="file" multiple data-newcontentinput="{{ c.id }}" style="display:none">
                 <span class="ax-newpics-status" data-newcontentcount="{{ c.id }}"></span>
               </div>
               <button class="ax-btn green small" type="button" data-addcontentbtn="{{ c.id }}">{{ ic('check') }} Add content &amp; notify client</button>
@@ -2552,57 +2590,39 @@
       var picInput = document.querySelector('[data-newcontentinput="' + id + '"]');
       var picBtn = document.querySelector('[data-newcontentpick="' + id + '"]');
       var picCount = document.querySelector('[data-newcontentcount="' + id + '"]');
-      var vidInput = document.querySelector('[data-newvideoinput="' + id + '"]');
-      var vidBtn = document.querySelector('[data-newvideopick="' + id + '"]');
-      // Both pickers feed the same "files" upload (add-images stores and renders videos too); the
-      // shared status line reports whatever is staged for the new piece.
+      // One picker accepts ANY file type; the "files" upload stores images, videos, and other files
+      // alike (images/videos render inline, everything else as a download chip). The status line
+      // reports how many files are staged for the new piece.
       function refreshCount() {
         if (!picCount) { return; }
-        var parts = [];
-        var np = (picInput && picInput.files) ? picInput.files.length : 0;
-        var nv = (vidInput && vidInput.files) ? vidInput.files.length : 0;
-        if (np) { parts.push(np + " picture(s)"); }
-        if (nv) { parts.push("1 video"); }
-        picCount.textContent = parts.length ? (parts.join(" + ") + " ready to upload") : "";
+        var n = (picInput && picInput.files) ? picInput.files.length : 0;
+        picCount.textContent = n ? (n + " file" + (n === 1 ? "" : "s") + " ready to upload") : "";
       }
       if (picBtn && picInput) {
         picBtn.addEventListener("click", function () { picInput.click(); });
         picInput.addEventListener("change", refreshCount);
       }
-      if (vidBtn && vidInput) {
-        vidBtn.addEventListener("click", function () { vidInput.click(); });
-        vidInput.addEventListener("change", function () {
-          if (vidInput.files && vidInput.files.length) {
-            var f = vidInput.files[0];
-            var isMp4 = f.type === "video/mp4" || /\.mp4$/i.test(f.name);
-            if (!isMp4) { adminMsg("Please choose an .mp4 video.", false); vidInput.value = ""; }
-          }
-          refreshCount();
-        });
-      }
       btn.addEventListener("click", function () {
         var fields = fieldsFrom(panel, "data-nc", { campaign_id: id });
-        var hasPics = !!(picInput && picInput.files && picInput.files.length);
-        var hasVid = !!(vidInput && vidInput.files && vidInput.files.length);
-        if (!fields.ref && !fields.type_tag && !fields.caption && !hasPics && !hasVid) {
-          adminMsg("Add at least a reference, type, caption, a picture, or a video.", false); return;
+        var hasFiles = !!(picInput && picInput.files && picInput.files.length);
+        if (!fields.ref && !fields.type_tag && !fields.caption && !hasFiles) {
+          adminMsg("Add at least a reference, type, caption, or a file.", false); return;
         }
         btn.setAttribute("disabled", "disabled");
-        if (hasPics || hasVid) { adminMsg("Adding content and uploading media…", true); }
-        // Create the content first, then attach the chosen pictures/video to its new id before reloading.
+        if (hasFiles) { adminMsg("Adding content and uploading files…", true); }
+        // Create the content first, then attach the chosen files to its new id before reloading.
         post("/admin/content", fields)
           .then(function (data) {
             var newId = data ? data.id : null;
-            if ((!hasPics && !hasVid) || !newId) { window.location.reload(); return; }
+            if (!hasFiles || !newId) { window.location.reload(); return; }
             var files = [];
             var i;
-            if (hasPics) { for (i = 0; i < picInput.files.length; i++) { files.push(picInput.files[i]); } }
-            if (hasVid) { files.push(vidInput.files[0]); }
+            for (i = 0; i < picInput.files.length; i++) { files.push(picInput.files[i]); }
             uploadImages(newId, files)
               .then(function () { window.location.reload(); })
               .catch(function () {
-                // The content piece WAS created; only the media failed. Show it, with a note.
-                adminMsg("Content added, but the media failed (a video may exceed 30 MB — use a link). Open the new card to add it.", false);
+                // The content piece WAS created; only the files failed. Show it, with a note.
+                adminMsg("Content added, but a file failed (it may exceed 30 MB — use a link). Open the new card to add it.", false);
                 window.setTimeout(function () { window.location.reload(); }, 2500);
               });
           })
@@ -2938,83 +2958,30 @@
     });
   });
 
-  // Admin: add one or more pictures to a ticket, then reload.
+  // Admin "Attach File": ONE picker for any file type, multiple files. Small files (<=30 MB) upload
+  // through the app into the piece's image[] list; a single large file (>30 MB, up to 1 GB -- e.g. a
+  // video) goes STRAIGHT to GCS via a signed URL (bypassing Cloud Run's ~32 MiB request cap) and is
+  // stored as the piece's streaming creative, so videos still attach at <=1 GB.
   qsa("[data-addimages]").forEach(function (btn) {
     var id = btn.getAttribute("data-addimages");
     var input = document.querySelector('[data-addinput="' + id + '"]');
     if (!input) { return; }
-    btn.addEventListener("click", function () { input.click(); });
-    input.addEventListener("change", function () {
-      if (!input.files || !input.files.length) { return; }
+    var DIRECT_MAX = 30 * 1024 * 1024;        // <=30 MB through the app; larger -> direct to GCS
+    var MAX_BYTES = 1024 * 1024 * 1024;       // hard ceiling: 1 GB
+    function reload() { window.location.reload(); }
+    function fail(msg) { adminMsg(msg || "Upload failed. Please try again.", false); btn.removeAttribute("disabled"); input.value = ""; }
+    // A single large file (typically a video) -> signed-URL direct-to-GCS, with an in-app fallback
+    // when signing is unavailable (e.g. local dev). Mirrors the former "Upload .mp4 (<=1 GB)" flow.
+    function uploadLarge(file) {
+      var ctype = file.type || "application/octet-stream";
       btn.setAttribute("disabled", "disabled");
-      uploadImages(id, input.files)
-        .then(function () { window.location.reload(); })
-        .catch(function () { btn.removeAttribute("disabled"); adminMsg("Upload failed. Please try again.", false); });
-    });
-  });
-
-  // Admin: remove a single picture.
-  qsa("[data-removeimg]").forEach(function (btn) {
-    btn.addEventListener("click", function (ev) {
-      ev.stopPropagation();
-      adminAction("/admin/remove-image", { content_id: btn.getAttribute("data-removeimg"), image_id: btn.getAttribute("data-imgid") }, btn);
-    });
-  });
-
-  // Admin: add a video to a content piece — either a pasted link OR an .mp4 file upload (mp4 only).
-  // The link half posts to /admin/video-link; the file half reuses the creative upload (add-images),
-  // which already stores and renders video creatives.
-  qsa("[data-addvideo]").forEach(function (btn) {
-    var form = document.querySelector('[data-videoform="' + btn.getAttribute("data-addvideo") + '"]');
-    btn.addEventListener("click", function (ev) { ev.stopPropagation(); if (form) { form.classList.toggle("ax-edit-hidden"); } });
-  });
-  qsa("[data-videolinksave]").forEach(function (btn) {
-    var id = btn.getAttribute("data-videolinksave");
-    var form = document.querySelector('[data-videoform="' + id + '"]');
-    var input = form ? form.querySelector("[data-videourl]") : null;
-    btn.addEventListener("click", function () {
-      var url = input ? input.value.trim() : "";
-      if (url && url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) {
-        adminMsg("Enter a valid http(s) video link.", false);
-        return;
-      }
-      adminAction("/admin/video-link", { content_id: id, url: url }, btn);
-    });
-  });
-  qsa("[data-videoremove]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      adminAction("/admin/video-link", { content_id: btn.getAttribute("data-videoremove"), url: "" }, btn);
-    });
-  });
-  qsa("[data-videoupload]").forEach(function (btn) {
-    var id = btn.getAttribute("data-videoupload");
-    var input = document.querySelector('[data-addvideoinput="' + id + '"]');
-    if (!input) { return; }
-    btn.addEventListener("click", function () { input.click(); });
-    input.addEventListener("change", function () {
-      if (!input.files || !input.files.length) { return; }
-      var file = input.files[0];
-      var isMp4 = file.type === "video/mp4" || /\.mp4$/i.test(file.name);
-      if (!isMp4) { adminMsg("Please choose an .mp4 file.", false); input.value = ""; return; }
-      var MAX_BYTES = 1024 * 1024 * 1024;          // hard ceiling: 1 GB
-      if (file.size > MAX_BYTES) { adminMsg("That video is over 1 GB. Please use a smaller file or paste a link.", false); input.value = ""; return; }
-      var ctype = "video/mp4";
-      var DIRECT_MAX = 30 * 1024 * 1024;           // <=30 MB goes through the app; larger -> direct to GCS
-      btn.setAttribute("disabled", "disabled");
-      function done() { window.location.reload(); }
-      function fail(msg) { adminMsg(msg || "Upload failed. Try again.", false); btn.removeAttribute("disabled"); input.value = ""; }
-      // The in-app upload path: used for small files, AND as the fallback when no signed URL is
-      // available (e.g. local dev, which has no GCS to sign for — the in-app route accepts large
-      // files off-cloud). Stored as the piece's creative (renders inline).
       function inApp() {
         var body = new FormData();
         body.append("content_id", id);
         body.append("file", file);
-        adminMsg("Uploading video…", true);
-        postData("/admin/upload-creative", body).then(done).catch(function () { fail("Upload failed. Try a smaller file or paste a link."); });
+        adminMsg("Uploading…", true);
+        postData("/admin/upload-creative", body).then(reload).catch(function () { fail("Upload failed. Try a smaller file."); });
       }
-      // Large files go STRAIGHT to GCS via a signed URL, bypassing Cloud Run's ~32 MB request cap.
-      if (file.size <= DIRECT_MAX) { inApp(); return; }
       adminMsg("Preparing large upload…", true);
       var meta = new FormData();
       meta.append("content_id", id);
@@ -3033,12 +3000,42 @@
             var c2 = new FormData();
             c2.append("content_id", id);
             c2.append("content_type", ctype);
-            postData("/admin/creative-confirm", c2).then(done).catch(function () { fail("Uploaded, but could not be recorded. Refresh and retry."); });
+            postData("/admin/creative-confirm", c2).then(reload).catch(function () { fail("Uploaded, but could not be recorded. Refresh and retry."); });
           } else { fail("Direct upload failed (" + xhr.status + "). Try again."); }
         };
         xhr.onerror = function () { fail("Direct upload failed. Check your connection and retry."); };
         xhr.send(file);
       }).catch(function () { inApp(); });
+    }
+    btn.addEventListener("click", function () { input.click(); });
+    input.addEventListener("change", function () {
+      if (!input.files || !input.files.length) { return; }
+      var files = input.files;
+      var i, hasLarge = false;
+      for (i = 0; i < files.length; i++) {
+        if (files[i].size > MAX_BYTES) { adminMsg("That file is over 1 GB. Please use a smaller file.", false); input.value = ""; return; }
+        if (files[i].size > DIRECT_MAX) { hasLarge = true; }
+      }
+      // A large file uses the single streaming creative slot, which holds ONE object -- so it must be
+      // attached on its own (small files batch into the image list instead).
+      if (hasLarge) {
+        if (files.length > 1) { adminMsg("Files over 30 MB (e.g. videos) must be attached one at a time.", false); input.value = ""; return; }
+        uploadLarge(files[0]);
+        return;
+      }
+      btn.setAttribute("disabled", "disabled");
+      adminMsg("Uploading…", true);
+      uploadImages(id, files)
+        .then(reload)
+        .catch(function () { fail("Upload failed. Please try again."); });
+    });
+  });
+
+  // Admin: remove a single picture.
+  qsa("[data-removeimg]").forEach(function (btn) {
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      adminAction("/admin/remove-image", { content_id: btn.getAttribute("data-removeimg"), image_id: btn.getAttribute("data-imgid") }, btn);
     });
   });
 

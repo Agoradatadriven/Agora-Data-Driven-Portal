@@ -243,11 +243,29 @@ def run():
     _check("local backend accepts a >30 MB in-app .mp4", r.status_code == 200 and r.get_json().get("ok") is True)
     c.post("/w/%s/admin/remove-creative" % CLIENT, data={"content_id": "RVR-099"})
 
-    # Reject a non-media upload (neither image nor video).
+    # Reject a non-media upload on the LEGACY single-creative route (still image/video only).
     r = c.post("/w/%s/admin/upload-creative" % CLIENT,
                data={"content_id": "RVR-099", "file": (io.BytesIO(b"x"), "a.txt", "text/plain")},
                content_type="multipart/form-data")
-    _check("non-media upload rejected", r.status_code == 400)
+    _check("non-media single-creative upload rejected", r.status_code == 400)
+
+    # add-images now accepts ANY file type: a non-media file (e.g. PDF) is stored, served as a
+    # download (Content-Disposition attachment with its original name), and rendered as a file chip.
+    r = c.post("/w/%s/admin/add-images" % CLIENT,
+               data={"content_id": "RVR-014", "files": (io.BytesIO(b"%PDF-1.4 hi"), "brief.pdf", "application/pdf")},
+               content_type="multipart/form-data")
+    j = r.get_json()
+    _check("add-images accepts a non-media file",
+           r.status_code == 200 and j.get("ok") is True and bool(j.get("added")))
+    fid = j["added"][0]["id"]
+    served = c.get("/w/%s/creative/RVR-014/%s" % (CLIENT, fid))
+    _check("non-media file served with its mime + download filename",
+           served.status_code == 200 and served.mimetype == "application/pdf"
+           and 'filename="brief.pdf"' in served.headers.get("Content-Disposition", ""))
+    page = c.get("/w/%s/" % CLIENT).get_data(as_text=True)
+    _check("non-media file renders as a download chip",
+           "ax-shot-file" in page and "brief.pdf" in page)
+    c.post("/w/%s/admin/remove-image" % CLIENT, data={"content_id": "RVR-014", "image_id": fid})
 
     # Signed-URL "bypass the cap" flow (the GCS signing itself needs cloud; here we test the app side).
     # 1) upload-url degrades gracefully on the local backend (no signing) -> ok:false, never crashes.
