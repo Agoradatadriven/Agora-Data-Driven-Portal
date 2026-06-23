@@ -683,8 +683,8 @@
     /* Content-card Edit details / Delete share the campaign-tools look (navy / red-outline) -- one source of truth. */
     .ax-camp-tools .ax-btn.admin, [data-contenttools] .ax-btn.admin { background: linear-gradient(135deg, #283568 0%, #18204A 100%); }                  /* Edit strategy + Edit details -> navy */
     .ax-camp-tools .ax-btn.admin:hover, [data-contenttools] .ax-btn.admin:hover { background: linear-gradient(135deg, #18204A 0%, #0F1530 100%); }
-    .ax-camp-tools .ax-btn.danger, [data-contenttools] .ax-btn.danger { background: var(--ax-white); color: var(--ax-bad); border-color: rgba(229,65,62,.55); box-shadow: none; }  /* Delete campaign + Delete -> red outline */
-    .ax-camp-tools .ax-btn.danger:hover, [data-contenttools] .ax-btn.danger:hover { background: rgba(229,65,62,.08); border-color: var(--ax-bad); color: var(--ax-bad); }
+    .ax-camp-tools .ax-btn.danger, [data-contenttools] .ax-btn.danger, .ax-pane-tools .ax-btn.danger { background: var(--ax-white); color: var(--ax-bad); border-color: rgba(229,65,62,.55); box-shadow: none; }  /* Delete campaign + Delete -> red outline */
+    .ax-camp-tools .ax-btn.danger:hover, [data-contenttools] .ax-btn.danger:hover, .ax-pane-tools .ax-btn.danger:hover { background: rgba(229,65,62,.08); border-color: var(--ax-bad); color: var(--ax-bad); }
     .ax-editbox { width: 100%; font: inherit; font-size: 13.5px; padding: 9px 11px; border: 1px solid var(--ax-violet); border-radius: 9px; background: #fbfbff; outline: none; margin-bottom: 8px; }
     textarea.ax-editbox { min-height: 60px; resize: vertical; }
     .ax-editrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -1080,6 +1080,9 @@
           {% if is_superadmin %}
           <div class="ax-pane-tools">
             <button class="ax-btn violet small" type="button" data-modalopen="addcampaign-{{ chan }}">＋ Add campaign</button>
+            {% for c in camps %}
+            <button class="ax-btn danger small" type="button" data-campdel="{{ tab }}" data-campid="{{ c.id }}" data-campdelete="{{ c.id }}" data-campname="{{ c.name }}" {% if not loop.first %}style="display:none"{% endif %}>Delete campaign</button>
+            {% endfor %}
           </div>
           {% endif %}
           {% if camps %}
@@ -1123,7 +1126,6 @@
             <div class="ax-admin-tools ax-camp-tools">
               <button class="ax-btn green small" type="button" data-modalopen="addcontent-{{ c.id }}">＋ Add content</button>
               <button class="ax-btn admin small" type="button" data-stratedit="{{ c.id }}">Edit strategy</button>
-              <button class="ax-btn danger small" type="button" data-campdelete="{{ c.id }}" data-campname="{{ c.name }}">Delete campaign</button>
             </div>
             <div class="ax-edit-hidden" data-stratform="{{ c.id }}" style="margin-top:10px">
               <div class="ax-editrow">
@@ -2007,6 +2009,9 @@
         b.style.display = match ? "" : "none";
         if (match) { chosen = b; }
       });
+      qsa('[data-campdel="' + tab + '"]').forEach(function (b) {
+        b.style.display = (b.getAttribute("data-campid") === id) ? "" : "none";
+      });
       if (chosen) {
         var title = document.querySelector('[data-camptitle="' + tab + '"]');
         if (title) { title.textContent = chosen.getAttribute("data-campname"); }
@@ -2025,6 +2030,9 @@
     if (!block) { return; }
     var tab = block.getAttribute("data-campblock");
     qsa('[data-campblock="' + tab + '"]').forEach(function (b) {
+      b.style.display = (b.getAttribute("data-campid") === id) ? "" : "none";
+    });
+    qsa('[data-campdel="' + tab + '"]').forEach(function (b) {
       b.style.display = (b.getAttribute("data-campid") === id) ? "" : "none";
     });
     var title = document.querySelector('[data-camptitle="' + tab + '"]');
