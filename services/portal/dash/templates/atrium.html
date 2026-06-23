@@ -401,6 +401,7 @@
     .ax-cth-name { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; letter-spacing: -.3px; color: var(--ax-ink); }
     .ax-cth-name .ax-ic { width: 15px; height: 15px; color: var(--ax-green-d); }
     .ax-typeview > .ax-breakdown,
+    .ax-typeview > .ax-strat-editrow,
     .ax-typeview > .ax-strategy,
     .ax-typeview > .ax-admin-tools,
     .ax-typeview > .ax-edit-hidden,
@@ -412,6 +413,7 @@
     .ax-strat-col h3 { font-size: 12px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; margin: 0 0 8px; }
     .ax-strat-col.what h3 { color: var(--ax-ink); }
     .ax-strat-col.why h3 { color: var(--ax-violet-d); }
+    .ax-strat-editrow { display: flex; justify-content: flex-end; margin: 0 0 10px; }   /* Edit strategy: above the Insight/Action card, upper-right */
     .ax-strat-col p { margin: 0; font-size: 13.5px; color: #2b2f38; }
     .ax-strat-list { margin: 0; padding-left: 18px; list-style: disc; }
     .ax-strat-list li { font-size: 13.5px; color: #2b2f38; margin: 0 0 6px; line-height: 1.5; }
@@ -525,6 +527,7 @@
     .ax-ch-main { min-width: 0; }
     .ax-ch-type { display: inline-block; margin-bottom: 6px; }
     .ax-ch-meta { display: block; font-size: 12px; font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ax-violet-d); margin-bottom: 4px; }
+    .ax-ch-title { font-family: "Inter", "Inter var", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
     .ax-ch-cap { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; color: #3a4050; line-height: 1.4; }
     .ax-ch-right { display: flex; align-items: center; gap: 10px; }
     .ax-chev { color: #aab0bd; font-size: 13px; transition: transform .2s ease; }
@@ -633,11 +636,10 @@
     .ax-caldlg-goto { flex: 0 0 auto; display: inline-grid; place-items: center; width: 30px; height: 30px; font-size: 16px; font-weight: 900; color: var(--ax-violet-d); background: var(--ax-violet-bg); border: 0; border-radius: 8px; cursor: pointer; transition: background .12s; }
     .ax-caldlg-goto:hover { background: #E4DEFF; }
     .ax-caldlg-row.late .ax-caldlg-lab { color: #C0322F; }
-    .ax-caldlg-add { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ax-line); }
-    .ax-caldlg-addhd { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--ax-sub); margin-bottom: 9px; }
-    .ax-caldlg-addrow { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
-    .ax-caldlg-addrow .ax-editbox { margin: 0; }
-    @media (max-width: 480px) { .ax-caldlg-addrow { grid-template-columns: 1fr; } }
+    /* Event-row actions = a 2x2 grid: Mark-as-done / kind (top), Delete / open-arrow (bottom). */
+    .ax-cdlg-actions { flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; margin-top: 2px; }
+    .ax-cdlg-actions > .ax-btn, .ax-cdlg-actions > .ax-cdlg-kind { width: 100%; margin: 0; }
+    .ax-cdlg-actions .ax-caldlg-goto { width: 100%; height: auto; padding: 6px 11px; font-size: 12px; font-weight: 800; grid-auto-flow: column; gap: 6px; }
     /* Month-history popup: read-only, navigable month/year + events & status list */
     .ax-hist-btn { width: 100%; margin-top: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 14px; font: inherit; font-size: 13.5px; font-weight: 800; color: var(--ax-violet-d); background: var(--ax-violet-bg); border: 1px solid transparent; border-radius: 11px; cursor: pointer; transition: border-color .12s; }
     .ax-hist-btn:hover { border-color: var(--ax-violet); }
@@ -825,8 +827,8 @@
     .ax-camp-tools .ax-btn.green { background: linear-gradient(135deg, #3F4654 0%, #2D3340 100%); }                  /* Add content -> slate */
     .ax-camp-tools .ax-btn.green:hover { background: linear-gradient(135deg, #2D3340 0%, #1E222B 100%); }
     /* Content-card Edit details / Delete share the campaign-tools look (navy / red-outline) -- one source of truth. */
-    .ax-camp-tools .ax-btn.admin, [data-contenttools] .ax-btn.admin { background: linear-gradient(135deg, #283568 0%, #18204A 100%); }                  /* Edit strategy + Edit details -> navy */
-    .ax-camp-tools .ax-btn.admin:hover, [data-contenttools] .ax-btn.admin:hover { background: linear-gradient(135deg, #18204A 0%, #0F1530 100%); }
+    .ax-camp-tools .ax-btn.admin, [data-contenttools] .ax-btn.admin, .ax-strat-editrow .ax-btn.admin { background: linear-gradient(135deg, #283568 0%, #18204A 100%); }                  /* Edit strategy + Edit details -> navy */
+    .ax-camp-tools .ax-btn.admin:hover, [data-contenttools] .ax-btn.admin:hover, .ax-strat-editrow .ax-btn.admin:hover { background: linear-gradient(135deg, #18204A 0%, #0F1530 100%); }
     .ax-camp-tools .ax-btn.danger, [data-contenttools] .ax-btn.danger, .ax-pane-tools .ax-btn.danger { background: var(--ax-white); color: var(--ax-bad); border-color: rgba(229,65,62,.55); box-shadow: none; }  /* Delete campaign + Delete -> red outline */
     .ax-camp-tools .ax-btn.danger:hover, [data-contenttools] .ax-btn.danger:hover, .ax-pane-tools .ax-btn.danger:hover { background: rgba(229,65,62,.08); border-color: var(--ax-bad); color: var(--ax-bad); }
     .ax-editbox { width: 100%; font: inherit; font-size: 13.5px; padding: 9px 11px; border: 1px solid var(--ax-violet); border-radius: 9px; background: #fbfbff; outline: none; margin-bottom: 8px; }
@@ -1337,6 +1339,11 @@
               {{ ic('doc') }}<span>View the full breakdown</span><span class="ax-bd-arrow">{{ ic('arrow') }}</span>
             </a>
             {% endif %}
+            {% if is_superadmin %}
+            <div class="ax-strat-editrow">
+              <button class="ax-btn admin small ax-strat-edit" type="button" data-modalopen="editstrategy-{{ c.id }}">Edit strategy</button>
+            </div>
+            {% endif %}
             <div class="ax-card ax-strategy">
               <div class="ax-strat-col what"><h3>Insight</h3>
                 <ul class="ax-strat-list" data-strat="what">
@@ -1353,18 +1360,29 @@
             {% if is_superadmin %}
             <div class="ax-admin-tools ax-camp-tools">
               <button class="ax-btn green small" type="button" data-modalopen="addcontent-{{ c.id }}">＋ Add content</button>
-              <button class="ax-btn admin small" type="button" data-stratedit="{{ c.id }}">Edit strategy</button>
             </div>
-            <div class="ax-edit-hidden" data-stratform="{{ c.id }}" style="margin-top:10px">
-              <div class="ax-editrow">
-                <input class="ax-editbox" data-sf="name" value="{{ c.name }}" placeholder="Campaign name">
-                <input class="ax-editbox" data-sf="eyebrow" value="{{ c.eyebrow }}" placeholder="Eyebrow">
-              </div>
-              <textarea class="ax-editbox" data-sf="what" placeholder="Insight — why this campaign matters (one bullet per line)">{{ c.strategy.what }}</textarea>
-              <textarea class="ax-editbox" data-sf="why" placeholder="Action — our solution (one bullet per line)">{{ c.strategy.why }}</textarea>
-              <div class="ax-actions">
-                <button class="ax-btn violet small" type="button" data-stratsave="{{ c.id }}">Save strategy</button>
-                <button class="ax-btn ghost small" type="button" data-stratcancel="{{ c.id }}">Cancel</button>
+            <div class="ax-modal" data-modal="editstrategy-{{ c.id }}" hidden>
+              <div class="ax-modal-card">
+                <button class="ax-modal-x" type="button" data-modalclose aria-label="Close">&times;</button>
+                <div data-stratform="{{ c.id }}">
+                  <h3>Edit strategy</h3>
+                  <div class="ax-editrow">
+                    <input class="ax-editbox" data-sf="name" value="{{ c.name }}" placeholder="Campaign name">
+                    <input class="ax-editbox" data-sf="eyebrow" value="{{ c.eyebrow }}" placeholder="Eyebrow">
+                  </div>
+                  <div class="ax-strat-doc" style="margin-top:14px">
+                    <span class="ax-doc-label">{{ ic('sparkle') }} Strategy doc → AI writes the strategy</span>
+                    <input class="ax-strat-doc-in" data-docurl="{{ c.id }}" value="{{ c.strategy_doc|default('', true) }}" placeholder="Paste a Google Doc link…">
+                    <button class="ax-btn violet small" type="button" data-docgen="{{ c.id }}">{{ ic('sparkle') }} Regenerate</button>
+                    <p class="ax-doc-help">Paste a link and hit Regenerate — AI reads the doc and rewrites the &ldquo;Insight / Action&rdquo; bullets below. The client also gets a &ldquo;View the full breakdown&rdquo; link to the doc. Optional — you can skip it and write the strategy by hand.</p>
+                  </div>
+                  <textarea class="ax-editbox" data-sf="what" placeholder="Insight — why this campaign matters (one bullet per line)">{{ c.strategy.what }}</textarea>
+                  <textarea class="ax-editbox" data-sf="why" placeholder="Action — our solution (one bullet per line)">{{ c.strategy.why }}</textarea>
+                  <div class="ax-actions">
+                    <button class="ax-btn violet small" type="button" data-stratsave="{{ c.id }}">Save strategy</button>
+                    <button class="ax-btn ghost small" type="button" data-modalclose>Cancel</button>
+                  </div>
+                </div>
               </div>
             </div>
             {% endif %}
@@ -1435,7 +1453,7 @@
                 <button class="ax-cardhead-toggle" type="button" data-cardtoggle aria-expanded="false">
                   <span class="ax-ch-main">
                     <span class="ax-tag plain ax-ch-type">{{ p.type_tag }}</span>
-                    <span class="ax-ch-meta">{{ p.ref }} &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</span>
+                    <span class="ax-ch-meta"><span class="ax-ch-title">{{ p.ref }}</span> &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</span>
                     <span class="ax-ch-cap">{{ p.caption }}</span>
                   </span>
                   <span class="ax-ch-right">
@@ -1796,19 +1814,6 @@
                 <button class="ax-caldlg-x" type="button" data-calclose aria-label="Close">&times;</button>
               </div>
               <div class="ax-caldlg-list" data-caldlg-list></div>
-              <div class="ax-caldlg-add">
-                <div class="ax-caldlg-addhd">Add an event</div>
-                <div class="ax-caldlg-addrow">
-                  <input class="ax-editbox" data-cdlg="label" placeholder="Label (e.g. Reel goes live)">
-                  <select class="ax-editbox" data-cdlg="kind">
-                    <option value="paid">Paid</option>
-                    <option value="organic">Organic</option>
-                    <option value="due">Due</option>
-                    <option value="milestone">Milestone</option>
-                  </select>
-                  <button class="ax-btn violet small" type="button" data-cdlg-add>Add event</button>
-                </div>
-              </div>
             </div>
           </div>
           {% endif %}
@@ -2834,15 +2839,8 @@
     }
     function toggleHidden(el) { if (el) { el.classList.toggle("ax-edit-hidden"); } }
 
-    // --- Strategy: edit / save / cancel ---
-    qsa("[data-stratedit]").forEach(function (btn) {
-      var form = document.querySelector('[data-stratform="' + aq(btn.getAttribute("data-stratedit")) + '"]');
-      btn.addEventListener("click", function () { toggleHidden(form); });
-    });
-    qsa("[data-stratcancel]").forEach(function (btn) {
-      var form = document.querySelector('[data-stratform="' + aq(btn.getAttribute("data-stratcancel")) + '"]');
-      btn.addEventListener("click", function () { if (form) { form.classList.add("ax-edit-hidden"); } });
-    });
+    // --- Strategy: save --- (Edit strategy opens in a modal; open/close is handled by the
+    // shared [data-modalopen]/[data-modalclose] machinery.)
     qsa("[data-stratsave]").forEach(function (btn) {
       var id = btn.getAttribute("data-stratsave");
       var form = document.querySelector('[data-stratform="' + aq(id) + '"]');
@@ -3134,9 +3132,6 @@
       try { allEvents = JSON.parse(stack.getAttribute("data-caldata") || "[]"); } catch (e) { allEvents = []; }
       var listEl = dlg.querySelector("[data-caldlg-list]");
       var titleEl = dlg.querySelector("[data-caldlg-title]");
-      var addLabel = dlg.querySelector('[data-cdlg="label"]');
-      var addKind = dlg.querySelector('[data-cdlg="kind"]');
-      var addBtn = dlg.querySelector("[data-cdlg-add]");
       var openDay = "";
       var MON = ["January", "February", "March", "April", "May", "June",
                  "July", "August", "September", "October", "November", "December"];
@@ -3234,31 +3229,31 @@
             lab.appendChild(document.createTextNode(" "));
             lab.appendChild(ltag);
           }
-          row.appendChild(lab);
-
-          // Linked content events show where they came from + an arrow that opens the piece.
+          // Linked content events show where they came from (a pill next to the title) + an
+          // arrow that opens the piece (placed lower-right in the action grid below).
+          var go = null;
           if (fromContent) {
             var src = document.createElement("span");
             var isPaid = (e.kind === "paid") || (e.tab === "leadgen");
             src.className = "ax-caldlg-src " + (isPaid ? "paid" : "organic");
             src.textContent = isPaid ? "Lead Generation" : "Organic Content";
-            row.appendChild(src);
+            lab.appendChild(document.createTextNode(" "));
+            lab.appendChild(src);
 
-            var go = document.createElement("button");
+            go = document.createElement("button");
             go.type = "button";
             go.className = "ax-caldlg-goto";
             go.setAttribute("title", "Open this content");
-            go.setAttribute("aria-label", "Open this content");
-            go.innerHTML = "&rarr;";
+            go.setAttribute("aria-label", "Go to content");
+            go.innerHTML = "Go to content &rarr;";
             go.addEventListener("click", function () { gotoContent(e.content_id, e.tab); });
-            row.appendChild(go);
           }
+          row.appendChild(lab);
 
-          var ksel = kindSelect(e.kind || "milestone");
-          ksel.addEventListener("change", function () {
-            calPost({ op: "edit", index: e.index, date: e.date, label: e.label || "", kind: ksel.value }, ksel);
-          });
-          row.appendChild(ksel);
+          // Actions = a 2x2 grid: Mark-as-done (top-left) / kind (top-right),
+          // Delete (lower-left) / open-arrow (lower-right, full-width).
+          var actions = document.createElement("div");
+          actions.className = "ax-cdlg-actions";
 
           var doneBtn = document.createElement("button");
           doneBtn.type = "button";
@@ -3267,7 +3262,13 @@
           doneBtn.addEventListener("click", function () {
             calPost({ op: "status", index: e.index, status: isDone ? "" : "done" }, doneBtn);
           });
-          row.appendChild(doneBtn);
+          actions.appendChild(doneBtn);
+
+          var ksel = kindSelect(e.kind || "milestone");
+          ksel.addEventListener("change", function () {
+            calPost({ op: "edit", index: e.index, date: e.date, label: e.label || "", kind: ksel.value }, ksel);
+          });
+          actions.appendChild(ksel);
 
           var delBtn = document.createElement("button");
           delBtn.type = "button";
@@ -3276,15 +3277,17 @@
           delBtn.addEventListener("click", function () {
             calPost({ op: "delete", index: e.index }, delBtn);
           });
-          row.appendChild(delBtn);
+          actions.appendChild(delBtn);
+
+          if (go) { actions.appendChild(go); }
+
+          row.appendChild(actions);
           listEl.appendChild(row);
         });
       }
       function openDayDlg(day) {
         openDay = day;
         if (titleEl) { titleEl.textContent = prettyDay(day); }
-        if (addLabel) { addLabel.value = ""; }
-        if (addKind) { addKind.value = "paid"; }
         renderList(day);
         dlg.hidden = false;
       }
@@ -3300,12 +3303,6 @@
         });
       });
       qsa("[data-calclose]", dlg).forEach(function (b) { b.addEventListener("click", closeDlg); });
-      if (addBtn) {
-        addBtn.addEventListener("click", function () {
-          if (!openDay) { return; }
-          calPost({ op: "add", date: openDay, label: addLabel ? addLabel.value : "", kind: addKind ? addKind.value : "milestone" }, addBtn);
-        });
-      }
       document.addEventListener("keydown", function (ev) {
         if (ev.key === "Escape" && !dlg.hidden) { closeDlg(); }
       });

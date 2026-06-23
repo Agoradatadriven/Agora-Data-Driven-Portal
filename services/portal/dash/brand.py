@@ -56,30 +56,45 @@ def _logo(ink, sub):
     ) % (ink, _FONT, ink, _FONT, sub)
 
 
-def _bundled_png_logo(filename, w, h, disp_h=32):
-    """Wrap a bundled PNG (dash/assets/<filename>) as a self-contained data-URI SVG, or None.
-
-    The REAL Agora artwork ships as a PNG (not vector), so we inline it as a data URI -- still
-    self-contained (no external ref). The viewBox preserves aspect, so CSS height controls the size.
-    """
-    path = os.path.join(os.path.dirname(__file__), "assets", filename)
-    try:
-        with open(path, "rb") as fh:
-            uri = "data:image/png;base64," + base64.b64encode(fh.read()).decode("ascii")
-    except OSError:
-        return None
-    disp_w = round(w * disp_h / h)
+def _agora_atrium_logo(disp_h=36):
+    """The AGORA Atrium master lockup: the gradient A/D monogram + the AGORA wordmark with an
+    'ATRIUM' subline flanked by brand-gradient rules. Self-contained SVG (no external refs) -- the
+    wordmark uses the system font stack and the mark + rules share the green->blue->violet brand
+    gradient. CSS height controls the rendered size (the viewBox preserves the aspect ratio)."""
+    vb_w, vb_h = 384, 104
+    disp_w = round(vb_w * disp_h / vb_h)
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
-        'width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="AGORA Data Driven">'
-        '<image href="%s" xlink:href="%s" width="%d" height="%d"/></svg>'
-    ) % (disp_w, disp_h, w, h, uri, uri, w, h)
+        '<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" '
+        'role="img" aria-label="AGORA Atrium">'
+        '<defs>'
+        '<linearGradient id="ag-mark" gradientUnits="userSpaceOnUse" x1="10" y1="96" x2="86" y2="10">'
+        '<stop offset="0" stop-color="%s"/><stop offset="0.5" stop-color="#4C8DD2"/>'
+        '<stop offset="1" stop-color="%s"/></linearGradient>'
+        '<linearGradient id="ag-rule" gradientUnits="userSpaceOnUse" x1="120" y1="0" x2="320" y2="0">'
+        '<stop offset="0" stop-color="%s"/><stop offset="0.5" stop-color="#4C8DD2"/>'
+        '<stop offset="1" stop-color="%s"/></linearGradient>'
+        '</defs>'
+        '<g fill="none" stroke="url(#ag-mark)" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M36 8 L12 92 L40 92 Z" stroke-width="3"/>'
+        '<path d="M30 92 L44 44" stroke-width="2" opacity="0.5"/>'
+        '<path d="M46 26 L46 92" stroke-width="2.6"/>'
+        '<path d="M46 26 A30 33 0 0 1 46 92" stroke-width="2.6"/>'
+        '</g>'
+        '<text x="132" y="54" font-family="%s" font-size="47" font-weight="700" '
+        'letter-spacing="9" fill="%s">AGORA</text>'
+        '<g stroke="url(#ag-rule)" stroke-width="2.2" stroke-linecap="round">'
+        '<line x1="134" y1="85" x2="166" y2="85"/><line x1="294" y1="85" x2="326" y2="85"/></g>'
+        '<text x="230" y="92" text-anchor="middle" font-family="%s" font-size="19" '
+        'font-weight="700" letter-spacing="8" fill="%s">ATRIUM</text>'
+        '</svg>'
+    ) % (disp_w, disp_h, vb_w, vb_h, GREEN, PURPLE, GREEN, PURPLE, _FONT, INK, _FONT, INK)
 
 
-# Master logo for LIGHT backgrounds (Atrium sidebar, portal header, login card). Prefer the REAL
-# Agora artwork bundled at dash/assets/agora_logo.png (420x101); fall back to the monochrome line-art
-# lockup if it is absent. assets/logo.svg mirrors this same data-URI wrapper for seed_workspace.
-AGORA_LOGO_LIGHT = _bundled_png_logo("agora_logo.png", 420, 101) or _logo(INK, CHARCOAL)
+# Master logo for LIGHT backgrounds (portal header, login card, team console, dashboard chrome).
+# The AGORA Atrium lockup -- the gradient A/D monogram + AGORA wordmark + an "ATRIUM" subline
+# flanked by brand-gradient rules. Self-contained vector SVG; assets/logo.svg mirrors this same
+# artwork so seed_workspace embeds the SAME mark into each workspace's sidebar.
+AGORA_LOGO_LIGHT = _agora_atrium_logo()
 
 # Reversed logo for DARK backgrounds (the chrome injected over proxied dashboards).
 AGORA_LOGO_DARK = _logo("#FFFFFF", "#C7CBD6")
