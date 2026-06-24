@@ -980,3 +980,68 @@ def update_communication(client, kind, item_id, fields):
                 return it
         return None
     return _mutate(client, fn)
+
+
+# --- Market Intelligence: the weekly briefing (team-written, client-read) -----------------------
+# A team-curated briefing the client reads, split into two sections that each hold a list of
+# entries (newest first). One key, ws["intel"] = {"business_research": [...], "media_buying": [...]}.
+# An entry is {id, heading, title, body, source, link, date} -- mirroring the "Weekly Intelligence
+# Report" shape (a sub-heading + headline + paragraph + a source tag/link). Same load-modify-save
+# posture as the Client Communications summaries above; no new infra.
+INTEL_SECTIONS = ("business_research", "media_buying")
+_INTEL_FIELDS = ("heading", "title", "body", "source", "link", "date")
+
+
+def _intel_key(section):
+    """Canonical intel-section key, or None if `section` is not one of the two valid sections."""
+    return section if section in INTEL_SECTIONS else None
+
+
+def add_intel_entry(client, section, entry, entry_id=None):
+    """Add a Market Intelligence entry (newest first) to `section`. Returns the entry.
+
+    `section` is 'business_research' or 'media_buying'; an unknown section raises KeyError. `entry`
+    is a dict of any of the intel fields (heading/title/body/source/link/date); missing ones default
+    to empty strings."""
+    key = _intel_key(section)
+    if key is None:
+        raise KeyError("no intel section '%s'" % section)
+
+    def fn(ws):
+        item = {"id": entry_id or _new_id("intel")}
+        for f in _INTEL_FIELDS:
+            item[f] = (entry or {}).get(f, "") or ""
+        ws.setdefault("intel", {}).setdefault(key, []).insert(0, item)
+        return item
+    return _mutate(client, fn)
+
+
+def update_intel_entry(client, section, entry_id, fields):
+    """Edit a Market Intelligence entry's fields in place by id. Returns the entry, or None if not
+    found. Only the recognised intel fields are written; unknown keys are ignored."""
+    key = _intel_key(section)
+    if key is None:
+        raise KeyError("no intel section '%s'" % section)
+
+    def fn(ws):
+        for it in ws.get("intel", {}).get(key, []):
+            if it.get("id") == entry_id:
+                for f in _INTEL_FIELDS:
+                    if f in (fields or {}):
+                        it[f] = fields[f]
+                return it
+        return None
+    return _mutate(client, fn)
+
+
+def delete_intel_entry(client, section, entry_id):
+    """Delete a Market Intelligence entry by id from `section`. Returns the remaining list."""
+    key = _intel_key(section)
+    if key is None:
+        raise KeyError("no intel section '%s'" % section)
+
+    def fn(ws):
+        lst = ws.setdefault("intel", {}).setdefault(key, [])
+        ws["intel"][key] = [it for it in lst if it.get("id") != entry_id]
+        return ws["intel"][key]
+    return _mutate(client, fn)

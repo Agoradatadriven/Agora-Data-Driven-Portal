@@ -46,6 +46,8 @@ def run():
            [c["channel"] for c in ws["campaigns"]] == ["paid", "organic"])
     _check("14-point leads series", len(ws["series"]) == 14)
     _check("three conversations", len(ws["conversations"]) == 3)
+    _check("intel seeded with both sections",
+           len(ws["intel"]["business_research"]) == 3 and len(ws["intel"]["media_buying"]) == 2)
 
     # 3. Approve an awaiting piece with a note.
     item = workspace.decide_content(CLIENT, "RVR-016", "approved", note="Looks great, ship it.")
@@ -153,6 +155,26 @@ def run():
     workspace.delete_content(CLIENT, undated["id"])
     _check("deleting the piece removes its linked event",
            len(workspace.load_workspace(CLIENT)["calendar"]) == base_cal)
+
+    # 8g. Market Intelligence: add (newest-first) + edit + delete an entry, and reject a bad section.
+    before_mb = len(workspace.load_workspace(CLIENT)["intel"]["media_buying"])
+    entry = workspace.add_intel_entry(CLIENT, "media_buying",
+                                      {"heading": "Meta Updates", "title": "Advantage+ broadens",
+                                       "body": "More automated placements.", "source": "Meta"})
+    mb = workspace.load_workspace(CLIENT)["intel"]["media_buying"]
+    _check("intel entry added newest-first",
+           len(mb) == before_mb + 1 and mb[0]["id"] == entry["id"] and mb[0]["title"] == "Advantage+ broadens")
+    workspace.update_intel_entry(CLIENT, "media_buying", entry["id"], {"body": "Edited body."})
+    mb = workspace.load_workspace(CLIENT)["intel"]["media_buying"]
+    _check("intel entry edited in place", mb[0]["body"] == "Edited body.")
+    workspace.delete_intel_entry(CLIENT, "media_buying", entry["id"])
+    _check("intel entry deleted",
+           len(workspace.load_workspace(CLIENT)["intel"]["media_buying"]) == before_mb)
+    try:
+        workspace.add_intel_entry(CLIENT, "not_a_section", {"body": "x"})
+        _check("unknown intel section raises", False)
+    except KeyError:
+        _check("unknown intel section raises", True)
 
     # 9. Everything survived a reload from disk.
     reloaded = workspace.load_workspace(CLIENT)

@@ -272,6 +272,41 @@ def riverdance_workspace():
             },
         ],
 
+        # Market Intelligence: the weekly briefing the team curates and the client reads. Two
+        # sections, each a list of entries (newest first): {heading, title, body, source, link, date}.
+        "intel": {
+            "business_research": [
+                {"id": "intel_br_1", "heading": "RV Industry News",
+                 "title": "North American RV rental market keeps growing",
+                 "body": "Forecasts show ~5–6% annual growth through 2031, driven by road-trip "
+                         "travel, outdoor recreation, and flexible vacation options.",
+                 "source": "Mordor Intelligence", "link": "", "date": "2026-06-23"},
+                {"id": "intel_br_2", "heading": "RV Industry News",
+                 "title": "Modest RV shipment growth expected in 2026",
+                 "body": "RV Industry Association forecasts suggest continued consumer demand and "
+                         "confidence in RV travel through the coming year.",
+                 "source": "RV Industry Association", "link": "", "date": "2026-06-23"},
+                {"id": "intel_br_3", "heading": "Competitor Watch",
+                 "title": "Travellers keep shifting to experience-based vacations",
+                 "body": "National parks, camping, and adventure tourism remain strong demand "
+                         "drivers — a tailwind for Colorado RV rentals.",
+                 "source": "Research and Markets", "link": "", "date": "2026-06-23"},
+            ],
+            "media_buying": [
+                {"id": "intel_mb_1", "heading": "Google Ads Updates",
+                 "title": "AI Search Ads expansion",
+                 "body": "Google continues rolling out ads inside AI-powered search experiences. "
+                         "Advertisers with strong content, landing pages, and Performance Max "
+                         "campaigns are likely to benefit most.",
+                 "source": "PPC Land", "link": "", "date": "2026-06-23"},
+                {"id": "intel_mb_2", "heading": "Google Ads Updates",
+                 "title": "AI Max for Search",
+                 "body": "Google is pushing AI Max and broader automation across Search campaigns, "
+                         "letting AI discover additional high-intent travel searches.",
+                 "source": "ALM Corp", "link": "", "date": "2026-06-23"},
+            ],
+        },
+
         # Per-user notification prefs are filled in when a logged-in user saves their settings;
         # get_notify() applies the defaults (on for master/content/replies/summary) for any user
         # not present here.

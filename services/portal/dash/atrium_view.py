@@ -666,6 +666,31 @@ def dashboard(ws, client):
     return {"url": url, "height": max(200, min(height, 5000)), "width": max(320, min(width, 5000))}
 
 
+# --- Market Intelligence (weekly briefing tab) --------------------------------------------------
+# The two fixed sections, each rendered as a labelled list of entries the team curates and the
+# client reads. Pure: just decorates the raw ws["intel"] lists with their display label/lede/icon
+# (and a placeholder hint for the admin add form), preserving stored order (newest first).
+_INTEL_SECTIONS = [
+    {"key": "business_research", "label": "Business Research", "icon": "trending",
+     "lede": "Competitor moves and industry news shaping your market.",
+     "placeholder": "RV Industry News"},
+    {"key": "media_buying", "label": "Media Buying News", "icon": "target",
+     "lede": "Updates to Google, Meta, and Instagram worth knowing about.",
+     "placeholder": "Google Ads Updates"},
+]
+
+
+def intel_sections(ws):
+    """The Market Intelligence sections decorated with their entries (in stored order). Pure."""
+    intel = ws.get("intel") or {}
+    out = []
+    for sec in _INTEL_SECTIONS:
+        meta = dict(sec)
+        meta["entries"] = list(intel.get(sec["key"], []) or [])
+        out.append(meta)
+    return out
+
+
 # --- The full view context ----------------------------------------------------------------------
 def build(ws, client, user, active_tab, now=None):
     """Assemble the `view` dict the Atrium template needs beyond the raw workspace `ws`."""
@@ -698,4 +723,5 @@ def build(ws, client, user, active_tab, now=None):
         "reach": organic_reach(ws),
         "deliverables": deliverables(ws, today),
         "dashboard": dashboard(ws, client),
+        "intel": intel_sections(ws),
     }

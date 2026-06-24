@@ -417,6 +417,43 @@ def run():
     _check("inline reply ok + resolved",
            r.status_code == 200 and r.get_json().get("status") == "resolved")
 
+    # ---- Market Intelligence (team-written briefing, client-read) --------------------------------
+    intel_page = c.get("/w/%s/intel" % CLIENT).get_data(as_text=True)
+    _check("market intelligence pane + nav render",
+           'data-pane="intel"' in intel_page and 'data-tab="intel"' in intel_page
+           and "Market Intelligence" in intel_page)
+    _check("seeded intel entry renders", "AI Search Ads expansion" in intel_page)
+    _check("super-admin sees the per-section add form",
+           "Add to Business Research" in intel_page and "Add to Media Buying News" in intel_page)
+    # Add an entry in place, edit it, then delete it.
+    r = c.post("/w/%s/admin/intel" % CLIENT,
+               data={"op": "add", "section": "business_research", "heading": "Competitor Watch",
+                     "title": "Cruise America expands fleet", "body": "More vehicles in Denver.",
+                     "source": "Press release"})
+    _check("inline add-intel ok", r.status_code == 200 and r.get_json().get("ok") is True)
+    new_eid = r.get_json().get("id")
+    _check("intel entry persisted newest-first",
+           workspace.load_workspace(CLIENT)["intel"]["business_research"][0]["id"] == new_eid)
+    r = c.post("/w/%s/admin/intel" % CLIENT,
+               data={"op": "edit", "section": "business_research", "entry_id": new_eid,
+                     "body": "Edited via route."})
+    _check("inline edit-intel ok", r.status_code == 200)
+    _check("intel edit persisted",
+           workspace.load_workspace(CLIENT)["intel"]["business_research"][0]["body"] == "Edited via route.")
+    # A bad section is rejected; an empty add is rejected.
+    _check("intel rejects unknown section",
+           c.post("/w/%s/admin/intel" % CLIENT,
+                  data={"op": "add", "section": "nope", "body": "x"}).status_code == 400)
+    _check("intel rejects an empty add",
+           c.post("/w/%s/admin/intel" % CLIENT,
+                  data={"op": "add", "section": "media_buying"}).status_code == 400)
+    r = c.post("/w/%s/admin/intel" % CLIENT,
+               data={"op": "delete", "section": "business_research", "entry_id": new_eid})
+    _check("inline delete-intel ok",
+           r.status_code == 200
+           and new_eid not in [e["id"] for e in
+                               workspace.load_workspace(CLIENT)["intel"]["business_research"]])
+
     # ---- Website Health (team-only tab: admins see it, THE super admin edits) --------------------
     import atrium_health   # noqa: E402
     # Pure tag detection: GTM container + GA4 + Meta pixel are recognised straight from page markup.
@@ -497,8 +534,13 @@ def run():
         s.update({"ok": True, "user": "owner@riverdanceresort.com", "clients": [CLIENT]})
     _check("grantee can open workspace", c.get("/w/%s/" % CLIENT).status_code == 200)
     _check("grantee cannot see admin bar", 'data-admin="1"' not in c.get("/w/%s/" % CLIENT).get_data(as_text=True))
+    # Market Intelligence is client-visible (the nav + seeded entries render) but read-only (no add form).
+    gi = c.get("/w/%s/intel" % CLIENT).get_data(as_text=True)
+    _check("grantee sees the Market Intelligence tab + entries",
+           'data-tab="intel"' in gi and "AI Search Ads expansion" in gi)
+    _check("grantee gets a read-only intel view (no add form)", "Add to Business Research" not in gi)
     for path in ("strategy", "campaign", "content", "delete-content", "metrics", "calendar",
-                 "generate-summary", "upload-creative", "reply"):
+                 "generate-summary", "upload-creative", "reply", "intel"):
         _check("admin route /%s forbidden for grantee" % path,
                c.post("/w/%s/admin/%s" % (CLIENT, path), data={}).status_code == 403)
     # But a grantee CAN comment + re-decide (client powers). A "Request changes" comment is a client

@@ -680,7 +680,8 @@ def feedback():
 # SAME private bucket as the registry (per-client workspace/<c>.json via workspace.py). No new
 # service, bucket, SA, IAM, or domain. Client-facing routes live under /w/<c>/; team management
 # extends the operator console under /admin/atrium/.
-ATRIUM_TABS = {"overview", "dashboard", "leadgen", "organic", "calendar", "conversations", "settings"}
+ATRIUM_TABS = {"overview", "dashboard", "leadgen", "organic", "calendar", "conversations",
+               "intel", "settings"}
 # Team-only tabs: rendered ONLY for admins/super-admins (is_superadmin), never shown to clients. The
 # Website Health tab monitors the client's live site + the marketing tags installed on it.
 ATRIUM_TEAM_TABS = {"website-health"}
@@ -1668,6 +1669,37 @@ def atrium_admin_communication(client):
             if request.form.get(key) is not None:
                 fields[key] = request.form.get(key, "").strip()
         workspace.update_communication(client, kind, request.form.get("item_id", "").strip(), fields)
+        return jsonify(ok=True)
+    return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
+
+
+@app.route("/w/<client>/admin/intel", methods=["POST"])
+def atrium_admin_intel(client):
+    """Add, edit, or delete a Market Intelligence entry (team-only). `op` is 'add' | 'edit' |
+    'delete'; `section` is 'business_research' | 'media_buying'."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    if workspace.load_workspace(client) is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    op = request.form.get("op", "").strip()
+    section = request.form.get("section", "").strip()
+    if workspace._intel_key(section) is None:
+        return Response('{"error":"bad_section"}', status=400, mimetype="application/json")
+    if op == "delete":
+        workspace.delete_intel_entry(client, section, request.form.get("entry_id", "").strip())
+        return jsonify(ok=True)
+    fields = {}
+    for key in workspace._INTEL_FIELDS:
+        if request.form.get(key) is not None:
+            fields[key] = request.form.get(key, "").strip()
+    if op == "add":
+        if not (fields.get("body") or fields.get("title") or fields.get("heading")):
+            return jsonify(ok=False, message="Add a heading, headline, or some text first."), 400
+        item = workspace.add_intel_entry(client, section, fields)
+        return jsonify(ok=True, id=item.get("id"))
+    if op == "edit":
+        workspace.update_intel_entry(client, section, request.form.get("entry_id", "").strip(), fields)
         return jsonify(ok=True)
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 

@@ -38,6 +38,7 @@
 {%- elif name == 'file' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8L19 7v14.5H6z"/><path d="M14 2.5V7h4"/></svg>
 {%- elif name == 'download' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20.5h14"/></svg>
 {%- elif name == 'health' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 12h4l1.6-3.5L12 16l1.8-4 1.2 0h4.5"/></svg>
+{%- elif name == 'intel' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12.5a1 1 0 0 1 1 1v11a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17.5 8.5H20a1 1 0 0 1 1 1v8.5a2 2 0 0 1-2 2"/><line x1="7.5" y1="9.5" x2="14" y2="9.5"/><line x1="7.5" y1="13" x2="14" y2="13"/><line x1="7.5" y1="16.5" x2="11.5" y2="16.5"/></svg>
 {%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
 {%- endif -%}
 {%- endmacro %}
@@ -75,7 +76,7 @@
 {%- else -%}<a class="ax-shot-media ax-shot-file" href="{{ s.url }}?dl=1" target="_blank" rel="noopener noreferrer" download title="Download {{ s.name or 'file' }}">{{ ic('file') }}<span class="ax-shot-file-name">{{ s.name or 'Download file' }}</span></a>
 {%- endif -%}
 {%- endmacro %}
-{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','settings':'Notification settings','website-health':'Website Health'} %}
+{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health'} %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -881,6 +882,26 @@
     .ax-comm-meta { font-size: 12px; color: var(--ax-sub); display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }
     .ax-comm-meta .ax-ic { width: 14px; height: 14px; }
     .ax-comm-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
+    /* Market Intelligence: two stacked, labelled sections of briefing cards (team-written, client-read). */
+    .ax-intel-sec { margin-bottom: 26px; }
+    .ax-intel-head { margin-bottom: 14px; }
+    .ax-intel-head h2 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 800; margin: 0; }
+    .ax-intel-head h2 .ax-ic { width: 18px; height: 18px; padding: 7px; border-radius: 10px; box-sizing: content-box; color: var(--ax-violet-d); background: var(--ax-violet-bg); }
+    .ax-intel-lede { font-size: 13px; color: var(--ax-sub); margin: 6px 0 0; }
+    .ax-intel-item { padding: 16px 18px; margin-bottom: 12px; }
+    .ax-intel-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+    .ax-intel-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: var(--ax-green-d); }
+    .ax-intel-date { font-size: 11.5px; color: var(--ax-sub); white-space: nowrap; flex: 0 0 auto; }
+    .ax-intel-title { font-size: 15px; font-weight: 800; margin: 0 0 6px; color: var(--ax-ink); }
+    .ax-intel-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
+    .ax-intel-src { margin-top: 10px; }
+    .ax-intel-srctag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ax-sub); background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: var(--ax-pill); padding: 3px 11px; }
+    .ax-intel-srctag.is-link { color: var(--ax-violet-d); border-color: rgba(148,132,251,.4); }
+    .ax-intel-srctag.is-link:hover { background: var(--ax-violet-bg); }
+    .ax-intel-srctag .ax-ic { width: 13px; height: 13px; }
+    .ax-intel-srcrow { display: flex; flex-wrap: wrap; gap: 10px; }
+    .ax-intel-srcrow .ax-editbox { flex: 1 1 160px; margin-bottom: 0; }
+    .ax-intel-add { display: block; border: 1px dashed var(--ax-line); border-radius: var(--ax-radius); padding: 16px; background: var(--ax-canvas); margin-top: 4px; }
     .ax-thumb-upload { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; display: flex; gap: 6px; justify-content: center; }
     .ax-thumb-upload .ax-btn { background: rgba(0,0,0,.45); color: #fff; border-color: rgba(255,255,255,.4); }
     .ax-thumb-upload .ax-btn:hover { background: rgba(0,0,0,.62); }
@@ -1018,7 +1039,7 @@
       </div>
 
       <nav class="ax-nav" id="ax-nav">
-        {% for key, label in [('dashboard','Dashboard'),('leadgen','Lead Generation'),('organic','Organic Content'),('calendar','Content Calendar'),('conversations','Client Communications')] %}
+        {% for key, label in [('dashboard','Dashboard'),('leadgen','Lead Generation'),('organic','Organic Content'),('calendar','Content Calendar'),('conversations','Client Communications'),('intel','Market Intelligence')] %}
         <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
           {{ ic(key) }}<span>{{ label }}</span>
           {% if key in ('leadgen','organic') %}
@@ -1992,6 +2013,81 @@
           </div>
         </section>
 
+        <!-- ============ MARKET INTELLIGENCE (team-written briefing, client-read) ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='intel' else '' }}" data-pane="intel">
+          <h1 class="ax-greet">Market Intelligence</h1>
+          <p class="ax-lede">Your weekly briefing &mdash; what's moving in your industry, and the platform updates worth acting on.</p>
+
+          {% for sec in view.intel %}
+          <div class="ax-intel-sec" data-intelsec="{{ sec.key }}">
+            <div class="ax-intel-head">
+              <h2>{{ ic(sec.icon) }} {{ sec.label }}</h2>
+              <p class="ax-intel-lede">{{ sec.lede }}</p>
+            </div>
+
+            {% if sec.entries %}
+              {% for e in sec.entries %}
+              <div class="ax-card ax-intel-item" data-intel="{{ e.id }}">
+                {% if e.heading or e.date %}
+                <div class="ax-intel-top">
+                  {% if e.heading %}<span class="ax-intel-eyebrow">{{ e.heading }}</span>{% endif %}
+                  {% if e.date %}<span class="ax-intel-date">{{ e.date|atrium_date }}</span>{% endif %}
+                </div>
+                {% endif %}
+                {% if e.title %}<h3 class="ax-intel-title">{{ e.title }}</h3>{% endif %}
+                {% if e.body %}<p class="ax-intel-body">{{ e.body }}</p>{% endif %}
+                {% if e.source or e.link %}
+                <div class="ax-intel-src">
+                  {% if e.link %}<a class="ax-intel-srctag is-link" href="{{ e.link }}" target="_blank" rel="noopener noreferrer">{{ e.source or 'Read source' }} {{ ic('arrow') }}</a>
+                  {% else %}<span class="ax-intel-srctag">{{ e.source }}</span>{% endif %}
+                </div>
+                {% endif %}
+                {% if is_superadmin %}
+                <div class="ax-admin-tools">
+                  <button class="ax-btn admin small" type="button" data-inteledit="{{ e.id }}">Edit</button>
+                  <button class="ax-btn danger small" type="button" data-inteldelete="{{ e.id }}" data-intelsection="{{ sec.key }}">Delete</button>
+                </div>
+                <div class="ax-edit-hidden" data-intelform="{{ e.id }}" style="margin-top:10px">
+                  <input class="ax-editbox" data-ie="heading" value="{{ e.heading }}" placeholder="Section heading (e.g. {{ sec.placeholder }})">
+                  <input class="ax-editbox" data-ie="title" value="{{ e.title }}" placeholder="Headline (optional)">
+                  <textarea class="ax-editbox" data-ie="body" placeholder="What's happening&hellip;">{{ e.body }}</textarea>
+                  <div class="ax-intel-srcrow">
+                    <input class="ax-editbox" data-ie="source" value="{{ e.source }}" placeholder="Source (e.g. Mordor Intelligence)">
+                    <input class="ax-editbox" data-ie="link" value="{{ e.link }}" placeholder="Source link (optional)">
+                    <input class="ax-editbox" type="date" data-ie="date" value="{{ e.date }}" aria-label="Date">
+                  </div>
+                  <div class="ax-actions">
+                    <button class="ax-btn violet small" type="button" data-intelsave="{{ e.id }}" data-intelsection="{{ sec.key }}">Save</button>
+                    <button class="ax-btn ghost small" type="button" data-intelcancel="{{ e.id }}">Cancel</button>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="ax-empty">Nothing here yet{% if is_superadmin %} &mdash; add the first update below{% endif %}.</div>
+            {% endif %}
+
+            {% if is_superadmin %}
+            <div class="ax-admin-tools ax-intel-add" data-inteladd="{{ sec.key }}">
+              <span class="ax-doc-label" style="width:100%">Add to {{ sec.label }}</span>
+              <input class="ax-editbox" data-ia="heading" placeholder="Section heading (e.g. {{ sec.placeholder }})">
+              <input class="ax-editbox" data-ia="title" placeholder="Headline (optional)">
+              <textarea class="ax-editbox" data-ia="body" placeholder="What's happening&hellip;"></textarea>
+              <div class="ax-intel-srcrow">
+                <input class="ax-editbox" data-ia="source" placeholder="Source (e.g. Mordor Intelligence)">
+                <input class="ax-editbox" data-ia="link" placeholder="Source link (optional)">
+                <input class="ax-editbox" type="date" data-ia="date" aria-label="Date">
+              </div>
+              <div class="ax-actions">
+                <button class="ax-btn green small" type="button" data-inteladdbtn="{{ sec.key }}">{{ ic('intel') }} Add update</button>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </section>
+
         <!-- ============ NOTIFICATION SETTINGS ============ -->
         <!-- ============ WEBSITE HEALTH (team-only: admins see it, super admin edits) ============ -->
         {% if is_superadmin %}
@@ -2210,8 +2306,8 @@
   var titles = {
     overview: "Overview", dashboard: "Dashboard", leadgen: "Lead Generation",
     organic: "Organic Content", calendar: "Content Calendar",
-    conversations: "Client Communications", settings: "Notification settings",
-    "website-health": "Website Health"
+    conversations: "Client Communications", intel: "Market Intelligence",
+    settings: "Notification settings", "website-health": "Website Health"
   };
   // Looker Studio embed: scale the fixed-canvas report to fill the container width (runs for ALL
   // users, not just admins). The report has a fixed native canvas (data-native-w/h); a 100%-width
@@ -3542,6 +3638,43 @@
       var panel = document.querySelector("[data-goalform]");
       btn.addEventListener("click", function () {
         adminAction("/admin/goal", fieldsFrom(panel, "data-gf", {}), btn);
+      });
+    });
+
+    // --- Market Intelligence: add / edit / delete briefing entries (super-admin) ---
+    qsa("[data-inteledit]").forEach(function (btn) {
+      var form = document.querySelector('[data-intelform="' + aq(btn.getAttribute("data-inteledit")) + '"]');
+      btn.addEventListener("click", function () { toggleHidden(form); });
+    });
+    qsa("[data-intelcancel]").forEach(function (btn) {
+      var form = document.querySelector('[data-intelform="' + aq(btn.getAttribute("data-intelcancel")) + '"]');
+      btn.addEventListener("click", function () { if (form) { form.classList.add("ax-edit-hidden"); } });
+    });
+    qsa("[data-intelsave]").forEach(function (btn) {
+      var id = btn.getAttribute("data-intelsave");
+      var form = document.querySelector('[data-intelform="' + aq(id) + '"]');
+      btn.addEventListener("click", function () {
+        adminAction("/admin/intel", fieldsFrom(form, "data-ie",
+          { op: "edit", section: btn.getAttribute("data-intelsection"), entry_id: id }), btn);
+      });
+    });
+    qsa("[data-inteldelete]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (!window.confirm("Delete this update? This cannot be undone.")) { return; }
+        adminAction("/admin/intel", { op: "delete",
+          section: btn.getAttribute("data-intelsection"),
+          entry_id: btn.getAttribute("data-inteldelete") }, btn);
+      });
+    });
+    qsa("[data-inteladdbtn]").forEach(function (btn) {
+      var section = btn.getAttribute("data-inteladdbtn");
+      var panel = document.querySelector('[data-inteladd="' + aq(section) + '"]');
+      btn.addEventListener("click", function () {
+        var fields = fieldsFrom(panel, "data-ia", { op: "add", section: section });
+        if (!fields.heading && !fields.title && !fields.body) {
+          adminMsg("Add a heading, headline, or some text first.", false); return;
+        }
+        adminAction("/admin/intel", fields, btn);
       });
     });
 

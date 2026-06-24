@@ -97,7 +97,9 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   `client_note`, an optional publish `date`, threaded `comments[]` (each `id`/`sender`/`body`/`kind`;
   a `kind:"changes"` comment is a "Request changes" comment that flips status and carries `resolved`),
   and optional uploaded-creative `image_object`/`image_mime`),
-  `calendar[]`, `conversations[]` (`client`/`agora` messages), per-user `notify` prefs,
+  `calendar[]`, `conversations[]` (`client`/`agora` messages), `intel`
+  (`business_research[]`/`media_buying[]`, each entry `heading`/`title`/`body`/`source`/`link`/`date`)
+  for the Market Intelligence tab, per-user `notify` prefs,
   and `website_health` (`url`/`notes`/`last_check`) for the team-only Website Health tab.
 - **Website Health is a TEAM-ONLY tab (admins see it, THE super admin edits):** an extra nav tab +
   pane rendered ONLY for `is_superadmin()` (never shown to clients — the nav, the pane, AND the
@@ -157,7 +159,8 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   `summary`, `campaign`, `delete-campaign`, `content`, `edit-content`, `delete-content`,
   `content-comment`, `delete-comment` (delete any thread comment, on paid AND organic), `add-images`,
   `remove-image`, `upload-creative`, `creative-upload-url`,
-  `creative-confirm`, `remove-creative`, `metrics`, `calendar`, `reply`. This in-place surface is the
+  `creative-confirm`, `remove-creative`, `metrics`, `calendar`, `intel` (add/edit/delete a Market
+  Intelligence briefing entry — `op`+`section`), `reply`. This in-place surface is the
   ONLY editing path — the old per-client `/admin/atrium/<c>` console page (and its
   password/campaign/content/conversation/reply/metrics POSTs) has been removed. **Clients** approve in place (`/approve`) and
   post threaded `/w/<c>/comment`s; "Request changes" now lives IN the comment thread as a
@@ -171,8 +174,18 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   client-facing twin of the team console's `/admin/atrium/<c>/logo`: the image is embedded INLINE as a
   `brand.client_logo` `<img>` data-URI (same posture as seeded logos — no new infra/object), and the
   crest swaps in place on success.
+- **Market Intelligence is a CLIENT-VISIBLE, TEAM-CURATED tab (the weekly briefing):** a `/w/<c>/intel`
+  nav tab + pane every client sees, holding two fixed sections — **Business Research** (competitor +
+  industry news) and **Media Buying News** (Google/Meta/Instagram updates). State is one key
+  `ws["intel"]` = `{business_research[], media_buying[]}`, each a list of entries (newest first)
+  `{id, heading, title, body, source, link, date}`. `workspace.add_intel_entry`/`update_intel_entry`/
+  `delete_intel_entry` are the only writers (`workspace.INTEL_SECTIONS` is the valid-section guard).
+  The team writes/edits/deletes entries IN PLACE via `POST /w/<c>/admin/intel` (`op` add|edit|delete +
+  `section`, gated `is_superadmin()`); clients read only. `atrium_view.intel_sections(ws)` decorates
+  the two lists with their display label/lede/icon for the template. No new infra (one more workspace
+  JSON key, mirrors Client Communications).
 - **Routes (all behind existing session auth):** client `GET /w/<c>/` + `/w/<c>/<tab>` (overview,
-  dashboard, leadgen, organic, calendar, conversations, settings) gated `authed()`+`can_open(<c>)`;
+  dashboard, leadgen, organic, calendar, conversations, intel, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify,logo}` +
   creative GET above; team-only POSTs `/w/<c>/resolve-comment` + `/w/<c>/admin/*` gated `is_superadmin()`. The team console is the
   **landing page only** (`GET /admin/atrium`, gated `is_superadmin()`): a welcome banner + one card
