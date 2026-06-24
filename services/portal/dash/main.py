@@ -1684,6 +1684,11 @@ def atrium_admin_intel(client):
     if workspace.load_workspace(client) is None:
         return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
     op = request.form.get("op", "").strip()
+    # 'topics' is section-less: it sets the per-client Business-Research keywords the daily auto-
+    # refresh searches (services/intel-refresh). Handle it before the section guard below.
+    if op == "topics":
+        topics = workspace.set_intel_topics(client, request.form.get("topics", ""))
+        return jsonify(ok=True, topics=topics)
     section = request.form.get("section", "").strip()
     if workspace._intel_key(section) is None:
         return Response('{"error":"bad_section"}', status=400, mimetype="application/json")

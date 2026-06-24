@@ -730,4 +730,6 @@ def build(ws, client, user, active_tab, now=None):
         "deliverables": deliverables(ws, today),
         "dashboard": dashboard(ws, client),
         "intel": intel_sections(ws),
+        # The per-client research keywords the daily auto-refresh searches (team-edited in place).
+        "intel_topics": ", ".join(ws.get("intel_topics") or []),
     }

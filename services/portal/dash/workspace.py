@@ -28,6 +28,7 @@ All timestamps are UTC ISO-8601 with a trailing Z, matching feedback.py / the fr
 import datetime
 import json
 import os
+import re
 import uuid
 
 
@@ -1029,7 +1030,10 @@ def add_intel_entry(client, section, entry, entry_id=None):
 
 def update_intel_entry(client, section, entry_id, fields):
     """Edit a Market Intelligence entry's fields in place by id. Returns the entry, or None if not
-    found. Only the recognised intel fields are written; unknown keys are ignored."""
+    found. Only the recognised intel fields are written; unknown keys are ignored.
+
+    Editing an AUTO-pulled entry (one the daily refresh wrote) PINS it: the `auto` flag is dropped so
+    a hand-correction survives the next refresh (which only ever replaces still-auto entries)."""
     key = _intel_key(section)
     if key is None:
         raise KeyError("no intel section '%s'" % section)
@@ -1040,6 +1044,7 @@ def update_intel_entry(client, section, entry_id, fields):
                 for f in _INTEL_FIELDS:
                     if f in (fields or {}):
                         it[f] = fields[f]
+                it.pop("auto", None)  # an admin edit pins the entry (no longer auto-managed)
                 return it
         return None
     return _mutate(client, fn)
@@ -1054,5 +1059,69 @@ def delete_intel_entry(client, section, entry_id):
     def fn(ws):
         lst = ws.setdefault("intel", {}).setdefault(key, [])
         ws["intel"][key] = [it for it in lst if it.get("id") != entry_id]
+        return ws["intel"][key]
+    return _mutate(client, fn)
+
+
+# --- Market Intelligence: per-client research topics + the daily auto-refresh -------------------
+# The intel tab can auto-fill from real news every day (services/intel-refresh, fed by intel_feed).
+# Two extra pieces of state, both additive (no new infra -- still one workspace JSON per client):
+#   * ws["intel_topics"]  -- a list of keyword strings the daily refresh searches for the client's
+#     Business Research section (e.g. ["RV industry", "motorhome sales"]). Empty -> the refresh job
+#     falls back to a generic marketing set. Team-edited from inside the workspace.
+#   * each auto-pulled entry carries `"auto": True`. replace_auto_intel swaps out exactly those on
+#     each run, so hand-added (and admin-edited, see update_intel_entry) entries are NEVER clobbered.
+_MAX_INTEL_TOPICS = 12
+
+
+def get_intel_topics(ws):
+    """The client's research-keyword list from an already-loaded workspace dict (never None)."""
+    topics = (ws or {}).get("intel_topics") or []
+    return [t for t in topics if isinstance(t, str) and t.strip()]
+
+
+def set_intel_topics(client, topics):
+    """Replace the client's Business-Research keyword list (trimmed, de-duped, capped). Returns it.
+
+    Accepts a list of strings OR a single comma/newline-separated string (what the admin textarea
+    posts); blanks are dropped and order is preserved (first occurrence wins)."""
+    if isinstance(topics, str):
+        topics = re.split(r"[,\n]", topics)
+    cleaned, seen = [], set()
+    for t in topics or []:
+        t = (t or "").strip()
+        key = t.lower()
+        if t and key not in seen:
+            seen.add(key)
+            cleaned.append(t)
+        if len(cleaned) >= _MAX_INTEL_TOPICS:
+            break
+
+    def fn(ws):
+        ws["intel_topics"] = cleaned
+        return cleaned
+    return _mutate(client, fn)
+
+
+def replace_auto_intel(client, section, entries):
+    """Swap the AUTO entries of a section for `entries`, preserving hand-added/pinned ones.
+
+    `entries` is a list of intel-field dicts (heading/title/body/source/link/date) the daily refresh
+    built from real news; each is stored with a fresh id and `auto:True`. Manual entries (no `auto`
+    flag) are kept untouched. Returns the section's resulting entry list."""
+    key = _intel_key(section)
+    if key is None:
+        raise KeyError("no intel section '%s'" % section)
+
+    def fn(ws):
+        existing = ws.setdefault("intel", {}).setdefault(key, [])
+        kept = [it for it in existing if not it.get("auto")]
+        fresh = []
+        for e in entries or []:
+            item = {"id": _new_id("intel"), "auto": True}
+            for f in _INTEL_FIELDS:
+                item[f] = (e or {}).get(f, "") or ""
+            fresh.append(item)
+        ws["intel"][key] = fresh + kept  # the view re-sorts by date, so order here is immaterial
         return ws["intel"][key]
     return _mutate(client, fn)

@@ -29,6 +29,11 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
 - **`atrium_docs.py` / `feedback_ai.py`** — the opt-in Google-Doc → AI strategy feature (gated, degrades).
 - **`atrium_health.py`** — the team-only Website Health tab: fetches the client's live site + detects
   installed marketing tags (GTM/GA4/pixels) by scanning the page HTML (no GTM API, infra-free, degrades).
+- **`intel_feed.py` / `intel_refresh.py`** — the DAILY Market Intelligence auto-refresh (opt-in,
+  `INTEL_AUTO_ENABLED=1`). `intel_feed` parses Google News RSS + publisher feeds (keyless, stdlib
+  `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**
+  entry point — it reuses THIS image + the web SA to write `ws["intel"]` (auto entries only; hand-
+  added/edited ones are preserved). Deploy: `deploy_intel_refresh.ps1`. Test: `_intel_feed_localtest.py`.
 - **`brand.py`** — bundled palette + AGORA mark (the container can't read repo-root `assets/`).
 - **Google Tag Manager (site-wide, opt-in):** the `_inject_gtm` `after_request` hook in `main.py`
   injects the GTM container (`<head>` loader + `<body>` `<noscript>`) into **every** portal HTML page

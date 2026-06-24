@@ -184,6 +184,23 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   `section`, gated `is_superadmin()`); clients read only. `atrium_view.intel_sections(ws)` decorates
   the two lists with their display label/lede/icon for the template. No new infra (one more workspace
   JSON key, mirrors Client Communications).
+  - **Daily auto-refresh with REAL news (opt-in, infra-light):** a Cloud Run job `intel-refresh`
+    (`dash/intel_refresh.py`) runs once a day and fills both sections with real headlines + real
+    publisher links + real dates pulled from **Google News RSS + fixed publisher feeds**
+    (`dash/intel_feed.py` — keyless, stdlib `xml.etree` parsing + lazy `requests`, NO new dependency
+    and NO API key; degrades to `[]` on any feed error, never 500s). **Media Buying News** is
+    universal (ad-platform queries + Search Engine Land PPC); **Business Research** is per-client,
+    keyed off `ws["intel_topics"]` — an admin-editable keyword list set IN PLACE via `POST
+    /w/<c>/admin/intel` `op=topics` (a blank list falls back to a generic marketing set).
+    `workspace.replace_auto_intel` swaps only `auto:True` entries each run, so **hand-added entries
+    are preserved**; editing an auto entry (`update_intel_entry`) **pins** it (drops the `auto` flag)
+    so the correction survives the next refresh. **Gated:** the job is a logged no-op unless
+    `INTEL_AUTO_ENABLED=1`. It REUSES the platform-dash image + web SA (writes the SAME
+    `workspace/<c>.json` objects), so the ONLY new infra is one Cloud Scheduler job. Stand it up /
+    redeploy with `services/portal/dash/deploy_intel_refresh.ps1` (`-Disable` ships it OFF, `-Run`
+    fires once now; **rerun it after any `intel_feed`/`intel_refresh` change** — the job is pinned to
+    an image tag, like the ingest jobs). Off-cloud test: `dash/_intel_feed_localtest.py` (injects a
+    fetcher, no network).
 - **Routes (all behind existing session auth):** client `GET /w/<c>/` + `/w/<c>/<tab>` (overview,
   dashboard, leadgen, organic, calendar, conversations, intel, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify,logo}` +

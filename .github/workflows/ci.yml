@@ -59,6 +59,10 @@ jobs:
         working-directory: services/portal/dash
         run: python _accounts_localtest.py
 
+      - name: Market Intelligence auto-refresh test (off-cloud, no network)
+        working-directory: services/portal/dash
+        run: python _intel_feed_localtest.py
+
       - name: Atrium route + template smoke test (stubs GCS)
         working-directory: services/portal/dash
         run: python _atrium_smoketest.py

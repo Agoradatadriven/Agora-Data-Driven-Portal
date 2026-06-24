@@ -2023,6 +2023,17 @@
           <h1 class="ax-greet">Market Intelligence</h1>
           <p class="ax-lede">Your weekly briefing &mdash; what's moving in your industry, and the platform updates worth acting on.</p>
 
+          {% if is_superadmin %}
+          <div class="ax-card ax-intel-add" data-inteltopicsform style="margin-bottom:18px">
+            <span class="ax-doc-label" style="width:100%">{{ ic('intel') }} Auto-refresh &mdash; Business Research keywords</span>
+            <p class="ax-intel-lede" style="margin:2px 0 8px">Real headlines are pulled in <strong>daily from Google News</strong> for these keywords (comma-separated) &mdash; each with a live source link. Leave blank to use a generic marketing feed. <strong>Media Buying News</strong> updates automatically. Hand-added or edited entries are always kept.</p>
+            <textarea class="ax-editbox" data-it="topics" placeholder="e.g. RV industry, motorhome sales, campground trends">{{ view.intel_topics }}</textarea>
+            <div class="ax-actions">
+              <button class="ax-btn violet small" type="button" data-inteltopics>Save keywords</button>
+            </div>
+          </div>
+          {% endif %}
+
           {% for sec in view.intel %}
           <div class="ax-intel-sec" data-intelsec="{{ sec.key }}">
             <div class="ax-intel-head">
@@ -2036,6 +2047,7 @@
                 {% if e.heading or e.date %}
                 <div class="ax-intel-top">
                   {% if e.heading %}<span class="ax-intel-eyebrow">{{ e.heading }}</span>{% endif %}
+                  {% if is_superadmin and e.auto %}<span class="ax-intel-eyebrow" style="background:#9484FB;color:#fff" title="Pulled automatically from a live news feed; edit to pin it">Auto</span>{% endif %}
                   {% if e.date %}<span class="ax-intel-date">{{ e.date|atrium_date }}</span>{% endif %}
                 </div>
                 {% endif %}
@@ -3681,6 +3693,13 @@
           adminMsg("Add a heading, headline, or some text first.", false); return;
         }
         adminAction("/admin/intel", fields, btn);
+      });
+    });
+    // Auto-refresh keywords: set the per-client Business-Research search terms.
+    qsa("[data-inteltopics]").forEach(function (btn) {
+      var panel = document.querySelector("[data-inteltopicsform]");
+      btn.addEventListener("click", function () {
+        adminAction("/admin/intel", fieldsFrom(panel, "data-it", { op: "topics" }), btn);
       });
     });
 
