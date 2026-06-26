@@ -30,6 +30,11 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
 - **`atrium_docs.py` / `feedback_ai.py`** — the opt-in Google-Doc → AI strategy feature (gated, degrades).
 - **`atrium_health.py`** — the team-only Website Health tab: fetches the client's live site + detects
   installed marketing tags (GTM/GA4/pixels) by scanning the page HTML (no GTM API, infra-free, degrades).
+- **`atrium_ga4.py`** — OPT-IN live GA4 event counts on the same Website Health tab (gated
+  `GA4_REPORTING_ENABLED=1`). Calls the Analytics Data API `runReport` for real per-event counts;
+  keyless analytics-scoped token via IAM Credentials (Token-Creator-on-self, reuses the upload grant);
+  pure + injectable `runner`, degrades on any error. Infra: `enable_ga4_reporting.ps1`. Test:
+  `_atrium_ga4_localtest.py`.
 - **`intel_feed.py` / `intel_refresh.py`** — the DAILY Market Intelligence auto-refresh (opt-in,
   `INTEL_AUTO_ENABLED=1`). `intel_feed` parses Google News RSS + publisher feeds (keyless, stdlib
   `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**
@@ -47,5 +52,5 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   (`$GTM_CONTAINER_ID`); reverse-proxied client dashboards (`/d/<c>/`) are skipped.
 
 **Deploy:** `deploy_dash_platform.ps1` (build → `gcloud run deploy platform-dash --no-invoker-iam-check`).
-**Test (off-cloud, what CI runs):** `python _workspace_localtest.py`, `python _accounts_localtest.py`, `python _atrium_smoketest.py`, and `python _audit_localtest.py`
+**Test (off-cloud, what CI runs):** `python _workspace_localtest.py`, `python _accounts_localtest.py`, `python _atrium_smoketest.py`, `python _atrium_ga4_localtest.py`, and `python _audit_localtest.py`
 from this dir. **Preview:** `run_local.ps1` (or `preview/Preview Portal (admin).cmd` at repo root).

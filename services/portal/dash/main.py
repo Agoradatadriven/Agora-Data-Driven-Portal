@@ -42,6 +42,7 @@ from flask import (
 )
 
 import atrium_docs
+import atrium_ga4
 import atrium_view
 import audit
 import brand
@@ -829,6 +830,8 @@ def atrium(client, tab):
         is_superadmin=(is_superadmin() and not admin_preview),
         # Website Health is editable by THE super admin only; admins see it read-only.
         can_edit_health=(is_root_admin() and not admin_preview),
+        # Live GA4 event counts are an OPT-IN feature (env gate); the UI shows only when it's on.
+        ga4_enabled=atrium_ga4.is_enabled(),
         admin_preview=admin_preview,
         admin_name=_admin_sender_name(user),
         favicon=brand.FAVICON_DATA_URI,
@@ -1808,8 +1811,35 @@ def atrium_admin_website_health_save(client):
         workspace.set_website_url(client, request.form.get("url", "").strip())
     if "notes" in request.form:
         workspace.set_website_notes(client, request.form.get("notes", ""))
+    if "ga4_property_id" in request.form:
+        workspace.set_ga4_property(client, request.form.get("ga4_property_id", "").strip())
     _audit(client, "saved website health settings")
     return jsonify(ok=True)
+
+
+@app.route("/w/<client>/admin/website-health/ga4", methods=["POST"])
+def atrium_admin_website_health_ga4(client):
+    """Fetch live GA4 event counts for the client's property and store them (super-admin only).
+
+    OPT-IN: a logged no-op result unless `GA4_REPORTING_ENABLED=1`. The property id comes from the
+    form (so an unsaved-but-typed id still loads AND is remembered) or the stored one. Degrades
+    gracefully -- a disabled feature / missing id / API 403 returns ok:true with the failure recorded
+    INSIDE the stored result (so the tab shows the problem), never a 500.
+    """
+    gate = _atrium_root_json_gate(client)
+    if gate:
+        return gate
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    wh = ws.get("website_health") or {}
+    pid = request.form.get("ga4_property_id", "").strip() or wh.get("ga4_property_id", "")
+    if request.form.get("ga4_property_id", "").strip():
+        workspace.set_ga4_property(client, pid)
+    stats = atrium_ga4.fetch_event_counts(pid)
+    workspace.save_ga4_stats(client, stats)
+    _audit(client, "loaded GA4 event counts", pid)
+    return jsonify(ok=True, stats=stats)
 
 
 @app.route("/w/<client>/admin/website-health/check", methods=["POST"])

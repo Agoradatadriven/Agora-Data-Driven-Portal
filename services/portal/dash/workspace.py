@@ -206,6 +206,28 @@ def save_website_check(client, result):
     return _mutate(client, fn)
 
 
+def set_ga4_property(client, property_id):
+    """Set the numeric GA4 property id used for live event counts (Website Health tab). Returns it.
+
+    Stored alongside the other website_health state; the live counts themselves live in `ga4_stats`
+    (written by save_ga4_stats) so they render server-side, mirroring `last_check`.
+    """
+    def fn(ws):
+        wh = ws.setdefault("website_health", {})
+        wh["ga4_property_id"] = (property_id or "").strip()
+        return wh["ga4_property_id"]
+    return _mutate(client, fn)
+
+
+def save_ga4_stats(client, stats):
+    """Store the latest GA4 event-count result (render-ready, from atrium_ga4). Returns it."""
+    def fn(ws):
+        wh = ws.setdefault("website_health", {})
+        wh["ga4_stats"] = stats or {}
+        return wh["ga4_stats"]
+    return _mutate(client, fn)
+
+
 # --- Uploaded creatives (binary objects in the SAME private bucket) -----------------------------
 # A creative the team uploads for a content piece is stored as its OWN object alongside the
 # workspace JSON (so a multi-KB image never bloats workspace/<c>.json, which is rewritten in full on
