@@ -87,7 +87,7 @@
 {%- elif 'youtube' in n -%}<svg class="ax-plat-ic" viewBox="0 0 24 24" fill="#FF0000" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
 {%- elif 'linkedin' in n -%}<svg class="ax-plat-ic" viewBox="0 0 24 24" fill="#0A66C2" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
 {%- elif n.startswith('x') or 'twitter' in n -%}<svg class="ax-plat-ic" viewBox="0 0 24 24" fill="#000000" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
-{%- else -%}<svg class="ax-plat-ic" viewBox="0 0 24 24" fill="#9484FB" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
+{%- else -%}<svg class="ax-plat-ic" viewBox="0 0 24 24" fill="#2575FC" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
 {%- endif -%}
 {%- endmacro %}
 {#- Icon-chip multi-select for platforms: click a chip to toggle it (no Ctrl needed). A hidden input
@@ -124,28 +124,29 @@
   <!-- End Google tag (gtag.js) -->
   {% if favicon %}<link rel="icon" href="{{ favicon }}">{% endif %}
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
     .atrium {
-      --ax-green:#4FAB4A; --ax-green-d:#347A30; --ax-green-bg:#EAF6E9;
-      --ax-violet:#9484FB; --ax-violet-d:#5C4BD0; --ax-violet-bg:#F1EFFE;
-      --ax-ink:#0E0F12; --ax-charcoal:#353535; --ax-sub:#6B7280; --ax-line:#E9EAEE; --ax-canvas:#F6F7F9; --ax-white:#fff;
-      --ax-ok:#4FAB4A; --ax-warn:#F2820C; --ax-bad:#E5413E;
-      --ax-radius:14px; --ax-pill:999px;
+      --ax-green:#4CAC4C; --ax-green-d:#3E8C3B; --ax-green-bg:#EAF6E9;
+      --ax-violet:#2575FC; --ax-violet-d:#1856C9; --ax-violet-bg:#E7F0FE;
+      --ax-ink:#0C1022; --ax-charcoal:#353535; --ax-sub:#6B7280; --ax-line:#E9EAEE; --ax-canvas:#FFFFFF; --ax-white:#fff;
+      --ax-ok:#4CAC4C; --ax-warn:#F2820C; --ax-bad:#E5413E;
+      --ax-radius:5px; --ax-pill:999px;
       --ax-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
       /* Premium accents: brand gradients + a deeper lift shadow for hover/feature surfaces. */
-      --ax-grad-green: linear-gradient(135deg, #57B852 0%, #347A30 100%);
-      --ax-grad-violet: linear-gradient(135deg, #9484FB 0%, #5C4BD0 100%);
-      --ax-grad-brand: linear-gradient(120deg, #4FAB4A 0%, #4FAB4A 42%, #7E6CF6 100%);
+      --ax-grad-green: linear-gradient(135deg, #5BC257 0%, #3E8C3B 100%);
+      --ax-grad-violet: linear-gradient(135deg, #2575FC 0%, #1856C9 100%);
+      --ax-grad-brand: linear-gradient(120deg, #4CAC4C 0%, #4CAC4C 42%, #2575FC 100%);
       --ax-shadow-lg: 0 2px 6px rgba(16,24,40,.05), 0 18px 42px rgba(16,24,40,.12);
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; }
     .atrium {
-      font-family: "Inter", "Inter var", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: "Roboto", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
       color: var(--ax-charcoal); min-height: 100vh; line-height: 1.55;
       background:
         radial-gradient(820px 460px at 6% -8%, rgba(79,171,74,0.07), transparent 60%),
-        radial-gradient(760px 520px at 100% -2%, rgba(148,132,251,0.08), transparent 58%),
+        radial-gradient(760px 520px at 100% -2%, rgba(37,117,252,0.08), transparent 58%),
         var(--ax-canvas);
       background-attachment: fixed;
       -webkit-font-smoothing: antialiased;
@@ -168,7 +169,7 @@
     .ax-badge {
       font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
       color: #fff; background: var(--ax-grad-brand); padding: 3px 11px; border-radius: var(--ax-pill);
-      box-shadow: 0 4px 12px rgba(92,75,208,.28);
+      box-shadow: 0 4px 12px rgba(24,86,201,.28);
     }
     /* Featured client logo (sidebar crest): drop the white PNG box into the card via multiply blend. */
     .ax-clientlogo { display: block; }
@@ -272,7 +273,7 @@
       transition: filter .12s, transform .12s, background .12s; white-space: nowrap; }
     .ax-share:hover { filter: brightness(1.04); transform: translateY(-1px); }
     .ax-share .ax-share-arrow { font-weight: 800; }
-    .ax-share.copied { background: var(--ax-violet-d); box-shadow: 0 6px 16px rgba(92,75,208,.30); }
+    .ax-share.copied { background: var(--ax-violet-d); box-shadow: 0 6px 16px rgba(24,86,201,.30); }
 
     .ax-body { padding: 26px 28px 60px; max-width: 1600px; width: 100%; }
     /* When the sidebar is tucked away, let content stretch into the freed-up space. */
@@ -295,9 +296,9 @@
     /* Brief highlight when a notification jumps straight to a content piece. */
     .ax-flash-target { animation: ax-flash 1.8s ease; }
     @keyframes ax-flash {
-      0%   { box-shadow: 0 0 0 0 rgba(148,132,251,0); }
-      12%  { box-shadow: 0 0 0 3px rgba(148,132,251,.85); }
-      100% { box-shadow: 0 0 0 0 rgba(148,132,251,0); }
+      0%   { box-shadow: 0 0 0 0 rgba(37,117,252,0); }
+      12%  { box-shadow: 0 0 0 3px rgba(37,117,252,.85); }
+      100% { box-shadow: 0 0 0 0 rgba(37,117,252,0); }
     }
     .ax-panel { background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: var(--ax-radius); box-shadow: var(--ax-shadow); padding: 18px; }
 
@@ -419,18 +420,18 @@
     /* "All Campaigns" list - one clickable card per campaign (name only), drills into the full view. */
     .ax-camplist { display: flex; flex-direction: column; gap: 12px; }
     .ax-camplist-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; text-align: left; padding: 18px 20px; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: var(--ax-radius); box-shadow: var(--ax-shadow); cursor: pointer; transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
-    .ax-camplist-card:hover { border-color: var(--ax-violet); box-shadow: 0 6px 18px rgba(92,75,208,.14); transform: translateY(-1px); }
+    .ax-camplist-card:hover { border-color: var(--ax-violet); box-shadow: 0 6px 18px rgba(24,86,201,.14); transform: translateY(-1px); }
     .ax-camplist-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
     .ax-camplist-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ax-green-d); }
     .ax-camplist-name { font-size: 17px; font-weight: 800; letter-spacing: -.3px; color: var(--ax-ink); }
     .ax-camplist-meta { font-size: 12.5px; font-weight: 700; color: var(--ax-sub); }
     .ax-camplist-arrow { flex: none; display: inline-flex; color: var(--ax-violet); }
     .ax-camplist-arrow .ax-ic { width: 20px; height: 20px; }
-    .ax-select { font: inherit; font-size: 13px; font-weight: 700; color: var(--ax-ink); padding: 9px 32px 9px 12px; border: 1px solid var(--ax-violet); border-radius: 10px; background: var(--ax-white); cursor: pointer; box-shadow: 0 1px 2px rgba(92,75,208,.12); }
+    .ax-select { font: inherit; font-size: 13px; font-weight: 700; color: var(--ax-ink); padding: 9px 32px 9px 12px; border: 1px solid var(--ax-violet); border-radius: 10px; background: var(--ax-white); cursor: pointer; box-shadow: 0 1px 2px rgba(24,86,201,.12); }
     .ax-select:hover { background: var(--ax-violet-bg); }
     /* Campaign switcher: a centred column - tiny "Viewing campaign" label, then a fixed-size dropdown. */
     .ax-campswitch { grid-column: 2; justify-self: end; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-    .ax-campbox { display: flex; align-items: center; width: 320px; max-width: 100%; border: 1px solid var(--ax-violet); border-radius: 10px; background: var(--ax-white); box-shadow: 0 1px 2px rgba(92,75,208,.12); }
+    .ax-campbox { display: flex; align-items: center; width: 320px; max-width: 100%; border: 1px solid var(--ax-violet); border-radius: 10px; background: var(--ax-white); box-shadow: 0 1px 2px rgba(24,86,201,.12); }
     .ax-campbox:hover { background: var(--ax-violet-bg); }
     .ax-campbox .ax-select { flex: 1; width: 100%; border: none; border-radius: 10px; background: transparent; box-shadow: none; }
     .ax-campbox .ax-select:hover { background: transparent; }
@@ -479,8 +480,8 @@
     .ax-content { display: grid; grid-template-columns: 280px 1fr; gap: 16px; padding: 16px; margin-bottom: 14px; align-items: start; }
     @media (max-width: 720px) { .ax-content { grid-template-columns: 1fr; } }
     .ax-thumb { border-radius: 11px; min-height: 150px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; position: relative; overflow: hidden; }
-    .ax-thumb.paid { background: linear-gradient(140deg, #8C7BF8, #5C4BD0); }
-    .ax-thumb.organic { background: linear-gradient(140deg, #5FBE57, #347A30); }
+    .ax-thumb.paid { background: linear-gradient(140deg, #8C7BF8, #1856C9); }
+    .ax-thumb.organic { background: linear-gradient(140deg, #5FBE57, #3E8C3B); }
     .ax-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 11px; position: absolute; inset: 0; }
     .ax-thumb .ax-thumb-k { font-size: 11px; font-weight: 700; opacity: .9; text-transform: uppercase; letter-spacing: .6px; }
     .ax-thumb .ax-thumb-r { font-size: 17px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; }
@@ -536,7 +537,7 @@
     .ax-vidthumb:hover { filter: brightness(1.06); }
     .ax-vidthumb .ax-ch-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; }
     /* Non-media attachment (PDF, doc, zip, …): a download chip in place of the image/video. */
-    .ax-shot-file { cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 14px; box-sizing: border-box; background: #f4f3fb; color: var(--ax-purple-d, #5C4BD0); text-decoration: none; }
+    .ax-shot-file { cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 14px; box-sizing: border-box; background: #f4f3fb; color: var(--ax-purple-d, #1856C9); text-decoration: none; }
     .ax-shot-file:hover { background: #ecebf8; }
     .ax-shot-file .ax-ic { width: 30px; height: 30px; }
     .ax-shot-file-name { font-size: 12px; font-weight: 600; line-height: 1.3; word-break: break-word; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -582,13 +583,13 @@
     .ax-cardhead-toggle:hover .ax-ch-cap { color: var(--ax-violet-d); }
     @media (max-width: 720px) { .ax-cardhead { grid-template-columns: 120px 1fr; } }
     .ax-ch-thumb { height: 64px; border-radius: 10px; background-size: cover; background-position: center; display: grid; place-items: center; overflow: hidden; color: #fff; }
-    .ax-ch-thumb.organic { background-color: #347A30; background-image: linear-gradient(140deg, #5FBE57, #347A30); }
-    .ax-ch-thumb.paid { background-color: #5C4BD0; background-image: linear-gradient(140deg, #8C7BF8, #5C4BD0); }
+    .ax-ch-thumb.organic { background-color: #3E8C3B; background-image: linear-gradient(140deg, #5FBE57, #3E8C3B); }
+    .ax-ch-thumb.paid { background-color: #1856C9; background-image: linear-gradient(140deg, #8C7BF8, #1856C9); }
     .ax-ch-k { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
     .ax-ch-main { min-width: 0; }
     .ax-ch-type { display: inline-block; margin-bottom: 6px; }
     .ax-ch-meta { display: block; font-size: 12px; font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ax-violet-d); margin-bottom: 4px; }
-    .ax-ch-title { font-family: "Inter", "Inter var", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
+    .ax-ch-title { font-family: "Roboto", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif; font-size: 15px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
     .ax-ch-cap { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; color: #3a4050; line-height: 1.4; }
     .ax-ch-right { display: flex; align-items: center; gap: 10px; }
     .ax-chev { color: #aab0bd; font-size: 13px; transition: transform .2s ease; }
@@ -665,7 +666,7 @@
     .ax-confirm .ax-ic { width: 16px; height: 16px; }
 
     /* AI summary */
-    .ax-ai { background: var(--ax-violet-bg); border: 1px solid #E1DBFB; border-radius: var(--ax-radius); padding: 16px 18px; display: flex; gap: 13px; margin-top: 6px; }
+    .ax-ai { background: var(--ax-violet-bg); border: 1px solid #CFE0FE; border-radius: var(--ax-radius); padding: 16px 18px; display: flex; gap: 13px; margin-top: 6px; }
     .ax-ai .ax-ai-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--ax-violet-d); color: #fff; display: grid; place-items: center; flex: 0 0 auto; }
     .ax-ai .ax-ai-label { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ax-violet-d); margin-bottom: 3px; }
     .ax-ai p { margin: 0; font-size: 13.5px; color: #2b2740; }
@@ -854,7 +855,7 @@
     }
     .ax-empty::before {
       content: ""; display: block; width: 34px; height: 34px; margin: 0 auto 12px; border-radius: 50%;
-      background: var(--ax-violet-bg); border: 1px solid #E1DBFB;
+      background: var(--ax-violet-bg); border: 1px solid #CFE0FE;
       box-shadow: inset 0 0 0 9px #fff, 0 0 0 0 transparent;
     }
 
@@ -957,8 +958,8 @@
     .ax-strat-doc .ax-doc-help { width: 100%; font-size: 12px; color: var(--ax-sub); margin: 4px 0 0; line-height: 1.5; }
 
     /* Strategy breakdown link (client-facing, on top of the strategy) */
-    .ax-breakdown { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 11px 15px; border-radius: 12px; background: var(--ax-violet-bg); border: 1px solid #E1DBFB; color: var(--ax-violet-d); font-size: 13.5px; font-weight: 700; }
-    .ax-breakdown:hover { background: #E9E5FE; }
+    .ax-breakdown { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 14px; padding: 11px 15px; border-radius: 12px; background: var(--ax-violet-bg); border: 1px solid #CFE0FE; color: var(--ax-violet-d); font-size: 13.5px; font-weight: 700; }
+    .ax-breakdown:hover { background: #DCE9FE; }
     .ax-breakdown .ax-ic { width: 17px; height: 17px; }
     .ax-breakdown .ax-bd-arrow { margin-left: 2px; }
 
@@ -997,7 +998,7 @@
     .ax-intel-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
     .ax-intel-src { margin-top: 10px; }
     .ax-intel-srctag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ax-sub); background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: var(--ax-pill); padding: 3px 11px; }
-    .ax-intel-srctag.is-link { color: var(--ax-violet-d); border-color: rgba(148,132,251,.4); }
+    .ax-intel-srctag.is-link { color: var(--ax-violet-d); border-color: rgba(37,117,252,.4); }
     .ax-intel-srctag.is-link:hover { background: var(--ax-violet-bg); }
     .ax-intel-srctag .ax-ic { width: 13px; height: 13px; }
     .ax-intel-srcrow { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -1098,7 +1099,7 @@
     .ax-wh-globe .ax-ic { width: 22px; height: 22px; }
     .ax-wh-url { flex: 1 1 280px; min-width: 200px; }
     .ax-wh-urlview { flex: 1 1 280px; font-weight: 600; color: var(--ax-ink); word-break: break-all; }
-    .ax-wh-urlview a { color: var(--ax-deep, #5C4BD0); }
+    .ax-wh-urlview a { color: var(--ax-deep, #1856C9); }
     .ax-wh-status { margin-bottom: 16px; border-left: 4px solid var(--ax-line); }
     .ax-wh-status.is-ok { border-left-color: var(--ax-green); }
     .ax-wh-status.is-bad { border-left-color: #E5413E; }
@@ -1109,7 +1110,7 @@
     .ax-wh-state { font-size: 18px; font-weight: 800; color: var(--ax-ink); }
     .ax-wh-title { font-weight: 600; color: var(--ax-sub); }
     .ax-wh-when { font-size: 12.5px; color: var(--ax-sub); margin-top: 2px; word-break: break-all; }
-    .ax-wh-when a { color: var(--ax-deep, #5C4BD0); }
+    .ax-wh-when a { color: var(--ax-deep, #1856C9); }
     .ax-wh-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
     .ax-wh-cell { background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 12px; padding: 12px; text-align: center; }
     .ax-wh-cv { font-size: 20px; font-weight: 800; color: var(--ax-ink); }
@@ -1122,7 +1123,7 @@
     .ax-wh-issue .ax-wh-iled { flex: 0 0 auto; display: inline-flex; }
     .ax-wh-issue .ax-ic { width: 17px; height: 17px; }
     .ax-wh-issue.lvl-ok { background: rgba(79,171,74,.10); border-color: rgba(79,171,74,.32); color: #2f7a2c; }
-    .ax-wh-issue.lvl-info { background: rgba(92,75,208,.08); border-color: rgba(92,75,208,.28); color: #4a3db0; }
+    .ax-wh-issue.lvl-info { background: rgba(24,86,201,.08); border-color: rgba(24,86,201,.28); color: #4a3db0; }
     .ax-wh-issue.lvl-warn { background: rgba(214,158,46,.12); border-color: rgba(214,158,46,.38); color: #8a6400; }
     .ax-wh-issue.lvl-error { background: rgba(229,65,62,.10); border-color: rgba(229,65,62,.34); color: #c0322f; }
     .ax-wh-tags { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1410,7 +1411,7 @@
                 <div class="ax-list">
                   {% for a in view.attention %}
                   <div class="ax-row ax-attn" data-goto="{{ a.tab }}" data-gocamp="{{ a.camp_id }}" data-gocontent="{{ a.id }}">
-                    <span class="ax-row-ic" style="background:{{ '#F1EFFE' if a.channel=='paid' else '#EAF6E9' }};color:{{ '#5C4BD0' if a.channel=='paid' else '#347A30' }}">{{ ic('check') }}</span>
+                    <span class="ax-row-ic" style="background:{{ '#E7F0FE' if a.channel=='paid' else '#EAF6E9' }};color:{{ '#1856C9' if a.channel=='paid' else '#3E8C3B' }}">{{ ic('check') }}</span>
                     <div class="ax-row-main">
                       <div class="ax-row-t">{{ a.type_tag }} &middot; {{ a.ref }}</div>
                       <div class="ax-row-s">
@@ -1927,8 +1928,8 @@
           {% endif %}
 
           <div class="ax-cal-legend">
-            <span><span class="ax-dot-i" style="background:#5C4BD0"></span>Lead Generation</span>
-            <span><span class="ax-dot-i" style="background:#4FAB4A"></span>Organic Content</span>
+            <span><span class="ax-dot-i" style="background:#1856C9"></span>Lead Generation</span>
+            <span><span class="ax-dot-i" style="background:#4CAC4C"></span>Organic Content</span>
             <span><span class="ax-dot-i" style="background:#98a0b0"></span>Personal</span>
             <span class="ax-mile-aheadkey">✓ done / ahead of schedule</span>
             <span class="ax-mile-latekey">! past due - mark as done</span>
@@ -2134,6 +2135,10 @@
           <h1 class="ax-greet">Market Intelligence</h1>
           <p class="ax-lede">Your weekly briefing &mdash; what's moving in your industry, and the platform updates worth acting on.</p>
 
+          {% if is_superadmin %}
+          <p class="ax-intel-lede" style="margin:0 0 16px;padding:11px 14px;background:var(--ax-violet-bg);border:1px solid var(--ax-line);border-radius:var(--ax-radius)"><strong>Automatic &mdash; updates daily.</strong> Business Research and Media Buying News refresh every day from real, reputable sources (each headline links to its source). No setup needed; entries you add or edit by hand are always kept.</p>
+          {% endif %}
+
           <div class="ax-intel-grid">
           {% for sec in view.intel %}
           <div class="ax-intel-sec" data-intelsec="{{ sec.key }}">
@@ -2148,7 +2153,7 @@
                 {% if e.heading or e.date %}
                 <div class="ax-intel-top">
                   {% if e.heading %}<span class="ax-intel-eyebrow">{{ e.heading }}</span>{% endif %}
-                  {% if is_superadmin and e.auto %}<span class="ax-intel-eyebrow" style="background:#9484FB;color:#fff" title="Pulled automatically from a live news feed; edit to pin it">Auto</span>{% endif %}
+                  {% if is_superadmin and e.auto %}<span class="ax-intel-eyebrow" style="background:#2575FC;color:#fff" title="Pulled automatically from a live news feed; edit to pin it">Auto</span>{% endif %}
                   {% if e.date %}<span class="ax-intel-date">{{ e.date|atrium_date }}</span>{% endif %}
                 </div>
                 {% endif %}
@@ -3249,7 +3254,7 @@
       saveBtn.setAttribute("disabled", "disabled");
       post("/save-notify", fields)
         .then(function () {
-          if (savedHint) { savedHint.textContent = "Saved ✓"; savedHint.style.color = "#347A30"; savedHint.hidden = false; }
+          if (savedHint) { savedHint.textContent = "Saved ✓"; savedHint.style.color = "#3E8C3B"; savedHint.hidden = false; }
           saveBtn.removeAttribute("disabled");
         })
         .catch(function () {

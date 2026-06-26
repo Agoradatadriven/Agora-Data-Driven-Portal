@@ -38,11 +38,17 @@ MEDIA_BUYING_QUERIES = (
     "TikTok advertising",
 )
 
-# Business Research is per-client (the client's own `intel_topics`); this generic set is the fallback
-# used only when a client has no topics set yet, so the tab is never empty.
-GENERIC_BUSINESS_TOPICS = (
+# Business Research is universal + automatic too: fixed reputable marketing/industry publisher feeds
+# (keyless RSS) + Google-News queries over evergreen marketing topics. No per-client keywords -- the
+# tab fills itself daily from these legit sources; the team can still add/edit curated entries by hand.
+BUSINESS_RESEARCH_FEEDS = (
+    "https://www.marketingdive.com/feeds/news/",
+    "https://www.searchenginejournal.com/feed/",
+)
+BUSINESS_RESEARCH_QUERIES = (
     "digital marketing industry trends",
     "advertising industry news",
+    "consumer marketing trends",
 )
 
 # Per-section caps + the heading/source defaults that make an auto entry read like the hand-written
@@ -112,9 +118,8 @@ def refresh_client(client, ws=None, fetcher=None):
         return {"media_buying": 0, "business_research": 0}
 
     media = _gather(MEDIA_BUYING_FEEDS, MEDIA_BUYING_QUERIES, _MEDIA_HEADING, _PER_SECTION, fetcher)
-
-    topics = workspace.get_intel_topics(ws) or list(GENERIC_BUSINESS_TOPICS)
-    business = _gather((), tuple(topics), _BUSINESS_HEADING, _PER_SECTION, fetcher)
+    business = _gather(BUSINESS_RESEARCH_FEEDS, BUSINESS_RESEARCH_QUERIES,
+                       _BUSINESS_HEADING, _PER_SECTION, fetcher)
 
     # Only replace a section when we actually pulled something, so a transient feed outage never
     # wipes yesterday's still-useful auto entries.

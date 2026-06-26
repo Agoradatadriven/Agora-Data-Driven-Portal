@@ -17,22 +17,22 @@
   <style>
     /* Operator console: the Agora light brand (mirrors portal.html / assets/brand.json). */
     :root {
-      --ag-green:#4FAB4A; --ag-green-d:#347A30; --ag-green-bg:#EAF6E9;
-      --ag-purple:#9484FB; --ag-purple-d:#5C4BD0; --ag-purple-bg:#F1EFFE;
-      --ag-ink:#1A1B1E; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
-      --ag-canvas:#F6F7F9; --ag-white:#fff; --ag-danger:#E5413E;
+      --ag-green:#4CAC4C; --ag-green-d:#3E8C3B; --ag-green-bg:#EAF6E9;
+      --ag-purple:#2575FC; --ag-purple-d:#1856C9; --ag-purple-bg:#E7F0FE;
+      --ag-ink:#0C1022; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-canvas:#FFFFFF; --ag-link:#CC3366; --ag-white:#fff; --ag-danger:#E5413E;
       --ag-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
       --side-w: 260px;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    body { margin: 0; font-family: "Roboto", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
       color: var(--ag-ink);
       background:
         radial-gradient(820px 460px at 6% -12%, rgba(79,171,74,0.08), transparent 60%),
-        radial-gradient(760px 460px at 104% 4%, rgba(148,132,251,0.09), transparent 56%),
+        radial-gradient(760px 460px at 104% 4%, rgba(37,117,252,0.09), transparent 56%),
         var(--ag-canvas);
       min-height: 100vh; -webkit-font-smoothing: antialiased; }
-    a { color: var(--ag-purple-d); }
+    a { color: var(--ag-link); }
 
     /* ---- Layout: fixed left side panel + scrolling content ---- */
     .layout { display: flex; min-height: 100vh; }
@@ -43,9 +43,9 @@
       padding: 22px 20px 16px; border-bottom: 1px solid var(--ag-line); }
     .side .side-brand svg { display: block; height: 28px; width: auto; }
     .brand-sub { font-size: 11px; font-weight: 800; color: #fff;
-      background: linear-gradient(120deg, #4FAB4A 0%, #4FAB4A 42%, #7E6CF6 100%);
+      background: linear-gradient(120deg, #4CAC4C 0%, #4CAC4C 42%, #2575FC 100%);
       padding: 3px 11px; border-radius: 999px; text-transform: uppercase; letter-spacing: .8px;
-      box-shadow: 0 4px 12px rgba(92,75,208,.28); }
+      box-shadow: 0 4px 12px rgba(24,86,201,.28); }
     .side-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; overflow-y: auto; }
     .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer;
       border: 0; background: transparent; color: var(--ag-charcoal); font: inherit; font-size: 14px; font-weight: 600;
@@ -76,8 +76,8 @@
       word-break: break-word; }
     /* An error flash is unmistakably red, so a rejected action never looks like a green success. */
     .flash.err { background: #FDECEC; border-color: rgba(229,65,62,0.35); color: #9b2c2a; }
-    .welcome { background: linear-gradient(120deg, #fff 0%, #F6FBF5 58%, #F3F1FE 100%);
-      border: 1px solid var(--ag-line); border-radius: 18px; padding: 24px 26px; margin: 0 0 22px; box-shadow: var(--ag-shadow); }
+    .welcome { background: linear-gradient(120deg, #fff 0%, #F6FBF5 58%, #E7F0FE 100%);
+      border: 1px solid var(--ag-line); border-radius: 8px; padding: 24px 26px; margin: 0 0 22px; box-shadow: var(--ag-shadow); }
     .welcome h1 { margin: 0 0 8px; font-size: 24px; font-weight: 900; letter-spacing: -0.3px; }
     .welcome p { margin: 0; color: var(--ag-muted); font-size: 14px; max-width: 640px; line-height: 1.5; }
     h2.section { font-size: 12px; color: var(--ag-muted); text-transform: uppercase; letter-spacing: 0.9px;
@@ -98,7 +98,7 @@
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .btn { margin-top: 12px; padding: 10px 16px; border: 0; border-radius: 10px; font-size: 13px; font-weight: 700;
       cursor: pointer; background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.22); }
-    .btn.violet { background: var(--ag-purple-d); color: #fff; box-shadow: 0 6px 14px rgba(92,75,208,.22); }
+    .btn.violet { background: var(--ag-purple-d); color: #fff; box-shadow: 0 6px 14px rgba(24,86,201,.22); }
     .btn.small { margin-top: 0; padding: 8px 13px; }
     .btn:hover { filter: brightness(1.05); }
     .btn-ghost { margin: 0; padding: 8px 13px; border: 1px solid var(--ag-line); border-radius: 10px;

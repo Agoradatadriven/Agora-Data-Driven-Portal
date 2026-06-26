@@ -224,14 +224,19 @@ def _dev_auto_login():
         session["clients"] = ["*"]
 
 
-# --- Google Tag Manager (GTM) -- site-wide, opt-in via env, injected centrally -------------------
-# Set GTM_CONTAINER_ID=GTM-XXXXXXX on the service to load the container on EVERY portal HTML page;
-# unset (the default) means no tag loads at all (so local preview stays untracked). GA4 is configured
-# INSIDE the container in the GTM UI -- the app only installs the container. Injecting here (one
-# after_request hook) keeps the snippet out of all 7 self-contained templates, so it never touches
-# the esprima JS gate or the "no Jinja in <script>" rule. The proxied client dashboards (/d/<c>/) are
-# deliberately skipped -- they are the clients' OWN sites (which may carry their own GTM).
-# The snippet is Google's standard install, verbatim, with the id substituted at the placeholder.
+# --- Central <head> injection: brand web font (always) + GTM container (opt-in) ------------------
+# Both are injected once here (after_request) instead of in all the self-contained templates -- so
+# they never touch the esprima JS gate or the "no Jinja in <script>" rule, and apply to EVERY portal
+# HTML page. Reverse-proxied client dashboards (/d/<c>/) are skipped.
+# Brand font: Roboto (per assets/brand.json) web-loaded so the "Roboto"-first template stacks render
+# as Roboto (not a system font). Always on -- it's brand identity, not analytics.
+_BRAND_FONT_HEAD = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">'
+)
+# GTM: set GTM_CONTAINER_ID=GTM-XXXXXXX to load the container; unset (default) = no tag. GA4 is
+# configured INSIDE the container in the GTM UI. The snippet is Google's standard install, verbatim.
 _GTM_HEAD = (
     "<!-- Google Tag Manager -->"
     "<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':"
@@ -250,13 +255,12 @@ _GTM_BODY = (
 
 
 @app.after_request
-def _inject_gtm(resp):
-    """Inject the GTM container into every portal HTML page when GTM_CONTAINER_ID is set.
+def _inject_head(resp):
+    """Inject the brand web font (always) + GTM (when GTM_CONTAINER_ID is set) into every HTML page.
 
-    Head snippet goes as high in <head> as possible; the <noscript> goes right after <body>. No-op
-    unless the env var is set, the response is HTML, and it isn't a streamed/proxied response."""
-    gtm_id = os.environ.get("GTM_CONTAINER_ID", "").strip()
-    if not gtm_id or resp.direct_passthrough:
+    Head additions go right after <head>; the GTM <noscript> goes right after <body>. No-op on non-
+    HTML, streamed, and reverse-proxied (/d/) responses, and idempotent (never injects twice)."""
+    if resp.direct_passthrough:
         return resp
     if "text/html" not in (resp.content_type or "").lower():
         return resp
@@ -266,12 +270,24 @@ def _inject_gtm(resp):
         html = resp.get_data(as_text=True)
     except (RuntimeError, UnicodeDecodeError):
         return resp
-    if not html or gtm_id in html:            # idempotent: never inject the same container twice
+    if not html:
         return resp
-    head = _GTM_HEAD.replace("__GTM_ID__", gtm_id)
-    body = _GTM_BODY.replace("__GTM_ID__", gtm_id)
-    html = re.sub(r"<head[^>]*>", lambda m: m.group(0) + head, html, count=1, flags=re.IGNORECASE)
-    html = re.sub(r"<body[^>]*>", lambda m: m.group(0) + body, html, count=1, flags=re.IGNORECASE)
+
+    gtm_id = os.environ.get("GTM_CONTAINER_ID", "").strip()
+    gtm_present = bool(gtm_id) and (gtm_id in html)
+
+    head_parts = []
+    if "css2?family=Roboto" not in html:      # don't double up where a template @imports it
+        head_parts.append(_BRAND_FONT_HEAD)
+    if gtm_id and not gtm_present:
+        head_parts.append(_GTM_HEAD.replace("__GTM_ID__", gtm_id))
+    if head_parts:
+        joined = "".join(head_parts)
+        html = re.sub(r"<head[^>]*>", lambda m: m.group(0) + joined, html, count=1, flags=re.IGNORECASE)
+    if gtm_id and not gtm_present:
+        body = _GTM_BODY.replace("__GTM_ID__", gtm_id)
+        html = re.sub(r"<body[^>]*>", lambda m: m.group(0) + body, html, count=1, flags=re.IGNORECASE)
+
     resp.set_data(html)
     return resp
 
@@ -1737,11 +1753,8 @@ def atrium_admin_intel(client):
     if workspace.load_workspace(client) is None:
         return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
     op = request.form.get("op", "").strip()
-    # 'topics' is section-less: it sets the per-client Business-Research keywords the daily auto-
-    # refresh searches (services/intel-refresh). Handle it before the section guard below.
-    if op == "topics":
-        topics = workspace.set_intel_topics(client, request.form.get("topics", ""))
-        return jsonify(ok=True, topics=topics)
+    # Both sections auto-refresh DAILY from fixed legit sources (services/intel-refresh); there is no
+    # per-client keyword configuration -- the team only ADDS/EDITS curated entries here.
     section = request.form.get("section", "").strip()
     if workspace._intel_key(section) is None:
         return Response('{"error":"bad_section"}', status=400, mimetype="application/json")

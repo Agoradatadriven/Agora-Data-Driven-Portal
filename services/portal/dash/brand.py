@@ -25,17 +25,17 @@ import os
 _FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 # --- Official brand palette (mirrors assets/brand.json) -------------------------------------
-GREEN = "#4FAB4A"          # Data Green -- primary CTA / positive
-GREEN_DARK = "#347A30"     # deeper green -- text on light, hovers, accents
+GREEN = "#4CAC4C"          # Data Green -- primary CTA / positive
+GREEN_DARK = "#3E8C3B"     # deeper green -- text on light, hovers, accents
 GREEN_TINT = "#EAF6E9"     # soft green wash -- tints / chips
-PURPLE = "#9484FB"         # Accent Purple -- subtle accent, dots, light tints
-PURPLE_DEEP = "#5C4BD0"    # deeper violet -- solid fills with white text, hovers
-PURPLE_TINT = "#F1EFFE"    # soft violet wash
+PURPLE = "#2575FC"         # Accent Purple -- subtle accent, dots, light tints
+PURPLE_DEEP = "#1856C9"    # deeper violet -- solid fills with white text, hovers
+PURPLE_TINT = "#E7F0FE"    # soft violet wash
 GRAPHITE = "#000000"       # Graphite Black
-INK = "#1A1B1E"            # near-black ink for bold type
+INK = "#0C1022"            # near-black ink for bold type
 CHARCOAL = "#353535"       # Charcoal Text -- body copy
 SOFT_GREY = "#EEEEEE"      # Soft Grey -- hairlines / surfaces
-CANVAS = "#F6F7F9"         # app canvas (off-white)
+CANVAS = "#FFFFFF"         # app canvas (off-white)
 
 
 def _logo(ink, sub):
@@ -102,7 +102,7 @@ AGORA_LOGO_HORIZONTAL = (
 AGORA_ICON = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 38 40" '
     'role="img" aria-label="AGORA">'
-    '<g fill="none" stroke="#1A1B1E" stroke-linecap="round" stroke-linejoin="round">'
+    '<g fill="none" stroke="#0C1022" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M3 37 L19 4 L35 37" stroke-width="1.9"/>'
     '<path d="M12 37 L24 12" stroke-width="1.2" opacity="0.5"/>'
     '<path d="M11.5 24 L26.5 24" stroke-width="1.7"/>'
@@ -113,7 +113,7 @@ AGORA_ICON = (
 # Green line-art peak -- the FALLBACK favicon, used only when the real PNG below is absent.
 _FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 40">'
-    '<g fill="none" stroke="#4FAB4A" stroke-linecap="round" stroke-linejoin="round">'
+    '<g fill="none" stroke="#4CAC4C" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M3 37 L19 4 L35 37" stroke-width="2.4"/>'
     '<path d="M12 37 L24 12" stroke-width="1.6" opacity="0.55"/>'
     '<path d="M11.5 24 L26.5 24" stroke-width="2.2"/>'
