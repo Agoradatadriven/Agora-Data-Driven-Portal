@@ -165,11 +165,13 @@
     .ax-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 4px 6px 18px; position: relative; }
     .ax-brand::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--ax-line), transparent); }
     .ax-brand .ax-co { display: flex; align-items: center; justify-content: center; gap: 9px; }
-    .ax-brand .ax-co svg, .ax-brand .ax-co img { display: block; height: 30px; width: auto; max-width: 160px; }
+    .ax-brand .ax-co svg, .ax-brand .ax-co img { display: block; height: 42px; width: auto; max-width: 190px; }
+    /* "AGORA ATRIUM" as gradient TEXT (no pill background) -- keeps the green->blue colour, text only. */
     .ax-badge {
-      font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
-      color: #fff; background: var(--ax-grad-brand); padding: 5px 16px; border-radius: var(--ax-pill);
-      box-shadow: 0 4px 12px rgba(24,86,201,.28);
+      font-size: 14px; font-weight: 800; letter-spacing: 1.7px; text-transform: uppercase;
+      background: var(--ax-grad-brand); -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      padding: 0; box-shadow: none;
     }
     /* Featured client logo (sidebar crest): drop the white PNG box into the card via multiply blend. */
     .ax-clientlogo { display: block; }
@@ -180,13 +182,25 @@
       color: var(--ax-sub); font-size: 14px; font-weight: 600; transition: background .12s, color .12s;
     }
     .ax-nav a:hover { background: var(--ax-canvas); color: var(--ax-ink); }
-    .ax-nav a.is-active { background: var(--ax-grad-green); color: #fff; box-shadow: 0 8px 20px rgba(79,171,74,.36); }
-    .ax-nav a.is-active .ax-ic { color: #fff; }
+    /* Active item matches the super-admin console: soft green wash + green text (not a gradient fill). */
+    .ax-nav a.is-active { background: var(--ax-green-bg); color: var(--ax-green-d); box-shadow: none; }
+    .ax-nav a.is-active .ax-ic { color: var(--ax-green-d); }
     .ax-nav .ax-count {
       margin-left: auto; font-size: 11px; font-weight: 800; min-width: 20px; text-align: center;
-      background: var(--ax-warn); color: #fff; border-radius: var(--ax-pill); padding: 1px 6px;
+      background: var(--ax-violet-d); color: #fff; border-radius: var(--ax-pill); padding: 1px 6px;
     }
-    .ax-nav a.is-active .ax-count { background: rgba(255,255,255,.28); }
+    .ax-nav a.is-active .ax-count { background: var(--ax-violet-d); }
+
+    /* Sidebar collapse toggle: a round button pinned to the RIGHT-MIDDLE edge of the left panel
+       (on the divider), viewport-fixed so it stays centred while you scroll. */
+    #ax-navtoggle {
+      position: fixed; top: 50%; left: 256px; transform: translate(-50%, -50%); z-index: 60;
+      width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--ax-line);
+      background: var(--ax-white); color: var(--ax-sub); box-shadow: 0 6px 16px rgba(16,24,40,.16);
+      display: grid; place-items: center; cursor: pointer;
+    }
+    #ax-navtoggle:hover { color: var(--ax-ink); border-color: #d6d8e0; }
+    .atrium.nav-collapsed #ax-navtoggle { left: 68px; }
     /* Client crest: features the client's own logo, blended onto a soft branded card. */
     .ax-side-card {
       margin-top: auto; background: linear-gradient(165deg, #FFFFFF 0%, var(--ax-canvas) 100%);
@@ -1042,6 +1056,8 @@
        instead of forcing a horizontal scroll, and content padding tightens. ---- */
     @media (max-width: 720px) {
       .ax-app { grid-template-columns: 1fr; }
+      /* No vertical divider on phones -- park the collapse toggle top-left. */
+      #ax-navtoggle { left: 16px; top: 14px; transform: none; }
       .ax-side {
         position: static; height: auto; flex-direction: column; gap: 10px;
         padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--ax-line);
@@ -1141,6 +1157,9 @@
   <div id="ax-plat-iconlib" hidden aria-hidden="true">{% for pl in ALL_PLATS %}<span data-plat="{{ pl }}">{{ plat_ic(pl) }}</span>{% endfor %}</div>
   <div class="ax-app">
 
+    <!-- Collapse toggle: pinned to the right-middle edge of the left panel (viewport-fixed). -->
+    <button class="ax-iconbtn" type="button" id="ax-navtoggle" title="Show / hide the menu" aria-label="Show or hide the menu">{{ ic('menu') }}</button>
+
     <!-- Sidebar -->
     <aside class="ax-side">
       <div>
@@ -1187,7 +1206,6 @@
     <div class="ax-main">
       <header class="ax-top">
         <div class="ax-top-left">
-          <button class="ax-iconbtn" type="button" id="ax-navtoggle" title="Show / hide the menu" aria-label="Show or hide the menu">{{ ic('menu') }}</button>
           <h1 id="ax-title">{{ tab_titles[view.active_tab]|default('Overview', true) }}</h1>
         </div>
         <div class="ax-top-right">
@@ -1220,7 +1238,7 @@
             <div class="ax-menu ax-menu-r" id="ax-avatarmenu" hidden>
               <div class="ax-menu-h">{{ user }}</div>
               <div class="ax-menu-s2">{{ 'Super administrator' if is_superadmin else 'Client workspace' }}</div>
-              {% if is_superadmin %}<a class="ax-menu-item ax-menu-link" href="/logout">Sign out</a>{% endif %}
+              <a class="ax-menu-item ax-menu-link" href="/logout">Sign out</a>
             </div>
           </div>
 
@@ -1230,7 +1248,7 @@
           {% if is_superadmin %}
           <a class="ax-backadmin" href="/admin/atrium" title="Back to all client workspaces">{{ ic('overview') }}<span>Back</span></a>
           {% else %}
-          <a class="ax-signout" href="/logout">{{ ic('logout') }}<span>Sign out</span></a>
+          <a class="ax-backadmin" href="/" title="Back to your portal">{{ ic('overview') }}<span>Back</span></a>
           {% endif %}
         </div>
       </header>

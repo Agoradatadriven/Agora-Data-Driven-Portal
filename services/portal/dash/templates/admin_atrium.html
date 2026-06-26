@@ -41,11 +41,12 @@
       position: sticky; top: 0; height: 100vh; }
     .side .side-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px;
       padding: 24px 20px 18px; border-bottom: 1px solid var(--ag-line); }
-    .side .side-brand svg { display: block; height: 30px; width: auto; }
-    .brand-sub { font-size: 13px; font-weight: 800; color: #fff;
+    .side .side-brand svg { display: block; height: 42px; width: auto; }
+    /* "AGORA ATRIUM" as gradient TEXT (no pill background) -- keeps the green->blue colour, text only. */
+    .brand-sub { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
       background: linear-gradient(120deg, #4CAC4C 0%, #4CAC4C 42%, #2575FC 100%);
-      padding: 5px 16px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1.1px;
-      box-shadow: 0 4px 12px rgba(24,86,201,.28); }
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+      padding: 0; box-shadow: none; }
     .side-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; overflow-y: auto; }
     .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer;
       border: 0; background: transparent; color: var(--ag-charcoal); font: inherit; font-size: 14px; font-weight: 600;
