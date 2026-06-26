@@ -83,9 +83,10 @@ parses it with esprima, which predates those tokens). Use classic `&&`/`||` guar
 ## Agora Atrium (client workspace in the portal)
 
 Atrium is the co-branded client workspace built **into** `platform-dash` — **additive**, reusing the
-existing session auth, bucket, and runtime SA. **No new infra/IAM/bucket/secret/service** — with ONE
-opt-in exception, the Google-Doc → AI strategy feature (see the strategy-doc bullet below), which stays
-dormant and infra-free unless an operator deliberately enables it. Product name is one constant:
+existing session auth, bucket, and runtime SA. **No new infra/IAM/bucket/secret/service** — except for
+a few deliberately **opt-in** features that stay dormant and infra-free unless an operator enables them:
+the Google-Doc → AI strategy feature, large-creative signed uploads, the daily Market-Intelligence
+auto-refresh, and **live GA4 event counts** (see those bullets below). Product name is one constant:
 `WORKSPACE_NAME` in `services/portal/dash/main.py`.
 
 - **State = one private JSON per client (no database):** `workspace/<c>.json` in the **registry
@@ -113,6 +114,22 @@ dormant and infra-free unless an operator deliberately enables it. Product name 
   stays out of scope). It degrades gracefully (a dead site is recorded in the result, never a 500).
   Routes: `POST /w/<c>/admin/website-health/{save,check}` (root-only). State lives under
   `ws["website_health"]` via `workspace.set_website_url`/`set_website_notes`/`save_website_check`.
+  - **Live GA4 event counts (OPT-IN, the one infra deviation on this tab):** below the detected-tags
+    panel the team can see REAL per-event counts (`page_view`, `session_start`, `purchase`, …) for the
+    last 28 days, pulled from the client's GA4 property via the **Analytics Data API** (`runReport`).
+    Unlike the tag-scan (HTML only, infra-free), this reads real analytics data, so it is **gated**
+    `GA4_REPORTING_ENABLED=1` (default OFF — a normal deploy makes no GA4 calls). `dash/atrium_ga4.py`
+    is the pure, injectable-`runner`, off-cloud-testable module; auth is **keyless** — it mints a
+    short-lived `analytics.readonly` token via the IAM Credentials API (the runtime SA holds Token
+    Creator on itself, REUSING the large-upload grant), since a plain cloud-platform token is rejected
+    by the Data API. The operator pastes each client's **numeric** property id (Admin → Property
+    Settings — NOT the `G-XXXX` measurement id) and the SA must be added as a **Viewer** on that GA4
+    property; until then the API 403s and the table degrades to a friendly "grant access" message,
+    never a 500. State: `ws["website_health"].ga4_property_id` (via `workspace.set_ga4_property`) +
+    `ga4_stats` (via `save_ga4_stats`). Routes: `POST /w/<c>/admin/website-health/{save (now also
+    `ga4_property_id`),ga4}` (root-only). One-time infra: `enable_ga4_reporting.ps1` (enable the
+    Analytics Data + IAM Credentials APIs, Token-Creator-on-self, flip the env on); the deploy script
+    carries a `$GA4_REPORTING_ENABLED` toggle. Off-cloud test: `_atrium_ga4_localtest.py`.
 - **Content with a date mirrors onto the Content Calendar (linked event):** when an admin gives a
   content piece a `date` (in the add/edit-content form), `workspace.add_content`/`update_content`
   mirror it into `calendar[]` as a linked event carrying `content_id` + `tab` (paid→`leadgen`,

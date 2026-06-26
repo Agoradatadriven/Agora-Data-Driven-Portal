@@ -1053,6 +1053,21 @@
     .ax-wh-gtmlbl { font-weight: 700; color: var(--ax-ink); margin-right: 6px; }
     .ax-wh-empty { display: flex; align-items: center; gap: 14px; color: var(--ax-sub); font-size: 14px; }
     .ax-wh-empty .ax-ic { width: 30px; height: 30px; color: var(--ax-green); flex: 0 0 auto; }
+    /* GA4 property id row + live event-count table (opt-in feature). */
+    .ax-wh-ga4row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ax-line); }
+    .ax-wh-ga4lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-sub); margin: 0; }
+    .ax-wh-ga4 { width: 200px; flex: 0 0 auto; }
+    .ax-wh-ga4hint { font-size: 12px; color: var(--ax-sub); flex: 1 1 240px; }
+    .ax-wh-evtbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
+    .ax-wh-evtbl th, .ax-wh-evtbl td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--ax-line); vertical-align: top; }
+    .ax-wh-evtbl th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-sub); font-weight: 700; }
+    .ax-wh-evtbl tfoot td { font-weight: 800; color: var(--ax-ink); border-bottom: 0; border-top: 2px solid var(--ax-line); }
+    .ax-wh-evnum { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; color: var(--ax-ink); }
+    .ax-wh-evname { font-weight: 700; color: var(--ax-ink); }
+    .ax-wh-evcode { font-size: 11.5px; color: var(--ax-sub); background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+    .ax-wh-evdesc { color: var(--ax-sub); }
+    .ax-wh-evfoot { font-size: 12px; color: var(--ax-sub); margin: 12px 0 0; }
+    .ax-wh-evfoot code { background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 6px; padding: 1px 6px; }
     .ax-wh-notes { width: 100%; box-sizing: border-box; }
     @media (max-width: 560px) { .ax-wh-cells { grid-template-columns: repeat(2, 1fr); } }
   </style>
@@ -2175,6 +2190,14 @@
               <div class="ax-wh-urlview">{% if wh.url %}<a href="{{ wh.url }}" target="_blank" rel="noopener noreferrer">{{ wh.url }}</a>{% else %}No website set yet.{% endif %}</div>
               {% endif %}
             </div>
+            {% if ga4_enabled and can_edit_health %}
+            <div class="ax-wh-ga4row">
+              <label class="ax-wh-ga4lbl" for="ax-wh-ga4">GA4 property ID</label>
+              <input class="ax-editbox ax-wh-ga4" id="ax-wh-ga4" type="text" inputmode="numeric" placeholder="e.g. 123456789" value="{{ wh.ga4_property_id }}">
+              <button class="ax-btn violet" id="ax-wh-ga4load" type="button">Load event counts</button>
+              <span class="ax-wh-ga4hint">The numeric ID from GA4 Admin &rarr; Property Settings &mdash; not the G-XXXX measurement ID.</span>
+            </div>
+            {% endif %}
           </div>
 
           {% if lc %}
@@ -2228,6 +2251,38 @@
           <div class="ax-panel ax-wh-empty">
             {{ ic('health') }}
             <div>No health check has been run yet.{% if can_edit_health %} Enter the website URL above and click <strong>Run health check</strong>.{% else %} A super admin needs to run the first check.{% endif %}</div>
+          </div>
+          {% endif %}
+
+          {% if ga4_enabled %}
+          {% set gs = wh.ga4_stats %}
+          <div class="ax-panel ax-wh-ga4panel">
+            <h2 class="ax-wh-h">Events fired &middot; live from GA4</h2>
+            <p class="ax-wh-note">Real counts from Google Analytics &mdash; how many times each event actually fired{% if gs and gs.ok %} in the last {{ gs.days }} days{% endif %}. This is the live data behind the GA4 tag, not a page scan.</p>
+            {% if gs and gs.ok and gs.rows %}
+            <table class="ax-wh-evtbl">
+              <thead>
+                <tr><th>Event</th><th class="ax-wh-evnum">Count</th><th>What it tracks</th></tr>
+              </thead>
+              <tbody>
+                {% for r in gs.rows %}
+                <tr>
+                  <td><span class="ax-wh-evname">{{ r.label }}</span> <code class="ax-wh-evcode">{{ r.event }}</code></td>
+                  <td class="ax-wh-evnum">{{ "{:,}".format(r.count) }}</td>
+                  <td class="ax-wh-evdesc">{{ r.description }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr><td>Total events</td><td class="ax-wh-evnum">{{ "{:,}".format(gs.total_events) }}</td><td class="ax-wh-evdesc">Across all events in the window</td></tr>
+              </tfoot>
+            </table>
+            <p class="ax-wh-evfoot">Property <code>{{ gs.property_id }}</code> &middot; loaded {{ gs.fetched_at|atrium_dt }}</p>
+            {% elif gs and gs.error %}
+            <p class="ax-wh-none">Couldn't load event counts &mdash; {{ gs.error }}.</p>
+            {% else %}
+            <p class="ax-wh-none">{% if can_edit_health %}Enter the GA4 property ID above and click <strong>Load event counts</strong>.{% else %}A super admin needs to load the GA4 event counts.{% endif %}</p>
+            {% endif %}
           </div>
           {% endif %}
 
@@ -2595,6 +2650,28 @@
             checkBtn.removeAttribute("disabled");
             checkBtn.innerHTML = label;
             adminMsg("Could not run the check. Please try again.", false);
+          });
+      });
+    }
+    // Load live GA4 event counts (opt-in feature): POST the property id, then reload so the freshly
+    // stored stats render server-side. A degraded result (no access / off) is recorded server-side
+    // and surfaced in the table, so a plain reload shows the message.
+    var ga4Btn = document.getElementById("ax-wh-ga4load");
+    if (ga4Btn) {
+      ga4Btn.addEventListener("click", function () {
+        var el = document.getElementById("ax-wh-ga4");
+        var pid = el ? el.value.replace(/^\s+|\s+$/g, "") : "";
+        var label = ga4Btn.innerHTML;
+        ga4Btn.setAttribute("disabled", "disabled");
+        ga4Btn.textContent = "Loading…";
+        post("/admin/website-health/ga4", { ga4_property_id: pid })
+          .then(function () {
+            window.location.reload();
+          })
+          .catch(function () {
+            ga4Btn.removeAttribute("disabled");
+            ga4Btn.innerHTML = label;
+            adminMsg("Could not load GA4 event counts. Please try again.", false);
           });
       });
     }
