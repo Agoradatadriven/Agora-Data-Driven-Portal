@@ -40,12 +40,6 @@ $COOKIE_DOMAIN = ".agoradatadriven.com"
 # is non-empty. Local preview never runs this script, so it stays untracked.
 $GTM_CONTAINER_ID = "GTM-KKWX37RG"
 
-# OPT-IN: live GA4 event counts on the Website Health tab (Analytics Data API). Leave "" to keep the
-# feature OFF (default deploy stays infra-free). Set to "1" only AFTER running enable_ga4_reporting.ps1
-# (which enables the APIs + grants Token Creator on self). Because we deploy with --update-env-vars,
-# leaving this "" never DISABLES a flag the enable script already set on the service; set "0" to do that.
-$GA4_REPORTING_ENABLED = ""
-
 # Secrets mounted as env vars (Secret Manager, :latest). Created by deploy.ps1.
 $SESSION_SECRET = "platform-dash-session-key"
 $SSO_SECRET     = "platform-sso-key"
@@ -104,7 +98,6 @@ if (-not $SkipBuild) {
 # Assemble the env-var list; only ship GTM_CONTAINER_ID when it's set (empty -> GTM stays off).
 $ENV_VARS = "COOKIE_DOMAIN=$COOKIE_DOMAIN,REGISTRY_BUCKET=$BUCKET,REGISTRY_OBJECT=platform.json"
 if (-not [string]::IsNullOrWhiteSpace($GTM_CONTAINER_ID)) { $ENV_VARS += ",GTM_CONTAINER_ID=$GTM_CONTAINER_ID" }
-if (-not [string]::IsNullOrWhiteSpace($GA4_REPORTING_ENABLED)) { $ENV_VARS += ",GA4_REPORTING_ENABLED=$GA4_REPORTING_ENABLED" }
 
 Write-Host "[..] Deploying Cloud Run service $PLATFORM" -ForegroundColor Cyan
 gcloud run deploy $PLATFORM `

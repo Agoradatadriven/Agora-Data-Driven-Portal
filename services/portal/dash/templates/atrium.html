@@ -902,7 +902,9 @@
     .ax-comm-meta { font-size: 12px; color: var(--ax-sub); display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }
     .ax-comm-meta .ax-ic { width: 14px; height: 14px; }
     .ax-comm-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
-    /* Market Intelligence: two stacked, labelled sections of briefing cards (team-written, client-read). */
+    /* Market Intelligence: two side-by-side, labelled sections of briefing cards (team-written, client-read). */
+    .ax-intel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 860px) { .ax-intel-grid { grid-template-columns: 1fr; } }
     .ax-intel-sec { margin-bottom: 26px; }
     .ax-intel-head { margin-bottom: 14px; }
     .ax-intel-head h2 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 800; margin: 0; }
@@ -1053,23 +1055,6 @@
     .ax-wh-gtmlbl { font-weight: 700; color: var(--ax-ink); margin-right: 6px; }
     .ax-wh-empty { display: flex; align-items: center; gap: 14px; color: var(--ax-sub); font-size: 14px; }
     .ax-wh-empty .ax-ic { width: 30px; height: 30px; color: var(--ax-green); flex: 0 0 auto; }
-    /* GA4 property id row + live event-count table (opt-in feature). */
-    .ax-wh-ga4row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ax-line); }
-    .ax-wh-ga4lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-sub); margin: 0; }
-    .ax-wh-ga4 { width: 200px; flex: 0 0 auto; }
-    .ax-wh-ga4hint { font-size: 12px; color: var(--ax-sub); flex: 1 1 240px; }
-    .ax-wh-evtbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
-    .ax-wh-evtbl th, .ax-wh-evtbl td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--ax-line); vertical-align: top; }
-    .ax-wh-evtbl th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--ax-sub); font-weight: 700; }
-    .ax-wh-evtbl tfoot td { font-weight: 800; color: var(--ax-ink); border-bottom: 0; border-top: 2px solid var(--ax-line); }
-    .ax-wh-evnum { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; color: var(--ax-ink); }
-    .ax-wh-evcode { font-size: 12.5px; color: var(--ax-ink); background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 6px; padding: 2px 7px; }
-    .ax-wh-evstcol { text-align: center; white-space: nowrap; }
-    .ax-wh-evstatus { display: inline-block; font-size: 11.5px; font-weight: 800; letter-spacing: .3px; padding: 2px 11px; border-radius: 999px; }
-    .ax-wh-evstatus.is-active { color: #2f7a2c; background: var(--ax-green-bg, #EAF6E9); border: 1px solid #CDE9CC; }
-    .ax-wh-evstatus.is-inactive { color: #9b2c2a; background: #FDECEC; border: 1px solid rgba(229,65,62,0.3); }
-    .ax-wh-evfoot { font-size: 12px; color: var(--ax-sub); margin: 12px 0 0; }
-    .ax-wh-evfoot code { background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: 6px; padding: 1px 6px; }
     .ax-wh-notes { width: 100%; box-sizing: border-box; }
     @media (max-width: 560px) { .ax-wh-cells { grid-template-columns: repeat(2, 1fr); } }
   </style>
@@ -2070,17 +2055,7 @@
           <h1 class="ax-greet">Market Intelligence</h1>
           <p class="ax-lede">Your weekly briefing &mdash; what's moving in your industry, and the platform updates worth acting on.</p>
 
-          {% if is_superadmin %}
-          <div class="ax-card ax-intel-add" data-inteltopicsform style="margin-bottom:18px">
-            <span class="ax-doc-label" style="width:100%">{{ ic('intel') }} Auto-refresh &mdash; Business Research keywords</span>
-            <p class="ax-intel-lede" style="margin:2px 0 8px">Real headlines are pulled in <strong>daily from Google News</strong> for these keywords (comma-separated) &mdash; each with a live source link. Leave blank to use a generic marketing feed. <strong>Media Buying News</strong> updates automatically. Hand-added or edited entries are always kept.</p>
-            <textarea class="ax-editbox" data-it="topics" placeholder="e.g. RV industry, motorhome sales, campground trends">{{ view.intel_topics }}</textarea>
-            <div class="ax-actions">
-              <button class="ax-btn violet small" type="button" data-inteltopics>Save keywords</button>
-            </div>
-          </div>
-          {% endif %}
-
+          <div class="ax-intel-grid">
           {% for sec in view.intel %}
           <div class="ax-intel-sec" data-intelsec="{{ sec.key }}">
             <div class="ax-intel-head">
@@ -2150,6 +2125,7 @@
             {% endif %}
           </div>
           {% endfor %}
+          </div>
         </section>
 
         <!-- ============ NOTIFICATION SETTINGS ============ -->
@@ -2192,14 +2168,6 @@
               <div class="ax-wh-urlview">{% if wh.url %}<a href="{{ wh.url }}" target="_blank" rel="noopener noreferrer">{{ wh.url }}</a>{% else %}No website set yet.{% endif %}</div>
               {% endif %}
             </div>
-            {% if ga4_enabled and can_edit_health %}
-            <div class="ax-wh-ga4row">
-              <label class="ax-wh-ga4lbl" for="ax-wh-ga4">GA4 property ID</label>
-              <input class="ax-editbox ax-wh-ga4" id="ax-wh-ga4" type="text" inputmode="numeric" placeholder="e.g. 123456789" value="{{ wh.ga4_property_id }}">
-              <button class="ax-btn violet" id="ax-wh-ga4load" type="button">Load event counts</button>
-              <span class="ax-wh-ga4hint">The numeric ID from GA4 Admin &rarr; Property Settings &mdash; not the G-XXXX measurement ID.</span>
-            </div>
-            {% endif %}
           </div>
 
           {% if lc %}
@@ -2253,35 +2221,6 @@
           <div class="ax-panel ax-wh-empty">
             {{ ic('health') }}
             <div>No health check has been run yet.{% if can_edit_health %} Enter the website URL above and click <strong>Run health check</strong>.{% else %} A super admin needs to run the first check.{% endif %}</div>
-          </div>
-          {% endif %}
-
-          {% if ga4_enabled %}
-          {% set gs = wh.ga4_stats %}
-          <div class="ax-panel ax-wh-ga4panel">
-            <h2 class="ax-wh-h">Events fired &middot; live from GA4</h2>
-            <p class="ax-wh-note">Real counts from Google Analytics &mdash; how many times each event actually fired{% if gs and gs.ok %} in the last {{ gs.days }} days{% endif %}. This is the live data behind the GA4 tag, not a page scan.</p>
-            {% if gs and gs.ok %}
-            <table class="ax-wh-evtbl">
-              <thead>
-                <tr><th>Events Name</th><th class="ax-wh-evnum">Count</th><th class="ax-wh-evstcol">Status</th></tr>
-              </thead>
-              <tbody>
-                {% for r in gs.tracked %}
-                <tr>
-                  <td><code class="ax-wh-evcode">{{ r.event }}</code></td>
-                  <td class="ax-wh-evnum">{{ "{:,}".format(r.count) }}</td>
-                  <td class="ax-wh-evstcol"><span class="ax-wh-evstatus {{ 'is-active' if r.active else 'is-inactive' }}">{{ r.status }}</span></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            <p class="ax-wh-evfoot">Property <code>{{ gs.property_id }}</code> &middot; last {{ gs.days }} days &middot; loaded {{ gs.fetched_at|atrium_dt }}</p>
-            {% elif gs and gs.error %}
-            <p class="ax-wh-none">Couldn't load event counts &mdash; {{ gs.error }}.</p>
-            {% else %}
-            <p class="ax-wh-none">{% if can_edit_health %}Enter the GA4 property ID above and click <strong>Load event counts</strong>.{% else %}A super admin needs to load the GA4 event counts.{% endif %}</p>
-            {% endif %}
           </div>
           {% endif %}
 
@@ -2649,28 +2588,6 @@
             checkBtn.removeAttribute("disabled");
             checkBtn.innerHTML = label;
             adminMsg("Could not run the check. Please try again.", false);
-          });
-      });
-    }
-    // Load live GA4 event counts (opt-in feature): POST the property id, then reload so the freshly
-    // stored stats render server-side. A degraded result (no access / off) is recorded server-side
-    // and surfaced in the table, so a plain reload shows the message.
-    var ga4Btn = document.getElementById("ax-wh-ga4load");
-    if (ga4Btn) {
-      ga4Btn.addEventListener("click", function () {
-        var el = document.getElementById("ax-wh-ga4");
-        var pid = el ? el.value.replace(/^\s+|\s+$/g, "") : "";
-        var label = ga4Btn.innerHTML;
-        ga4Btn.setAttribute("disabled", "disabled");
-        ga4Btn.textContent = "Loading…";
-        post("/admin/website-health/ga4", { ga4_property_id: pid })
-          .then(function () {
-            window.location.reload();
-          })
-          .catch(function () {
-            ga4Btn.removeAttribute("disabled");
-            ga4Btn.innerHTML = label;
-            adminMsg("Could not load GA4 event counts. Please try again.", false);
           });
       });
     }
@@ -3801,14 +3718,6 @@
         adminAction("/admin/intel", fields, btn);
       });
     });
-    // Auto-refresh keywords: set the per-client Business-Research search terms.
-    qsa("[data-inteltopics]").forEach(function (btn) {
-      var panel = document.querySelector("[data-inteltopicsform]");
-      btn.addEventListener("click", function () {
-        adminAction("/admin/intel", fieldsFrom(panel, "data-it", { op: "topics" }), btn);
-      });
-    });
-
     // --- Calendar: click a day -> popup to add / recategorise / mark done / delete ---
     (function () {
       var stack = document.querySelector("[data-caldata]");
