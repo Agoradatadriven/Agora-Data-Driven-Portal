@@ -71,7 +71,7 @@
 {%- elif _name.endswith('.txt') or (_m == 'text/plain') -%}{%- set _flabel = 'TXT' -%}{%- set _fcol = '#5C6470' -%}
 {%- else -%}{%- set _flabel = 'DOC' -%}{%- set _fcol = '#2B579A' -%}{%- endif -%}
 {%- endif -%}
-<button type="button" class="ax-shot-media ax-shot-doc" data-doc="1" data-doc-preview="{{ _prev }}" data-doc-download="{{ _dl }}" data-doc-name="{{ s.name or 'Document' }}" data-doc-kind="{{ _kind }}" aria-label="Preview {{ s.name or 'document' }}">{{ doc_icon(_flabel, _fcol) }}<span class="ax-doc-name">{{ s.name or 'Document' }}</span></button>
+<button type="button" class="ax-shot-media ax-shot-doc" data-doc="1" data-doc-preview="{{ _prev }}" data-doc-download="{{ _dl }}" data-doc-name="{{ s.name or 'Document' }}" data-doc-kind="{{ _kind }}" aria-label="Preview {{ s.name or 'document' }}">{{ doc_icon(_flabel, _fcol) }}<span class="ax-doc-name"><span class="ax-doc-name-t">{{ s.name or 'Document' }}</span></span></button>
 {%- elif _is_image -%}<img class="ax-shot-media" data-shot data-shot-src="{{ s.url }}" src="{{ s.url }}" alt="{{ alt }}">
 {%- else -%}<a class="ax-shot-media ax-shot-file" href="{{ s.url }}?dl=1" target="_blank" rel="noopener noreferrer" download title="Download {{ s.name or 'file' }}">{{ ic('file') }}<span class="ax-shot-file-name">{{ s.name or 'Download file' }}</span></a>
 {%- endif -%}
@@ -517,9 +517,18 @@
                    cursor: zoom-in; overflow: hidden; text-align: center; transition: background .12s ease; }
     .ax-shots:not(.multi) .ax-shot-doc { min-height: 210px; }
     .ax-doc-svg { width: auto; height: 96px; max-height: 56%; display: block; filter: drop-shadow(0 5px 12px rgba(16,24,40,.16)); transition: transform .12s ease; }
-    .ax-doc-name { font-size: 12px; font-weight: 700; color: #3a4050; line-height: 1.25; max-width: 100%;
-                   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+    /* Filename = a translucent black caption bar that slides up from the bottom on hover. The icon
+       stays centred; long names scroll left-to-right (see the `is-scroll` marquee JS), short ones rest. */
+    .ax-doc-name { position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box;
+                   padding: 7px 12px; background: rgba(0,0,0,.62); color: #fff; font-size: 12px; font-weight: 700;
+                   line-height: 1.3; text-align: left; white-space: nowrap; overflow: hidden; pointer-events: none;
+                   transform: translateY(100%); transition: transform .2s ease; }
+    .ax-doc-name-t { display: inline-block; white-space: nowrap; will-change: transform; }
+    .ax-doc-name.is-scroll .ax-doc-name-t { animation: ax-doc-marquee var(--ax-doc-dur, 6s) linear infinite alternate; }
+    @keyframes ax-doc-marquee { 0%, 14% { transform: translateX(0); }
+                                86%, 100% { transform: translateX(calc(var(--ax-doc-scroll, 0px) * -1)); } }
     .ax-shot-doc:hover { background: #ebedf2; }
+    .ax-shot-doc:hover .ax-doc-name { transform: translateY(0); }
     .ax-shot-doc:hover .ax-doc-svg { transform: translateY(-1px); }
     /* Doc lightbox: full-height scrollable viewer with a top bar carrying a transparent download button. */
     .ax-doclightbox { padding: 0; grid-template-rows: auto 1fr; place-items: stretch; }
@@ -4035,6 +4044,22 @@
       ev.stopPropagation();
       dlbOpen(el.getAttribute("data-doc-preview"), el.getAttribute("data-doc-download"), el.getAttribute("data-doc-name"));
     });
+    // Filename caption: on hover, scroll it left-to-right only if it overflows the bar; else rest.
+    var bar = el.querySelector(".ax-doc-name");
+    var txt = bar && bar.querySelector(".ax-doc-name-t");
+    if (bar && txt) {
+      el.addEventListener("mouseenter", function () {
+        var over = txt.scrollWidth - bar.clientWidth + 24; // 24 = bar's 12px horizontal padding x2
+        if (over > 2) {
+          bar.style.setProperty("--ax-doc-scroll", over + "px");
+          bar.style.setProperty("--ax-doc-dur", Math.max(3, over / 35) + "s");
+          bar.classList.add("is-scroll");
+        } else {
+          bar.classList.remove("is-scroll");
+        }
+      });
+      el.addEventListener("mouseleave", function () { bar.classList.remove("is-scroll"); });
+    }
   });
 
   // Click an image thumbnail -> open the lightbox with that ticket's pictures.
