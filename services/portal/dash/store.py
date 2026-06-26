@@ -333,6 +333,30 @@ def set_account_password(email, password, registry=None):
     return account
 
 
+def set_account_profile(email, name=None, title=None, photo=None, registry=None):
+    """Update an account's profile fields (display name, title, photo data-URI). Raises KeyError.
+
+    Only non-None fields are written, so callers can update one field without clobbering the others.
+    `photo` is a small inline data-URI (same posture as client logos -- the registry JSON is private
+    and rewritten in full, so the caller caps the size). Pass photo="" to clear it.
+    """
+    reg = registry if registry is not None else load_registry()
+    account = get_account(email, reg)
+    if account is None:
+        raise KeyError("unknown account '%s'" % email)
+    if name is not None:
+        account["name"] = name
+    if title is not None:
+        account["title"] = title
+    if photo is not None:
+        if photo:
+            account["photo"] = photo
+        else:
+            account.pop("photo", None)
+    save_registry(reg)
+    return account
+
+
 def remove_account(email, registry=None):
     """Delete an account (e.g. rejecting a sign-up request). Returns True if one was removed."""
     reg = registry if registry is not None else load_registry()

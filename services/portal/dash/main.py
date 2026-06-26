@@ -458,6 +458,70 @@ def logout():
     return resp
 
 
+# --- Profile (any logged-in user: photo, display name, title, password) --------------------------
+PROFILE_PHOTO_MAX_BYTES = 512 * 1024
+_PROFILE_IMAGE_EXT = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def _role_label(account):
+    """Human label for an account's role (or 'Member' for env/bootstrap logins with no account)."""
+    role = (account or {}).get("role")
+    if role == "superadmin":
+        return "Super administrator"
+    if role == "admin":
+        return "Administrator"
+    if role == "client":
+        return "Client"
+    return "Administrator" if is_superadmin() else "Member"
+
+
+@app.route("/profile", methods=["GET", "POST"])
+def profile():
+    """Self-service profile for ANY logged-in user (super admin, admin, client): upload a photo, set a
+    display name + title, and change the password. The photo is stored inline on the account (a small
+    data-URI, like client logos -- private registry JSON, never public)."""
+    if not authed():
+        return redirect(url_for("login", next="/profile"))
+    email = current_user()
+    account = current_account()
+
+    if request.method == "GET":
+        return render_template("profile.html", account=account, email=email,
+                               role_label=_role_label(account), is_superadmin=is_superadmin(),
+                               msg=request.args.get("msg"), flash_err=(request.args.get("err") == "1"),
+                               **_brand_ctx())
+
+    # POST -- update. Env/bootstrap logins have no stored account to edit.
+    if account is None:
+        return redirect(url_for("profile",
+                                msg="This session is signed in via an environment secret, so there's "
+                                    "no stored profile to edit.", err=1))
+    new_pw = request.form.get("password", "")
+    if new_pw:
+        if len(new_pw) < 6:
+            return redirect(url_for("profile", msg="New password must be at least 6 characters.", err=1))
+        store.set_account_password(email, new_pw)
+
+    photo_data = None
+    if request.form.get("remove_photo") == "1":
+        photo_data = ""          # clear the photo
+    else:
+        upload = request.files.get("photo")
+        if upload is not None and upload.filename:
+            mime = (upload.mimetype or "").lower()
+            if mime not in _PROFILE_IMAGE_EXT:
+                return redirect(url_for("profile", msg="Photo must be a PNG, JPG, GIF, or WEBP image.", err=1))
+            data = upload.read(PROFILE_PHOTO_MAX_BYTES + 1)
+            if len(data) > PROFILE_PHOTO_MAX_BYTES:
+                return redirect(url_for("profile", msg="Photo is too large -- use an image under 512 KB.", err=1))
+            import base64  # lazy: only the photo path needs it
+            photo_data = "data:%s;base64,%s" % (mime, base64.b64encode(data).decode("ascii"))
+
+    store.set_account_profile(email, name=(request.form.get("name", "").strip() or None),
+                              title=request.form.get("title", "").strip(), photo=photo_data)
+    return redirect(url_for("profile", msg="Profile updated."))
+
+
 @app.route("/r", methods=["GET"])
 def shared_recap():
     """Public, capability-URL recap page for the Overview "Share recap" button.
@@ -847,6 +911,7 @@ def atrium(client, tab):
         can_edit_health=(is_root_admin() and not admin_preview),
         admin_preview=admin_preview,
         admin_name=_admin_sender_name(user),
+        profile_photo=(current_account() or {}).get("photo", ""),
         favicon=brand.FAVICON_DATA_URI,
     )
 

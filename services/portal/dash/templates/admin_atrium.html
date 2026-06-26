@@ -41,11 +41,12 @@
       position: sticky; top: 0; height: 100vh; }
     .side .side-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px;
       padding: 24px 20px 18px; border-bottom: 1px solid var(--ag-line); }
-    .side .side-brand svg { display: block; height: 30px; width: auto; }
-    .brand-sub { font-size: 13px; font-weight: 800; color: #fff;
+    .side .side-brand svg { display: block; height: 42px; width: auto; }
+    /* "AGORA ATRIUM" as gradient TEXT (no pill background) -- keeps the green->blue colour, text only. */
+    .brand-sub { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
       background: linear-gradient(120deg, #4CAC4C 0%, #4CAC4C 42%, #2575FC 100%);
-      padding: 5px 16px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1.1px;
-      box-shadow: 0 4px 12px rgba(24,86,201,.28); }
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+      padding: 0; box-shadow: none; }
     .side-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; overflow-y: auto; }
     .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer;
       border: 0; background: transparent; color: var(--ag-charcoal); font: inherit; font-size: 14px; font-weight: 600;
@@ -245,7 +246,7 @@
       </nav>
       <div class="side-foot">
         {% if user %}<div class="who">Signed in as<br><b>{{ user }}</b></div>{% endif %}
-        <a class="pill logout" href="/logout">Log out</a>
+        <a class="pill logout" href="/logout" data-signout>Sign out</a>
       </div>
     </aside>
 
@@ -510,6 +511,7 @@
           <p class="meta" style="margin-top:14px">You're the super admin &mdash; you can create and manage
             admin accounts, and your account can't be deleted from the Accounts list.</p>
           {% endif %}
+          <a class="btn small" href="/profile" style="display:inline-block;text-decoration:none;margin-top:14px">Edit profile &amp; upload photo &rarr;</a>
         </div>
 
         <h2 class="section">Change your password</h2>
@@ -585,6 +587,12 @@
           var email = this.getAttribute("data-acct") || "this account";
           if (!window.confirm("Reset the password for " + email + "?\n\nA new password is generated and "
             + "shown to you so you can pass it on.")) { e.preventDefault(); }
+        });
+      });
+      // Confirm before signing out.
+      qsa("[data-signout]").forEach(function (el) {
+        el.addEventListener("click", function (ev) {
+          if (!window.confirm("Are you sure you want to sign out?")) { ev.preventDefault(); }
         });
       });
     })();
