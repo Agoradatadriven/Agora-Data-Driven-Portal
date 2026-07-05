@@ -104,6 +104,22 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
 Write-Host "[OK] gcloud is on PATH" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
+# (c2) Git -- needed to clone/branch/push (and by tools/push-branch.ps1 etc.)
+# ---------------------------------------------------------------------------
+Write-Host "[..] Checking for git" -ForegroundColor Cyan
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "[..] git not found -- installing Git via winget" -ForegroundColor Cyan
+    winget install --id Git.Git --exact --silent --accept-package-agreements --accept-source-agreements
+    Must "winget install Git.Git"
+    Update-SessionPath
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Host "[..] git installed but not visible in THIS terminal. Open a NEW terminal and re-run setup." -ForegroundColor Yellow
+        exit 0
+    }
+}
+Write-Host "[OK] git: $((git --version) 2>&1)" -ForegroundColor Green
+
+# ---------------------------------------------------------------------------
 # (d) Verify the committed requirements files EXIST before using them
 # ---------------------------------------------------------------------------
 Write-Host "[..] Verifying version-controlled requirements files" -ForegroundColor Cyan
