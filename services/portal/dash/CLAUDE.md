@@ -75,5 +75,6 @@ they exist, so a default deploy stays unaffected (button off) until you create t
 `secretmanager.secretAccessor` on each. Register the redirect URI
 `https://portal.agoradatadriven.com/auth/google/callback` on the OAuth client.
 **Test (off-cloud, what CI runs):** `python _workspace_localtest.py`, `python _accounts_localtest.py`,
-`python _google_oauth_localtest.py`, `python _atrium_smoketest.py`, `python _auth_smoketest.py`, and
-`python _audit_localtest.py` from this dir. **Preview:** `run_local.ps1` (or `preview/Preview Portal (admin).cmd`).
+`python _google_oauth_localtest.py`, `python _atrium_smoketest.py`, `python _auth_smoketest.py`,
+`python _audit_localtest.py`, and `python _slashid_creative_test.py` from this dir.
+**Preview:** `run_local.ps1` (or `preview/Preview Portal (admin).cmd` at repo root).
