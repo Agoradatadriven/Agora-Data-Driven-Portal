@@ -56,6 +56,42 @@ function Test-Probe([scriptblock]$Probe) {
     finally { $ErrorActionPreference = $old }
 }
 
+function Set-GitHubAuth {
+    # Configure GitHub auth so `git push` NEVER opens a browser again. Prefer a pasted
+    # Personal Access Token (durable, browser-free); fall back to the browser device flow.
+    # No-op if already signed in. Manages its own $ErrorActionPreference (this script runs
+    # under 'Stop', which would otherwise abort on gh's stderr progress).
+    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try {
+        if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Write-Host "[!] gh not on PATH yet -- skipping GitHub auth (reopen terminal + re-run)." -ForegroundColor Yellow; return }
+        gh auth status *> $null
+        if ($LASTEXITCODE -eq 0) { Write-Host "[OK] Already signed in to GitHub." -ForegroundColor Green; gh auth setup-git 2>$null | Out-Null; return }
+        Write-Host "GitHub sign-in (so git push never opens a browser). Do ONE of:" -ForegroundColor Cyan
+        Write-Host "  - copy your PAT to the clipboard, then press ENTER here to use it, or" -ForegroundColor Gray
+        Write-Host "  - paste the PAT on the line below and press Enter (it will be visible), or" -ForegroundColor Gray
+        Write-Host "  - type 'b' then Enter to sign in via browser instead." -ForegroundColor Gray
+        Write-Host "Create one: https://github.com/settings/tokens  (classic; scopes: repo, workflow, read:org)" -ForegroundColor DarkGray
+        $tok = Read-Host "PAT (or ENTER=use clipboard, b=browser)"
+        if ($tok -match '^(b|browser)$') { gh auth login --web --git-protocol https }
+        else {
+            if ([string]::IsNullOrWhiteSpace($tok)) {
+                try { $tok = (Get-Clipboard -Raw 2>$null | Out-String) } catch { $tok = "" }
+                if (-not [string]::IsNullOrWhiteSpace($tok)) { Write-Host "[OK] Using the token from your clipboard." -ForegroundColor Green }
+            }
+            $tok = ($tok -replace '\s', '')
+            if ([string]::IsNullOrWhiteSpace($tok)) { Write-Host "[!] No token found (clipboard empty?). Falling back to browser." -ForegroundColor Yellow; gh auth login --web --git-protocol https }
+            else {
+                $tok | gh auth login --with-token
+                if ($LASTEXITCODE -ne 0) { Write-Host "[!] Token rejected (needs scopes: repo, workflow, read:org). Falling back to browser." -ForegroundColor Yellow; gh auth login --web --git-protocol https }
+            }
+        }
+        $tok = $null
+        gh auth setup-git 2>$null | Out-Null
+        gh auth status *> $null
+        if ($LASTEXITCODE -eq 0) { Write-Host "[OK] GitHub configured -- git push will not prompt." -ForegroundColor Green } else { Write-Host "[!] GitHub auth not confirmed -- pushes may still prompt." -ForegroundColor Yellow }
+    } finally { $ErrorActionPreference = $old }
+}
+
 # ---------------------------------------------------------------------------
 # (a) Locate + sanity-check the repo root
 # ---------------------------------------------------------------------------
@@ -102,6 +138,38 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
     }
 }
 Write-Host "[OK] gcloud is on PATH" -ForegroundColor Green
+
+# ---------------------------------------------------------------------------
+# (c2) Git -- needed to clone/branch/push (and by tools/push-branch.ps1 etc.)
+# ---------------------------------------------------------------------------
+Write-Host "[..] Checking for git" -ForegroundColor Cyan
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "[..] git not found -- installing Git via winget" -ForegroundColor Cyan
+    winget install --id Git.Git --exact --silent --accept-package-agreements --accept-source-agreements
+    Must "winget install Git.Git"
+    Update-SessionPath
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Host "[..] git installed but not visible in THIS terminal. Open a NEW terminal and re-run setup." -ForegroundColor Yellow
+        exit 0
+    }
+}
+Write-Host "[OK] git: $((git --version) 2>&1)" -ForegroundColor Green
+
+# ---------------------------------------------------------------------------
+# (c3) GitHub CLI -- so `git push` over HTTPS uses a token (no browser prompts)
+# ---------------------------------------------------------------------------
+Write-Host "[..] Checking for gh (GitHub CLI)" -ForegroundColor Cyan
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    Write-Host "[..] gh not found -- installing GitHub CLI via winget" -ForegroundColor Cyan
+    winget install --id GitHub.cli --exact --silent --accept-package-agreements --accept-source-agreements
+    Must "winget install GitHub.cli"
+    Update-SessionPath
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Write-Host "[..] gh installed but not visible in THIS terminal. Open a NEW terminal and re-run setup." -ForegroundColor Yellow
+        exit 0
+    }
+}
+Write-Host "[OK] gh is on PATH" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
 # (d) Verify the committed requirements files EXIST before using them
@@ -186,6 +254,11 @@ Must "gcloud config set project"
 gcloud auth application-default set-quota-project $PROJECT
 Must "gcloud auth application-default set-quota-project"
 Write-Host "[OK] Project pinned to $PROJECT" -ForegroundColor Green
+
+# ---------------------------------------------------------------------------
+# (f2) GitHub sign-in (PAT preferred -> browser-free pushes)
+# ---------------------------------------------------------------------------
+Set-GitHubAuth
 
 # ---------------------------------------------------------------------------
 # (g) Final verification -- prove BOTH credential systems work.
