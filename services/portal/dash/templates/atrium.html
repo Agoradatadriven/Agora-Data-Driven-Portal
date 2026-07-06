@@ -165,6 +165,7 @@
     .ax-brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 4px 6px 18px; position: relative; }
     .ax-brand::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--ax-line), transparent); }
     .ax-brand .ax-co { display: flex; align-items: center; justify-content: center; gap: 9px; }
+    .ax-brand .ax-co a { display: inline-flex; align-items: center; text-decoration: none; }
     .ax-brand .ax-co svg, .ax-brand .ax-co img { display: block; height: 42px; width: auto; max-width: 190px; }
     /* "AGORA ATRIUM" as gradient TEXT (no pill background) -- keeps the green->blue colour, text only. */
     .ax-badge {
@@ -1202,7 +1203,7 @@
       <div>
         <div class="ax-brand">
           <span class="ax-co">
-            {{ ws.brand.agora_logo|safe }}
+            <a href="https://agoradatadriven.com" title="Agora Data Driven — main website">{{ ws.brand.agora_logo|safe }}</a>
           </span>
           <span class="ax-badge">{{ workspace_name }}</span>
         </div>
