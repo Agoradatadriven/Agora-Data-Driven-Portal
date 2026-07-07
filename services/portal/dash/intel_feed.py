@@ -35,17 +35,28 @@ _BAD_AMP_RE = re.compile(r"&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9A-Fa-f]+);)")
 
 
 # --- Building feed URLs -------------------------------------------------------------------------
-def google_news_url(query, lang="en", country="US"):
+def google_news_url(query, lang="en", country="US", window=None):
     """The Google News RSS SEARCH url for `query` (keyless, real links). Returns "" for a blank query.
 
-    e.g. google_news_url("RV industry") ->
-        https://news.google.com/rss/search?q=RV%20industry&hl=en&gl=US&ceid=US:en
+    `window` is an optional Google-News recency operator appended to the query so the caller can
+    scope how far back to look:
+      * a plain string like "7d" / "48h" / "12m"  -> adds `when:7d` (recent items only), used by the
+        daily refresh so it pulls just the last few days.
+      * None (default)                            -> no operator; Google News returns its default
+        recent window.
+    The 12-month first-run backfill passes window="12m".
+
+    e.g. google_news_url("RV industry", window="7d") ->
+        https://news.google.com/rss/search?q=RV%20industry%20when%3A7d&hl=en&gl=US&ceid=US:en
     """
     from urllib.parse import quote  # stdlib; local so importing this module is side-effect free
 
     q = (query or "").strip()
     if not q:
         return ""
+    win = (window or "").strip()
+    if win:
+        q = "%s when:%s" % (q, win)
     hl = lang or "en"
     gl = country or "US"
     return (

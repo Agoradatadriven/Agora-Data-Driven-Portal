@@ -46,6 +46,8 @@ import atrium_view
 import audit
 import brand
 import google_oauth
+import intel_ai
+import intel_refresh
 import notify
 import platform_sso
 import store
@@ -1906,16 +1908,53 @@ def atrium_admin_communication(client):
 
 @app.route("/w/<client>/admin/intel", methods=["POST"])
 def atrium_admin_intel(client):
-    """Add, edit, or delete a Market Intelligence entry (team-only). `op` is 'add' | 'edit' |
-    'delete'; `section` is 'business_research' | 'media_buying'."""
+    """Add/edit/delete a Market Intelligence entry, OR configure the AI research brain (team-only).
+
+    `op` is one of:
+      * 'add' | 'edit' | 'delete' -- a curated briefing entry (`section` = business_research|media_buying).
+      * 'ai_settings'             -- save the selected model + the two tunable per-section prompts.
+      * 'topics'                  -- save the client's Business-Research research keywords.
+      * 'refresh-now'             -- run the daily refresh for THIS client right now (test the brain).
+    """
     gate = _atrium_admin_json_gate(client)
     if gate:
         return gate
     if workspace.load_workspace(client) is None:
         return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
     op = request.form.get("op", "").strip()
-    # Both sections auto-refresh DAILY from fixed legit sources (services/intel-refresh); there is no
-    # per-client keyword configuration -- the team only ADDS/EDITS curated entries here.
+
+    # --- AI research config (model + tunable prompts) ---------------------------------------------
+    if op == "ai_settings":
+        model = request.form.get("model", "").strip()
+        if model and intel_ai.model_meta(model) is None:
+            return jsonify(ok=False, message="Unknown model."), 400
+        if model and not intel_ai.model_available(model):
+            return jsonify(ok=False, message="That model's API key isn't configured on the server."), 400
+        workspace.set_intel_ai(client, {
+            "model": model,
+            "business_prompt": request.form.get("business_prompt", ""),
+            "media_prompt": request.form.get("media_prompt", ""),
+        })
+        _audit(client, "set intel AI settings", model or "(off)")
+        return jsonify(ok=True)
+
+    # --- Per-client Business-Research keywords ----------------------------------------------------
+    if op == "topics":
+        topics = workspace.set_intel_topics(client, request.form.get("topics", ""))
+        _audit(client, "set intel topics", ", ".join(topics))
+        return jsonify(ok=True, topics=topics)
+
+    # --- Run the daily refresh now for this one client (so the team can test the brain) -----------
+    if op == "refresh-now":
+        try:
+            counts = intel_refresh.refresh_client(client)
+        except Exception as exc:  # never 500 the console; report it
+            return jsonify(ok=False, message="Refresh failed: %s" % str(exc)[:200]), 200
+        _audit(client, "ran intel refresh", "ai" if counts.get("ai") else "news-feed fallback")
+        return jsonify(ok=True, counts=counts)
+
+    # Both sections also auto-refresh DAILY (services/intel-refresh); the team ADDS/EDITS curated
+    # entries here, which are preserved across the auto-refresh (only `auto` entries are swapped).
     section = request.form.get("section", "").strip()
     if workspace._intel_key(section) is None:
         return Response('{"error":"bad_section"}', status=400, mimetype="application/json")

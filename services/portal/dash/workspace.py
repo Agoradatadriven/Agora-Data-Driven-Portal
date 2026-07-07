@@ -1174,3 +1174,66 @@ def replace_auto_intel(client, section, entries):
         ws["intel"][key] = fresh + kept  # the view re-sorts by date, so order here is immaterial
         return ws["intel"][key]
     return _mutate(client, fn)
+
+
+# --- Market Intelligence: the AI 'brain' config (which model + the tunable prompts) --------------
+# ws["intel_ai"] holds the per-client research settings the team edits in place (see intel_ai.py):
+#   * model           -- the selected model id ("" -> feature off; the refresh keeps the plain-RSS
+#                        fill). Validated against intel_ai.MODELS by the route before it is stored.
+#   * business_prompt / media_prompt -- the admin-tunable editorial guidance for each section
+#                        (blank -> intel_ai's module default is used at refresh time).
+#   * backfilled      -- set True after the first 12-month backfill run, so daily runs use the short
+#                        recent window instead of re-pulling a year every day.
+#   * last_run / last_model / last_error -- best-effort run metadata surfaced to the admin.
+# It is one more additive workspace key (no new infra), mirroring intel_topics above.
+_INTEL_AI_FIELDS = ("model", "business_prompt", "media_prompt")
+
+
+def get_intel_ai(ws):
+    """The client's AI research settings from an already-loaded workspace dict (never None).
+
+    Always returns a dict with at least the editable fields present (blank if unset) so callers and
+    templates can read them without guarding."""
+    cfg = dict((ws or {}).get("intel_ai") or {})
+    for f in _INTEL_AI_FIELDS:
+        cfg.setdefault(f, "")
+    return cfg
+
+
+def set_intel_ai(client, fields):
+    """Merge `fields` into the client's intel_ai config (only recognised keys). Returns the config.
+
+    Used by the admin 'AI research settings' save. `model` is stored verbatim (the route validates
+    it against intel_ai.MODELS first); the prompts are trimmed. Unknown keys are ignored."""
+    def fn(ws):
+        cfg = ws.setdefault("intel_ai", {})
+        for f in _INTEL_AI_FIELDS:
+            if f in (fields or {}):
+                val = fields.get(f)
+                cfg[f] = ("" if val is None else str(val)).strip()
+        return cfg
+    return _mutate(client, fn)
+
+
+def mark_intel_run(client, model, error="", backfilled=None):
+    """Record run metadata after a refresh attempt (best-effort; never raises out of the job).
+
+    `model` is the model id that ran (or ""); `error` is a short message on failure ("" on success);
+    `backfilled=True` latches the 12-month-backfill-done flag so daily runs stay on the short window."""
+    def fn(ws):
+        cfg = ws.setdefault("intel_ai", {})
+        cfg["last_run"] = now_iso()
+        cfg["last_model"] = model or ""
+        cfg["last_error"] = error or ""
+        if backfilled is not None:
+            cfg["backfilled"] = bool(backfilled)
+        return cfg
+    try:
+        return _mutate(client, fn)
+    except Exception:
+        return None
+
+
+def intel_backfilled(ws):
+    """True iff this client has already had its first 12-month backfill run."""
+    return bool((ws or {}).get("intel_ai", {}).get("backfilled"))
