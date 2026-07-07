@@ -181,34 +181,42 @@ if (-not (Test-Path $jobReq))  { Die "Missing version-controlled file: $jobReq" 
 Write-Host "[OK] Found root requirements.txt and clients/client_template/job/requirements.txt" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-# (e) Create the repo .venv and pip install BOTH requirements files
+# (e) Resolve the target venv, then pip install BOTH requirements files
 # ---------------------------------------------------------------------------
-# The dev-only .venv is a SUPERSET -- it installs the root requirements.txt (loaders +
-# setup scripts) AND the template client's job/requirements.txt (export job) into ONE
-# venv because they pin compatible google-cloud-* versions; the dash web app is
-# deliberately EXCLUDED because it can pin a conflicting google-cloud-storage; each
-# Cloud Run unit still builds its own container, so this local venv never affects image
-# builds.
-$venvDir = Join-Path $REPO ".venv"
-$venvPy  = Join-Path $venvDir "Scripts/python.exe"
-if (-not (Test-Path $venvPy)) {
-    Write-Host "[..] Creating repo .venv" -ForegroundColor Cyan
-    python -m venv $venvDir
-    Must "python -m venv .venv"
+# All Agora Python repos share ONE venv at <workspace-root>\.venv (created by bootstrap.ps1
+# / agora-start-day.ps1). Prefer it when present; fall back to a repo-local .venv only when
+# this repo was cloned STANDALONE (no sibling agora-devtools, so no shared venv). Either way
+# the dev venv is a SUPERSET -- it installs the root requirements.txt (loaders + setup
+# scripts) AND the template client's job/requirements.txt (export job) because they pin
+# compatible google-cloud-* versions; the dash web app is deliberately EXCLUDED because it
+# can pin a conflicting google-cloud-storage; each Cloud Run unit still builds its own
+# container, so this local venv never affects image builds.
+$sharedPy = Join-Path (Split-Path $REPO -Parent) ".venv/Scripts/python.exe"
+if (Test-Path $sharedPy) {
+    $venvPy = $sharedPy
+    Write-Host "[OK] Using shared workspace venv: $venvPy" -ForegroundColor Green
 } else {
-    Write-Host "[OK] .venv already exists" -ForegroundColor Green
+    $venvDir = Join-Path $REPO ".venv"
+    $venvPy  = Join-Path $venvDir "Scripts/python.exe"
+    if (-not (Test-Path $venvPy)) {
+        Write-Host "[..] Creating repo-local .venv (no shared venv found)" -ForegroundColor Cyan
+        python -m venv $venvDir
+        Must "python -m venv .venv"
+    } else {
+        Write-Host "[OK] Repo-local .venv already exists" -ForegroundColor Green
+    }
 }
-# A pre-existing .venv can be missing pip entirely (e.g. created with --without-pip,
+# A pre-existing venv can be missing pip entirely (e.g. created with --without-pip,
 # or with a base Python whose ensurepip was unavailable at creation time). `python.exe`
 # exists, so the Test-Path check above skips recreation -- but `-m pip` then dies with
 # "No module named pip". Bootstrap pip via ensurepip first if it is absent, so the venv
 # self-heals instead of failing setup.
 if (-not (Test-Probe { & $venvPy -m pip --version })) {
-    Write-Host "[..] pip missing in .venv -- bootstrapping via ensurepip" -ForegroundColor Yellow
+    Write-Host "[..] pip missing in venv -- bootstrapping via ensurepip" -ForegroundColor Yellow
     & $venvPy -m ensurepip --upgrade
     Must "ensurepip bootstrap"
 }
-Write-Host "[..] Upgrading pip in .venv" -ForegroundColor Cyan
+Write-Host "[..] Upgrading pip" -ForegroundColor Cyan
 & $venvPy -m pip install --upgrade pip
 Must "pip upgrade"
 Write-Host "[..] pip install -r requirements.txt (root)" -ForegroundColor Cyan
@@ -217,7 +225,7 @@ Must "pip install root requirements.txt"
 Write-Host "[..] pip install -r clients/client_template/job/requirements.txt" -ForegroundColor Cyan
 & $venvPy -m pip install -r $jobReq
 Must "pip install job requirements.txt"
-Write-Host "[OK] .venv ready (root + template job requirements)" -ForegroundColor Green
+Write-Host "[OK] venv ready (root + template job requirements)" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
 # (f) Log in to gcloud TWICE -- CLI creds AND Application Default Credentials

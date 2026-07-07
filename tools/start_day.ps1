@@ -32,11 +32,14 @@ $PROBE_SECRET  = "windsor-api-key"   # shared ingest API key (Secret Manager)
 $PROBE_DATASET = "raw_windsor"       # shared raw layer (BigQuery)
 
 # ---------------------------------------------------------------------------
-# Resolve python: prefer the repo .venv, fall back to system python.
+# Resolve python: prefer the SHARED workspace venv, then the repo .venv, then system python.
 # ---------------------------------------------------------------------------
-$REPO    = Split-Path -Parent $PSScriptRoot
-$venvPy  = Join-Path $REPO ".venv/Scripts/python.exe"
-if (Test-Path $venvPy) { $PY = $venvPy } else { $PY = "python" }
+$REPO     = Split-Path -Parent $PSScriptRoot
+$sharedPy = Join-Path (Split-Path $REPO -Parent) ".venv/Scripts/python.exe"
+$repoPy   = Join-Path $REPO ".venv/Scripts/python.exe"
+if     (Test-Path $sharedPy) { $PY = $sharedPy }
+elseif (Test-Path $repoPy)   { $PY = $repoPy }
+else                         { $PY = "python" }
 Write-Host "[OK] Python: $PY" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
