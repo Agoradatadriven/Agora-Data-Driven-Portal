@@ -474,6 +474,22 @@ def run():
     _check("intel topics saved",
            r.status_code == 200
            and workspace.get_intel_topics(workspace.load_workspace(CLIENT)) == ["RV rentals", "campgrounds"])
+    # Bulk favourite + delete on selected entries.
+    bid = workspace.add_intel_entry(CLIENT, "media_buying", {"title": "Bulk fav me"})["id"]
+    r = c.post("/w/%s/admin/intel" % CLIENT,
+               data={"op": "bulk", "action": "favourite", "section": "media_buying", "entry_ids": bid})
+    _check("bulk favourite ok + pinned",
+           r.status_code == 200
+           and [e for e in workspace.load_workspace(CLIENT)["intel"]["media_buying"]
+                if e["id"] == bid][0].get("favourite") is True)
+    r = c.post("/w/%s/admin/intel" % CLIENT,
+               data={"op": "bulk", "action": "delete", "section": "media_buying", "entry_ids": bid})
+    _check("bulk delete ok",
+           r.status_code == 200
+           and bid not in [e["id"] for e in workspace.load_workspace(CLIENT)["intel"]["media_buying"]])
+    _check("bulk rejects a bad action",
+           c.post("/w/%s/admin/intel" % CLIENT,
+                  data={"op": "bulk", "action": "nuke", "section": "media_buying", "entry_ids": "x"}).status_code == 400)
 
     # ---- Website Health (team-only tab: admins see it, THE super admin edits) --------------------
     import atrium_health   # noqa: E402

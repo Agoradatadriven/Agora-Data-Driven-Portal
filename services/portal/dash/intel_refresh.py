@@ -89,28 +89,11 @@ def _dedupe(rows):
     return out
 
 
-def _to_entry(row, heading):
-    """Shape a parsed feed row into an intel entry dict (the plain-RSS fallback, no AI)."""
-    body = (row.get("body") or "").strip()
-    if body and row.get("title") and body.lower().startswith(row["title"].strip().lower()):
-        body = ""
-    if len(body) > _BODY_MAX:
-        body = body[:_BODY_MAX].rsplit(" ", 1)[0] + "…"
-    return {
-        "heading": heading,
-        "title": (row.get("title") or "").strip(),
-        "body": body,
-        "source": (row.get("source") or "").strip(),
-        "link": (row.get("link") or "").strip(),
-        "date": (row.get("date") or "").strip(),
-    }
-
-
 def _gather(feeds, queries, limit, window=None, fetcher=None):
-    """Fetch every feed + query, dedupe, sort newest-first, return up to `limit` RAW rows.
+    """Fetch every feed + query, dedupe, sort newest-first, return up to `limit` RAW candidate rows.
 
-    Rows carry {title, link, body, source, date} -- the shape both the AI curate path (as
-    candidates) and the plain-RSS fallback (via _to_entry) consume."""
+    Rows carry {title, link, body, source, date} -- the REAL articles the AI curates from (its input;
+    the model keeps each chosen article's real link/source/date)."""
     rows = []
     for url in feeds:
         rows.extend(intel_feed.fetch_feed(url, limit=limit, fetcher=fetcher))
@@ -131,44 +114,41 @@ def _business_queries(ws):
 
 def _fill_section(client, ws, section, feeds, queries, heading, per_section, window,
                   model, prompt, ai_fetcher, fetcher):
-    """Retrieve candidates and fill one section -- AI-curated when possible, plain-RSS otherwise.
+    """Retrieve real candidates and fill one section via the AI. Returns (count, used_ai, error).
 
-    Returns (count, used_ai). Only replaces the section when we actually produced entries, so a
-    transient feed/model outage never wipes yesterday's still-useful auto entries."""
+    RETRIEVES candidate articles (the AI's input) from RSS, then CURATES with the selected model.
+    There is NO news-feed fallback: if the model fails, the section is left as-is and the reason is
+    returned so it can be shown. Only replaces the section when the model produced entries, so a
+    transient outage never wipes yesterday's still-useful entries."""
     candidates = _gather(feeds, queries, _CANDIDATE_POOL, window=window, fetcher=fetcher)
     if not candidates:
-        return 0, False
-
-    entries = None
-    used_ai = False
-    if model:
-        entries = intel_ai.curate(
-            section,
-            ws.get("display_name") or client,
-            workspace.get_intel_topics(ws),
-            candidates,
-            prompt=prompt,
-            model=model,
-            limit=per_section,
-            heading_default=heading,
-            fetcher=ai_fetcher,
-        )
-        used_ai = entries is not None
-    if not entries:  # no model, or the model path failed -> plain-RSS fallback
-        entries = [_to_entry(r, heading) for r in candidates[:per_section]]
-
+        return 0, False, "no source articles found"
+    entries, err = intel_ai.curate(
+        section,
+        ws.get("display_name") or client,
+        workspace.get_intel_topics(ws),
+        candidates,
+        prompt=prompt,
+        model=model,
+        limit=per_section,
+        heading_default=heading,
+        fetcher=ai_fetcher,
+    )
     if entries:
         workspace.replace_auto_intel(client, section, entries)
-    return len(entries), used_ai
+        return len(entries), True, ""
+    return 0, False, err or "the model returned nothing"
 
 
 def refresh_client(client, ws=None, fetcher=None, ai_fetcher=None):
-    """Rebuild both auto sections for one client. Returns a summary dict.
+    """Rebuild both auto sections for one client with the selected AI model. Returns a summary dict.
 
     `ws` may be passed to avoid a reload; `fetcher` is the intel_feed (RSS) seam and `ai_fetcher` is
-    the intel_ai (LLM transport) seam -- both for tests. Skips (returns zeros) if the client has no
-    workspace yet. On the first run for a client (not yet backfilled) it pulls a 12-month window;
-    after that, the short daily window."""
+    the intel_ai (LLM transport) seam -- both for tests. Returns zeros if the client has no workspace
+    OR no model selected (nothing runs without a brain -- there is no news-feed fallback). On the
+    first run for a client (not yet backfilled) it pulls a 12-month window; after that, the short
+    daily window. `backfilled` latches ONLY on a clean, error-free fill so a failed run retries the
+    full 12 months next time."""
     if ws is None:
         ws = workspace.load_workspace(client)
     if ws is None:
@@ -176,18 +156,22 @@ def refresh_client(client, ws=None, fetcher=None, ai_fetcher=None):
 
     cfg = workspace.get_intel_ai(ws)
     model = cfg.get("model") or ""
-    if model and not intel_ai.model_available(model):
-        model = ""  # selected model's provider key isn't configured -> fall back, note it
+    if not model:
+        workspace.mark_intel_run(client, "", error="No AI model selected — pick one in AI Research Brain.")
+        return {"media_buying": 0, "business_research": 0, "ai": False}
+    if not intel_ai.model_available(model):
+        workspace.mark_intel_run(client, "", error="%s isn't available on the server (check its API access)." % model)
+        return {"media_buying": 0, "business_research": 0, "ai": False}
 
     backfilling = not workspace.intel_backfilled(ws)
     window = _BACKFILL_WINDOW if backfilling else _DAILY_WINDOW
     per_section = _BACKFILL_PER_SECTION if backfilling else _PER_SECTION
 
     try:
-        media_n, media_ai = _fill_section(
+        media_n, media_ai, media_err = _fill_section(
             client, ws, "media_buying", MEDIA_BUYING_FEEDS, MEDIA_BUYING_QUERIES,
             _MEDIA_HEADING, per_section, window, model, cfg.get("media_prompt"), ai_fetcher, fetcher)
-        biz_n, biz_ai = _fill_section(
+        biz_n, biz_ai, biz_err = _fill_section(
             client, ws, "business_research", BUSINESS_RESEARCH_FEEDS, _business_queries(ws),
             _BUSINESS_HEADING, per_section, window, model, cfg.get("business_prompt"),
             ai_fetcher, fetcher)
@@ -195,13 +179,13 @@ def refresh_client(client, ws=None, fetcher=None, ai_fetcher=None):
         workspace.mark_intel_run(client, model, error=str(exc)[:200])
         raise
 
-    used_ai = bool(model) and (media_ai or biz_ai)
-    # Latch backfilled once we've produced anything, so the next run uses the daily window.
+    used_ai = media_ai or biz_ai
+    err = biz_err or media_err                 # surface a reason if either section couldn't fill
     did_fill = (media_n + biz_n) > 0
     workspace.mark_intel_run(
-        client, model if used_ai else "",
-        error="" if (used_ai or not model) else "model call failed; used news-feed fallback",
-        backfilled=True if (backfilling and did_fill) else None)
+        client, model if used_ai else "", error=err,
+        # Latch backfill ONLY on a clean, complete fill, so a quota/outage retries the full year.
+        backfilled=True if (backfilling and did_fill and not err) else None)
     return {"media_buying": media_n, "business_research": biz_n, "ai": used_ai}
 
 

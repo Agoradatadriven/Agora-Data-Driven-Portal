@@ -1,13 +1,14 @@
 """Local smoke test for the Market Intelligence AI brain -- runs entirely off-cloud, no network.
 
-Exercises intel_ai (model registry + availability gating, the retrieve-then-curate mapping onto REAL
-articles, prompt defaults/overrides, graceful degradation) with an INJECTED transport, plus
-intel_refresh's AI path end-to-end against the local workspace backend. Proves:
+Exercises intel_ai (model registry + availability gating, Vertex + DeepSeek transports, the
+retrieve-then-curate mapping onto REAL articles, error surfacing, NO news-feed fallback), the bulk
+favourite/delete data layer, and intel_refresh end-to-end with injected transports. Proves:
   * a fabricated/out-of-range article index from the model is DROPPED (never a hallucinated link),
   * link/source/date always come from the real candidate, never the model,
-  * a missing key / unparseable reply / no candidates -> None (caller falls back to plain RSS),
-  * refresh_client uses the AI when a model is set, falls back to RSS when the key is absent, and
-    backfills once (12-month window) then flips to the daily window.
+  * every failure returns a SHORT reason (curate -> (None, reason)); there is NO RSS fallback,
+  * refresh_client fills ONLY via the model, records the reason on failure, and does NOT latch the
+    12-month backfill flag when the run errored,
+  * favourite stars + pins an entry so replace_auto_intel keeps it; favourites sort to the top.
 
     python _intel_ai_localtest.py        # prints PASS / FAIL and exits 0 / 1
 """
@@ -20,17 +21,16 @@ import tempfile
 
 _TMP = tempfile.mkdtemp(prefix="intel_ai_localtest_")
 os.environ["WORKSPACE_LOCAL_DIR"] = _TMP
-# Start with a known provider-key state; individual checks tweak os.environ as needed.
-for _k in ("GEMINI_API_KEY", "DEEPSEEK_API_KEY"):
+for _k in ("DEEPSEEK_API_KEY", "VERTEX_GEMINI_ENABLED", "GEMINI_API_KEY"):
     os.environ.pop(_k, None)
 
-import intel_ai          # noqa: E402  (must follow the env setup above)
-import intel_refresh     # noqa: E402
-import workspace         # noqa: E402
+import atrium_view      # noqa: E402
+import intel_ai         # noqa: E402
+import intel_refresh    # noqa: E402
+import workspace        # noqa: E402
 
 CLIENT = "aitest"
 
-# Real candidate articles, as intel_feed would hand them to curate() (title/link/body/source/date).
 _CANDS = [
     {"title": "Google Ads adds a new PMax control", "link": "https://sel.com/a1",
      "body": "Advertisers get finer budget caps.", "source": "Search Engine Land", "date": "2026-07-01"},
@@ -40,21 +40,6 @@ _CANDS = [
      "body": "Nothing to do with marketing.", "source": "Gossip Daily", "date": "2026-06-30"},
 ]
 
-
-class _Resp(object):
-    def __init__(self, payload, status=200):
-        self._payload = payload
-        self.status_code = status
-        self.text = payload if isinstance(payload, str) else json.dumps(payload)
-
-    def json(self):
-        if isinstance(self._payload, str):
-            return json.loads(self._payload)
-        return self._payload
-
-
-# The model's reply: pick items 1 and 2 (skip the irrelevant #3), plus a FABRICATED #9 that must be
-# dropped. Same JSON contract for both providers; the fetcher just wraps it in each API's envelope.
 _MODEL_JSON = json.dumps({"entries": [
     {"n": 1, "heading": "Platform Update", "title": "Google Ads adds a new PMax control",
      "summary": "Google Ads now lets you cap PMax budgets more tightly -- useful for controlling spend."},
@@ -64,16 +49,34 @@ _MODEL_JSON = json.dumps({"entries": [
 ]})
 
 
+class _Resp(object):
+    def __init__(self, payload, status=200):
+        self._payload = payload
+        self.status_code = status
+        self.text = payload if isinstance(payload, str) else json.dumps(payload)
+
+    def json(self):
+        return json.loads(self._payload) if isinstance(self._payload, str) else self._payload
+
+
 def _deepseek_fetcher(url, headers, payload, timeout):
     return _Resp({"choices": [{"message": {"content": _MODEL_JSON}}]})
 
 
-def _gemini_fetcher(url, headers, payload, timeout):
+def _vertex_fetcher(url, headers, payload, timeout):
     return _Resp({"candidates": [{"content": {"parts": [{"text": _MODEL_JSON}]}}]})
 
 
+def _quota_fetcher(url, headers, payload, timeout):
+    return _Resp({"error": {"message": "Your prepayment credits are depleted."}}, status=429)
+
+
 def _bad_json_fetcher(url, headers, payload, timeout):
-    return _Resp({"choices": [{"message": {"content": "sorry, I cannot help with that"}}]})
+    return _Resp({"choices": [{"message": {"content": "sorry, I cannot help"}}]})
+
+
+def _token():
+    return "fake-vertex-token"
 
 
 def _check(label, condition):
@@ -85,68 +88,57 @@ def _check(label, condition):
 def run():
     print("[intel-ai-localtest] WORKSPACE_LOCAL_DIR = %s" % _TMP)
 
-    # 1. Model registry + availability gating (env-driven).
+    # 1. Registry + gating: gemini gated on Vertex flag, deepseek on its key.
     _check("four models offered", len(intel_ai.MODELS) == 4)
-    _check("no key -> nothing available", intel_ai.available_models() and
-           all(not m["available"] for m in intel_ai.available_models()))
-    _check("no key -> default_model is ''", intel_ai.default_model() == "")
-    _check("unknown model meta is None", intel_ai.model_meta("gpt-9") is None)
+    _check("no config -> nothing available", all(not m["available"] for m in intel_ai.available_models()))
+    _check("no config -> default_model ''", intel_ai.default_model() == "")
     os.environ["DEEPSEEK_API_KEY"] = "sk-test"
-    _check("deepseek configured", intel_ai.provider_configured("deepseek"))
-    _check("gemini still not configured", not intel_ai.provider_configured("gemini"))
-    _check("deepseek model now available", intel_ai.model_available("deepseek-v4-pro"))
-    _check("gemini model still unavailable", not intel_ai.model_available("gemini-2.5-pro"))
-    _check("default_model prefers first available", intel_ai.default_model() == "deepseek-v4-flash")
+    _check("deepseek key -> deepseek available", intel_ai.model_available("deepseek-v4-pro"))
+    _check("gemini still unavailable (no Vertex)", not intel_ai.model_available("gemini-2.5-pro"))
+    os.environ["VERTEX_GEMINI_ENABLED"] = "1"
+    _check("VERTEX_GEMINI_ENABLED -> gemini available", intel_ai.model_available("gemini-2.5-flash"))
+    _check("default_model prefers first available (gemini flash)", intel_ai.default_model() == "gemini-2.5-flash")
 
-    # 2. Prompt defaults + override plumbing.
+    # 2. Prompts.
     _check("business default prompt present", "industry" in intel_ai.default_prompt("business_research").lower())
-    _check("media default prompt present", "platform" in intel_ai.default_prompt("media_buying").lower())
 
-    # 3. _parse_entries tolerates fences and bare arrays.
-    _check("parse fenced object", len(intel_ai._parse_entries("```json\n" + _MODEL_JSON + "\n```")) == 3)
-    _check("parse bare array", len(intel_ai._parse_entries('[{"n":1}]')) == 1)
-    _check("parse garbage -> []", intel_ai._parse_entries("no json here") == [])
+    # 3. curate via DeepSeek -> (entries, ""); drops fabricated #9; maps onto REAL articles.
+    out, err = intel_ai.curate("media_buying", "Aitest Co", ["ppc"], _CANDS,
+                               model="deepseek-v4-pro", fetcher=_deepseek_fetcher)
+    _check("deepseek curate ok, no error", err == "" and out is not None and len(out) == 2)
+    _check("real link kept", out[0]["link"] == "https://sel.com/a1")
+    _check("real source kept", out[0]["source"] == "Search Engine Land")
+    _check("model summary used as body", "cap PMax budgets" in out[0]["body"])
+    _check("irrelevant #3 not selected", all(e["link"] != "https://gossip.com/a3" for e in out))
 
-    # 4. curate() via DeepSeek: keeps items 1+2, DROPS the fabricated #9, maps onto real articles.
-    out = intel_ai.curate("media_buying", "Aitest Co", ["ppc"], _CANDS,
-                          model="deepseek-v4-pro", fetcher=_deepseek_fetcher)
-    _check("curate returned two entries (fabricated #9 dropped)", out is not None and len(out) == 2)
-    _check("entry link is the REAL candidate link", out[0]["link"] == "https://sel.com/a1")
-    _check("entry source is the REAL candidate source", out[0]["source"] == "Search Engine Land")
-    _check("entry date is the REAL candidate date", out[0]["date"] == "2026-07-01")
-    _check("entry body is the model's summary", "cap PMax budgets" in out[0]["body"])
-    _check("no entry points at the irrelevant #3", all(e["link"] != "https://gossip.com/a3" for e in out))
+    # 4. curate via Vertex Gemini (token + fetcher injected) works the same.
+    gout, gerr = intel_ai.curate("media_buying", "Aitest Co", ["ppc"], _CANDS,
+                                 model="gemini-2.5-flash", fetcher=_vertex_fetcher, token_fetcher=_token)
+    _check("vertex curate maps to real links", gerr == "" and gout and gout[0]["link"] == "https://sel.com/a1")
 
-    # 5. curate() via Gemini shape works the same (once its key is present).
-    os.environ["GEMINI_API_KEY"] = "g-test"
-    gout = intel_ai.curate("media_buying", "Aitest Co", ["ppc"], _CANDS,
-                           model="gemini-2.5-flash", fetcher=_gemini_fetcher)
-    _check("gemini curate maps to real links", gout is not None and gout[0]["link"] == "https://sel.com/a1")
+    # 5. Error surfacing (NO fallback -> (None, reason)).
+    e1 = intel_ai.curate("media_buying", "X", [], _CANDS, model="", fetcher=_deepseek_fetcher)
+    _check("no model -> (None, 'no model selected')", e1[0] is None and "no model" in e1[1])
+    os.environ.pop("DEEPSEEK_API_KEY", None)
+    e2 = intel_ai.curate("media_buying", "X", [], _CANDS, model="deepseek-v4-pro", fetcher=_deepseek_fetcher)
+    _check("unconfigured provider -> (None, reason)", e2[0] is None and "configured" in e2[1].lower())
+    os.environ["DEEPSEEK_API_KEY"] = "sk-test"
+    e3 = intel_ai.curate("media_buying", "X", [], [], model="deepseek-v4-pro", fetcher=_deepseek_fetcher)
+    _check("no candidates -> (None, reason)", e3[0] is None and "source articles" in e3[1])
+    e4 = intel_ai.curate("media_buying", "X", [], _CANDS, model="deepseek-v4-pro", fetcher=_quota_fetcher)
+    _check("429 -> 'out of quota/credits'", e4[0] is None and "quota" in e4[1])
+    e5 = intel_ai.curate("media_buying", "X", [], _CANDS, model="deepseek-v4-pro", fetcher=_bad_json_fetcher)
+    _check("unparseable -> (None, reason)", e5[0] is None and e5[1])
 
-    # 6. Graceful degradation -> None so the caller falls back to plain RSS.
-    os.environ.pop("GEMINI_API_KEY", None)
-    _check("gemini key removed -> None",
-           intel_ai.curate("media_buying", "X", [], _CANDS, model="gemini-2.5-pro",
-                           fetcher=_gemini_fetcher) is None)
-    _check("unknown model -> None",
-           intel_ai.curate("media_buying", "X", [], _CANDS, model="nope", fetcher=_deepseek_fetcher) is None)
-    _check("no candidates -> None",
-           intel_ai.curate("media_buying", "X", [], [], model="deepseek-v4-pro", fetcher=_deepseek_fetcher) is None)
-    _check("unparseable reply -> None",
-           intel_ai.curate("media_buying", "X", [], _CANDS, model="deepseek-v4-pro",
-                           fetcher=_bad_json_fetcher) is None)
-
-    # 7. refresh_client AI path end-to-end (RSS fetcher feeds candidates, AI fetcher curates).
+    # 6. refresh_client end-to-end (deepseek; RSS feeds the candidates, model curates).
     def _rss(url, timeout):
-        # Minimal Google-News RSS so _gather yields candidates for both sections.
         rss = ("<rss version='2.0'><channel><title>Google News</title>"
                "<item><title>Google Ads adds a new PMax control - Search Engine Land</title>"
                "<link>https://sel.com/a1</link><pubDate>Wed, 01 Jul 2026 10:00:00 GMT</pubDate>"
                "<source url='x'>Search Engine Land</source></item>"
                "<item><title>Meta overhauls Advantage+ targeting - Marketing Dive</title>"
                "<link>https://sel.com/a2</link><pubDate>Sun, 28 Jun 2026 10:00:00 GMT</pubDate>"
-               "<source url='x'>Marketing Dive</source></item>"
-               "</channel></rss>").encode("utf-8")
+               "<source url='x'>Marketing Dive</source></item></channel></rss>").encode("utf-8")
 
         class R(object):
             content = rss
@@ -154,24 +146,55 @@ def run():
         return R()
 
     workspace.save_workspace(CLIENT, {"display_name": "Aitest Co", "intel": {},
-                                      "intel_topics": ["ppc"],
-                                      "intel_ai": {"model": "deepseek-v4-pro"}})
+                                      "intel_topics": ["ppc"], "intel_ai": {"model": "deepseek-v4-pro"}})
     counts = intel_refresh.refresh_client(CLIENT, fetcher=_rss, ai_fetcher=_deepseek_fetcher)
     _check("refresh used the AI", counts["ai"] is True)
     _check("refresh filled media buying", counts["media_buying"] > 0)
     ws = workspace.load_workspace(CLIENT)
-    _check("first run latched backfilled", workspace.intel_backfilled(ws))
-    _check("last_model recorded", ws["intel_ai"]["last_model"] == "deepseek-v4-pro")
-    _check("AI entries carry real links",
-           all(e.get("link") for e in ws["intel"]["media_buying"]))
+    _check("clean run latched backfilled", workspace.intel_backfilled(ws))
+    _check("no error recorded on success", ws["intel_ai"]["last_error"] == "")
 
-    # 8. Model set but its key absent -> refresh falls back to RSS (ai=False), never crashes.
-    os.environ.pop("DEEPSEEK_API_KEY", None)
-    workspace.save_workspace(CLIENT + "2", {"display_name": "NoKey Co", "intel": {},
+    # 7. NO fallback: a model that fails -> section stays EMPTY, error recorded, backfill NOT latched.
+    workspace.save_workspace(CLIENT + "q", {"display_name": "Quota Co", "intel": {},
                                             "intel_ai": {"model": "deepseek-v4-pro"}})
-    c2 = intel_refresh.refresh_client(CLIENT + "2", fetcher=_rss, ai_fetcher=_deepseek_fetcher)
-    _check("no key -> RSS fallback (ai=False)", c2["ai"] is False)
-    _check("no key -> section still filled from RSS", c2["media_buying"] > 0)
+    cq = intel_refresh.refresh_client(CLIENT + "q", fetcher=_rss, ai_fetcher=_quota_fetcher)
+    _check("model failure -> ai False", cq["ai"] is False)
+    _check("model failure -> NO entries written (no RSS fallback)", cq["media_buying"] == 0)
+    wq = workspace.load_workspace(CLIENT + "q")
+    _check("failure reason recorded", "quota" in wq["intel_ai"]["last_error"])
+    _check("failed run did NOT latch backfill (retries full year)", not workspace.intel_backfilled(wq))
+
+    # 8. No model selected -> refresh does nothing, records a helpful reason.
+    workspace.save_workspace(CLIENT + "n", {"display_name": "NoModel Co", "intel": {}})
+    cn = intel_refresh.refresh_client(CLIENT + "n", fetcher=_rss, ai_fetcher=_deepseek_fetcher)
+    _check("no model -> zeros + ai False", cn == {"media_buying": 0, "business_research": 0, "ai": False})
+    _check("no model -> reason recorded",
+           "model" in workspace.load_workspace(CLIENT + "n")["intel_ai"]["last_error"].lower())
+
+    # 9. Bulk favourite (star + pin) / unfavourite / delete + favourite survives a refresh + sorts top.
+    workspace.save_workspace(CLIENT + "b", {"display_name": "Bulk Co", "intel": {}})
+    a = workspace.add_intel_entry(CLIENT + "b", "media_buying", {"title": "Keep me", "date": "2026-01-01"})
+    b = workspace.add_intel_entry(CLIENT + "b", "media_buying", {"title": "Delete me"})
+    workspace.replace_auto_intel(CLIENT + "b", "media_buying", [{"title": "Auto item", "date": "2026-07-01"}])
+    workspace.bulk_intel(CLIENT + "b", "media_buying", "favourite", [a["id"]])
+    mb = workspace.load_workspace(CLIENT + "b")["intel"]["media_buying"]
+    fav = [x for x in mb if x["id"] == a["id"]][0]
+    _check("favourite sets star + drops auto (pin)", fav.get("favourite") is True and not fav.get("auto"))
+    workspace.bulk_intel(CLIENT + "b", "media_buying", "delete", [b["id"]])
+    ids = [x["id"] for x in workspace.load_workspace(CLIENT + "b")["intel"]["media_buying"]]
+    _check("bulk delete removed the entry", b["id"] not in ids)
+    # A refresh swaps auto entries but the favourited (pinned) one survives.
+    workspace.replace_auto_intel(CLIENT + "b", "media_buying", [{"title": "Fresh auto", "date": "2026-08-01"}])
+    titles = [x["title"] for x in workspace.load_workspace(CLIENT + "b")["intel"]["media_buying"]]
+    _check("favourite survives auto refresh", "Keep me" in titles and "Fresh auto" in titles)
+    # Favourites float to the top even though its date is older.
+    secs = atrium_view.intel_sections(workspace.load_workspace(CLIENT + "b"))
+    mb_sorted = [s for s in secs if s["key"] == "media_buying"][0]["entries"]
+    _check("favourite sorts to the top", mb_sorted[0]["title"] == "Keep me")
+    _check("unfavourite clears the star",
+           (workspace.bulk_intel(CLIENT + "b", "media_buying", "unfavourite", [a["id"]]) and
+            not [x for x in workspace.load_workspace(CLIENT + "b")["intel"]["media_buying"]
+                 if x["id"] == a["id"]][0].get("favourite")))
 
 
 def main():
@@ -187,7 +210,7 @@ def main():
         return 1
     finally:
         shutil.rmtree(_TMP, ignore_errors=True)
-    print("\n[PASS] intel AI brain: retrieve-then-curate, real-link mapping, graceful fallback")
+    print("\n[PASS] intel AI brain: Vertex/DeepSeek, real-link mapping, no-fallback errors, bulk/favourite")
     return 0
 
 

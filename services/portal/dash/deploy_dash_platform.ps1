@@ -125,18 +125,24 @@ if ((Test-SecretExists $OAUTH_ID_SECRET) -and (Test-SecretExists $OAUTH_SECRET_S
     Write-Host "[..] Google sign-in secrets absent -- deploying WITHOUT them (button stays off)" -ForegroundColor Yellow
 }
 
-# Market-Intelligence AI keys (OPTIONAL, opt-in): mount whichever of GEMINI_API_KEY / DEEPSEEK_API_KEY
-# exist so the intel tab's "Refresh now" (and the model dropdown) work in-process. Same secrets
-# mastery-engine uses, in this project. Absent -> the tab falls back to the live news-feed fill.
-foreach ($s in @("GEMINI_API_KEY", "DEEPSEEK_API_KEY")) {
-    if (Test-SecretExists $s) {
-        gcloud secrets add-iam-policy-binding $s --project=$PROJECT `
-            --member="serviceAccount:$WEB_SA" --role="roles/secretmanager.secretAccessor" *> $null
-        $SECRETS += ",${s}=${s}:latest"
-        Write-Host "[OK] AI key $s found -- mounting it (intel AI brain available)" -ForegroundColor Green
-    } else {
-        Write-Host "[..] AI key $s absent -- skipping (intel falls back to news feeds for its models)" -ForegroundColor Yellow
-    }
+# Market-Intelligence AI brain. Two providers, both OPTIONAL:
+#   * Gemini via VERTEX AI -- GCP-billed (one card, one invoice; NO API key). Enable the API + grant
+#     the runtime SA aiplatform.user, then flip VERTEX_GEMINI_ENABLED=1 so the tab offers Gemini.
+#   * DeepSeek via its API key secret (mounted if present).
+Write-Host "[..] Enabling Vertex AI (GCP-billed Gemini) + granting the runtime SA" -ForegroundColor Cyan
+gcloud services enable aiplatform.googleapis.com --project=$PROJECT *> $null
+gcloud projects add-iam-policy-binding $PROJECT `
+    --member="serviceAccount:$WEB_SA" --role="roles/aiplatform.user" *> $null
+$ENV_VARS += ",VERTEX_GEMINI_ENABLED=1,VERTEX_PROJECT=$PROJECT,VERTEX_LOCATION=$REGION"
+Write-Host "[OK] Vertex Gemini available (project $PROJECT, location $REGION)" -ForegroundColor Green
+
+if (Test-SecretExists "DEEPSEEK_API_KEY") {
+    gcloud secrets add-iam-policy-binding "DEEPSEEK_API_KEY" --project=$PROJECT `
+        --member="serviceAccount:$WEB_SA" --role="roles/secretmanager.secretAccessor" *> $null
+    $SECRETS += ",DEEPSEEK_API_KEY=DEEPSEEK_API_KEY:latest"
+    Write-Host "[OK] DEEPSEEK_API_KEY found -- mounting it (DeepSeek models available)" -ForegroundColor Green
+} else {
+    Write-Host "[..] DEEPSEEK_API_KEY absent -- DeepSeek models stay unavailable (Gemini still works)" -ForegroundColor Yellow
 }
 
 Write-Host "[..] Deploying Cloud Run service $PLATFORM" -ForegroundColor Cyan

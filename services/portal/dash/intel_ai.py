@@ -5,12 +5,18 @@ pinned) against each provider's REST endpoint -- there is NO SDK dependency and 
 provider is simply unavailable (never an import error). Two providers are supported, chosen per
 client by the team from inside the workspace (the model dropdown):
 
+  * gemini    -- **Vertex AI** generateContent (`{loc}-aiplatform.googleapis.com`). Models:
+                 gemini-2.5-pro, gemini-2.5-flash. Auth = the Cloud Run runtime SA's OAuth token
+                 (metadata server), NOT an API key -- so it bills the GCP project directly (one card,
+                 one invoice), unlike an AI-Studio key on separate prepaid credits. Gated on
+                 VERTEX_GEMINI_ENABLED=1 (the deploy sets it once the SA has roles/aiplatform.user).
   * deepseek  -- OpenAI-compatible /chat/completions (api.deepseek.com). Models: deepseek-v4-pro,
-                 deepseek-v4-flash. Needs DEEPSEEK_API_KEY.
-  * gemini    -- Google Generative Language REST (:generateContent). Models: gemini-2.5-pro,
-                 gemini-2.5-flash. Needs GEMINI_API_KEY.
-(Both key names + model ids match mastery-engine's lib/deepseek.js + lib/gemini.js, so Atrium reuses
-the SAME Secret Manager secrets.)
+                 deepseek-v4-flash. Needs DEEPSEEK_API_KEY (the same Secret-Manager secret + model
+                 ids mastery-engine's lib/deepseek.js uses).
+
+Every model call returns `(text, error)`: on failure `error` is a SHORT human reason (e.g. "out of
+quota/credits", "auth failed") so the tab can show WHY instead of silently filling with junk. There
+is NO news-feed fallback -- if the model can't run, the team sees the error and fixes it.
 
 RESEARCH METHOD = RETRIEVE-THEN-CURATE. intel_refresh fetches REAL candidate articles first (keyless
 Google News RSS, via intel_feed -- a 12-month window on the first run, a short recent window every
@@ -40,13 +46,18 @@ MODELS = (
     {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "provider": "deepseek"},
 )
 
-# provider -> the env var (Secret-Manager-injected on Cloud Run) that must be set to use it.
-_PROVIDER_ENV = {"deepseek": "DEEPSEEK_API_KEY", "gemini": "GEMINI_API_KEY"}
-
 _DEEPSEEK_BASE = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/")
-_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 _TIMEOUT = 60          # seconds; a slow model must never hang the whole refresh run.
 _BODY_MAX = 320        # a briefing summary is short by design (matches intel_refresh._BODY_MAX-ish).
+
+# Vertex AI (GCP-billed Gemini). Project/location come from env (the deploy sets them); the token is
+# the runtime SA's, fetched from the metadata server -- no API key. `global` and a regional location
+# both work; we default to the project's region so data stays in-region.
+_VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT") or "agora-data-driven"
+_VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "asia-southeast1")
+_METADATA_TOKEN_URL = (
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+)
 
 # --- The default, admin-tunable editorial prompts (one per section) ------------------------------
 # These are the "prompt engineering" an admin can override per client in the workspace. They are
@@ -73,9 +84,21 @@ _DEFAULT_PROMPTS = {
 
 # --- Model / provider helpers -------------------------------------------------------------------
 def provider_configured(provider):
-    """True iff the env key for `provider` is set (so its models can actually be used)."""
-    env = _PROVIDER_ENV.get(provider)
-    return bool(env and os.environ.get(env, "").strip())
+    """True iff `provider` is usable on this deploy (so its models can be selected + run).
+
+    * deepseek -- DEEPSEEK_API_KEY present.
+    * gemini   -- Vertex enabled (VERTEX_GEMINI_ENABLED=1); the deploy sets this once the runtime SA
+                  has roles/aiplatform.user, so it doubles as the "Gemini is wired" gate."""
+    if provider == "deepseek":
+        return bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+    if provider == "gemini":
+        return os.environ.get("VERTEX_GEMINI_ENABLED", "") in ("1", "true", "True")
+    return False
+
+
+def _provider_keys():
+    """The set of provider keys we know how to gate (used by any_provider_configured)."""
+    return ("gemini", "deepseek")
 
 
 def model_meta(model_id):
@@ -123,8 +146,8 @@ def default_prompt(section):
 
 
 def any_provider_configured():
-    """True iff at least one provider key is present (so the AI brain can run at all)."""
-    return any(provider_configured(p) for p in _PROVIDER_ENV)
+    """True iff at least one provider is usable (so the AI brain can run at all)."""
+    return any(provider_configured(p) for p in _provider_keys())
 
 
 # --- The prompts --------------------------------------------------------------------------------
@@ -194,24 +217,54 @@ def _requests_post(url, headers, payload, timeout):
     return requests.post(url, headers=headers, json=payload, timeout=timeout)
 
 
-def _resp_text(resp):
-    """A response's decoded text, tolerant of a requests.Response or a stub."""
-    if resp is None:
+def _short_error(resp, fallback):
+    """A SHORT human-readable reason from an error response body, mapped to friendly phrasing.
+
+    Reads the provider's JSON `error.message` (Vertex + DeepSeek both use that shape) and collapses
+    the common cases (quota/credits, auth) so the tab shows "out of quota/credits" not a paragraph."""
+    msg = ""
+    try:
+        data = resp.json()
+        err = data.get("error") if isinstance(data, dict) else None
+        if isinstance(err, dict):
+            msg = err.get("message") or ""
+        elif isinstance(err, str):
+            msg = err
+    except Exception:
+        msg = ""
+    low = msg.lower()
+    if any(w in low for w in ("quota", "credit", "exhaust", "resource_exhausted", "billing", "429")):
+        return "out of quota/credits — check billing"
+    if any(w in low for w in ("permission", "denied", "unauthor", "auth", "401", "403", "api key")):
+        return "authentication/permission failed"
+    status = getattr(resp, "status_code", 0)
+    if msg:
+        return (msg[:140] + "…") if len(msg) > 141 else msg
+    return "%s (HTTP %s)" % (fallback, status or "?")
+
+
+def _gcp_access_token(token_fetcher=None):
+    """The runtime SA's OAuth access token (Cloud Run metadata server). "" if unavailable.
+
+    `token_fetcher` is an injection seam for tests; the default hits the metadata server (works in
+    Cloud Run / any GCE-family runtime the SA runs on)."""
+    if token_fetcher is not None:
+        return token_fetcher() or ""
+    try:
+        import requests  # lazy
+        r = requests.get(_METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"}, timeout=10)
+        if getattr(r, "status_code", 0) >= 400:
+            return ""
+        return (r.json().get("access_token") or "").strip()
+    except Exception:
         return ""
-    txt = getattr(resp, "text", None)
-    if isinstance(txt, str):
-        return txt
-    content = getattr(resp, "content", b"")
-    if isinstance(content, bytes):
-        return content.decode("utf-8", "replace")
-    return str(content or "")
 
 
 def _call_deepseek(model_id, system, user, fetcher, max_tokens):
-    """DeepSeek chat/completions (OpenAI-compatible). Returns the reply text, or "" on any error."""
+    """DeepSeek chat/completions (OpenAI-compatible). Returns (text, error)."""
     key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if not key:
-        return ""
+        return "", "DeepSeek not configured"
     payload = {
         "model": model_id,
         "max_tokens": max_tokens,
@@ -226,23 +279,26 @@ def _call_deepseek(model_id, system, user, fetcher, max_tokens):
     fn = fetcher or _requests_post
     try:
         resp = fn(_DEEPSEEK_BASE + "/chat/completions", headers, payload, _TIMEOUT)
-    except Exception:
-        return ""
+    except Exception as exc:
+        return "", "could not reach DeepSeek (%s)" % type(exc).__name__
     if getattr(resp, "status_code", 0) >= 400:
-        return ""
+        return "", _short_error(resp, "DeepSeek error")
     try:
         data = resp.json()
-        return (data["choices"][0]["message"]["content"] or "").strip()
+        return (data["choices"][0]["message"]["content"] or "").strip(), ""
     except Exception:
-        return ""
+        return "", "DeepSeek returned an unexpected response"
 
 
-def _call_gemini(model_id, system, user, fetcher, max_tokens):
-    """Gemini :generateContent. Returns the reply text (JSON string), or "" on any error."""
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not key:
-        return ""
-    url = "%s/models/%s:generateContent?key=%s" % (_GEMINI_BASE, model_id, key)
+def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetcher=None):
+    """Vertex AI Gemini :generateContent (GCP-billed, SA-token auth). Returns (text, error)."""
+    token = _gcp_access_token(token_fetcher)
+    if not token:
+        return "", "could not get GCP credentials for Vertex"
+    loc = _VERTEX_LOCATION
+    host = "aiplatform.googleapis.com" if loc == "global" else ("%s-aiplatform.googleapis.com" % loc)
+    url = ("https://%s/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent"
+           % (host, _VERTEX_PROJECT, loc, model_id))
     payload = {
         "system_instruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
@@ -251,29 +307,29 @@ def _call_gemini(model_id, system, user, fetcher, max_tokens):
             "maxOutputTokens": max_tokens,
         },
     }
-    headers = {"Content-Type": "application/json"}
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
     fn = fetcher or _requests_post
     try:
         resp = fn(url, headers, payload, _TIMEOUT)
-    except Exception:
-        return ""
+    except Exception as exc:
+        return "", "could not reach Vertex AI (%s)" % type(exc).__name__
     if getattr(resp, "status_code", 0) >= 400:
-        return ""
+        return "", _short_error(resp, "Vertex error")
     try:
         data = resp.json()
         parts = data["candidates"][0]["content"]["parts"]
-        return "".join(p.get("text", "") for p in parts).strip()
+        return "".join(p.get("text", "") for p in parts).strip(), ""
     except Exception:
-        return ""
+        return "", "Vertex returned an unexpected response"
 
 
-def _call(model, system, user, fetcher, max_tokens):
-    """Dispatch to the right provider for `model` (a MODELS dict). Returns reply text, "" on error."""
+def _call(model, system, user, fetcher, max_tokens, token_fetcher=None):
+    """Dispatch to the right provider for `model` (a MODELS dict). Returns (text, error)."""
     if model["provider"] == "deepseek":
         return _call_deepseek(model["id"], system, user, fetcher, max_tokens)
     if model["provider"] == "gemini":
-        return _call_gemini(model["id"], system, user, fetcher, max_tokens)
-    return ""
+        return _call_vertex_gemini(model["id"], system, user, fetcher, max_tokens, token_fetcher)
+    return "", "unknown provider"
 
 
 # --- Parsing ------------------------------------------------------------------------------------
@@ -338,27 +394,33 @@ def _shape(entry, candidates, heading_default):
 
 # --- The one call the refresh job makes ---------------------------------------------------------
 def curate(section, client_name, topics, candidates, prompt=None, model=None,
-           limit=6, heading_default="", fetcher=None, max_tokens=2400):
+           limit=6, heading_default="", fetcher=None, token_fetcher=None, max_tokens=2400):
     """Curate real `candidates` into up to `limit` briefing entries for `section`, using `model`.
 
-    Returns a list of intel-field dicts (heading/title/body/source/link/date) mapped onto the real
-    articles, most-important first. Returns None when the AI path is unavailable or fails for ANY
-    reason (no/invalid/unconfigured model, no candidates, empty or unparseable reply) -- the caller
-    then falls back to the plain-RSS behaviour. `prompt` is the admin's editorial guidance for the
-    section (blank -> the module default); `fetcher` is the transport injection seam for tests."""
+    Returns `(entries, error)`:
+      * on success: (list of intel-field dicts mapped onto the real articles, most-important first, "").
+      * on failure: (None, "<short reason>") -- e.g. the model is unavailable, out of quota, or
+        returned nothing usable. There is NO news-feed fallback: the caller records the reason and
+        shows it, rather than filling the tab with junk.
+    `prompt` is the admin's editorial guidance for the section (blank -> the module default);
+    `fetcher`/`token_fetcher` are the transport injection seams for tests."""
     meta = model_meta(model)
-    if meta is None or not provider_configured(meta["provider"]):
-        return None
+    if meta is None:
+        return None, "no model selected"
+    if not provider_configured(meta["provider"]):
+        return None, "%s isn't configured on the server" % meta["label"]
     cands = [c for c in (candidates or []) if (c.get("title") or "").strip()]
     if not cands:
-        return None
+        return None, "no source articles found to research"
     editorial = (prompt or "").strip() or default_prompt(section)
     system = _system_prompt(section, client_name, editorial)
     user = _user_prompt(client_name, topics, cands, limit)
-    raw = _call(meta, system, user, fetcher, max_tokens)
+    raw, err = _call(meta, system, user, fetcher, max_tokens, token_fetcher)
+    if err:
+        return None, err
     parsed = _parse_entries(raw)
     if not parsed:
-        return None
+        return None, "the model returned nothing usable"
     out, seen = [], set()
     hd = heading_default or ("Platform Update" if section == "media_buying" else "Industry News")
     for e in parsed:
@@ -372,4 +434,6 @@ def curate(section, client_name, topics, candidates, prompt=None, model=None,
         out.append(row)
         if len(out) >= limit:
             break
-    return out or None
+    if not out:
+        return None, "the model found no relevant items"
+    return out, ""

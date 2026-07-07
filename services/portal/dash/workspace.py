@@ -1112,6 +1112,41 @@ def delete_intel_entry(client, section, entry_id):
     return _mutate(client, fn)
 
 
+# Valid bulk actions on a set of intel entries (team-only, in-place).
+INTEL_BULK_ACTIONS = ("delete", "favourite", "unfavourite")
+
+
+def bulk_intel(client, section, action, entry_ids):
+    """Apply a bulk `action` to the intel entries whose ids are in `entry_ids`. Returns the list.
+
+    * delete       -- remove them.
+    * favourite    -- star them (`favourite: True`) AND pin them (drop the `auto` flag) so the daily
+                      refresh never sweeps a favourited story away.
+    * unfavourite  -- clear the star (leaves it pinned; a hand-touched entry stays non-auto).
+    Unknown ids are ignored; an unknown action raises ValueError."""
+    key = _intel_key(section)
+    if key is None:
+        raise KeyError("no intel section '%s'" % section)
+    if action not in INTEL_BULK_ACTIONS:
+        raise ValueError("bad intel bulk action '%s'" % action)
+    ids = set(i for i in (entry_ids or []) if i)
+
+    def fn(ws):
+        lst = ws.setdefault("intel", {}).setdefault(key, [])
+        if action == "delete":
+            ws["intel"][key] = [it for it in lst if it.get("id") not in ids]
+            return ws["intel"][key]
+        for it in lst:
+            if it.get("id") in ids:
+                if action == "favourite":
+                    it["favourite"] = True
+                    it.pop("auto", None)   # pin: survives the next replace_auto_intel
+                else:
+                    it.pop("favourite", None)
+        return lst
+    return _mutate(client, fn)
+
+
 # --- Market Intelligence: per-client research topics + the daily auto-refresh -------------------
 # The intel tab can auto-fill from real news every day (services/intel-refresh, fed by intel_feed).
 # Two extra pieces of state, both additive (no new infra -- still one workspace JSON per client):

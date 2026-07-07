@@ -1043,6 +1043,15 @@
     .ax-intel-ai-status.is-err { color: #c0392b; }
     .ax-intel-ai-off { font-size: 12.5px; color: var(--ax-sub); background: var(--ax-canvas); border: 1px dashed var(--ax-line); border-radius: var(--ax-radius); padding: 10px 13px; margin: 8px 0 0; }
     .ax-intel-ai-off code { background: var(--ax-violet-bg); padding: 1px 5px; border-radius: 5px; font-size: 11.5px; }
+    .ax-intel-item { position: relative; }
+    .ax-intel-item.is-fav { border-color: var(--ax-green); box-shadow: 0 0 0 1px var(--ax-green) inset; }
+    .ax-intel-star { color: var(--ax-green-d); font-size: 15px; line-height: 1; margin-right: 2px; }
+    .ax-intel-check { position: absolute; top: 10px; right: 12px; z-index: 2; cursor: pointer; display: inline-flex; }
+    .ax-intel-check input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--ax-violet-d); }
+    .ax-intel-item.is-fav .ax-intel-star { color: var(--ax-green-d); }
+    .ax-intel-bulkbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; padding: 9px 13px; background: var(--ax-violet-bg); border: 1px solid var(--ax-line); border-radius: var(--ax-radius); }
+    .ax-intel-bulkcount { font-size: 12.5px; font-weight: 800; color: var(--ax-violet-d); }
+    .ax-intel-bulkactions { display: inline-flex; gap: 7px; flex-wrap: wrap; }
     .ax-thumb-upload { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; display: flex; gap: 6px; justify-content: center; }
     .ax-thumb-upload .ax-btn { background: rgba(0,0,0,.45); color: #fff; border-color: rgba(255,255,255,.4); }
     .ax-thumb-upload .ax-btn:hover { background: rgba(0,0,0,.62); }
@@ -2204,7 +2213,7 @@
             <p class="ax-intel-lede" style="margin:0">Pick the AI model that researches this client daily and tune what it looks for. The two sections refresh automatically once a day (the first run backfills the past 12 months); entries you add or edit by hand are always kept. Each headline links to its real source.</p>
 
             {% if not ai.any_available %}
-            <p class="ax-intel-ai-off">No AI model is configured on the server yet &mdash; the tab fills from live news feeds. Add a <code>GEMINI_API_KEY</code> or <code>DEEPSEEK_API_KEY</code> secret to switch on an AI brain.</p>
+            <p class="ax-intel-ai-off">No AI model is available on the server yet. Gemini runs on <code>Vertex AI</code> (GCP-billed &mdash; enable it in the deploy); DeepSeek needs its <code>DEEPSEEK_API_KEY</code> secret. Until one is wired, this tab stays empty.</p>
             {% endif %}
 
             <div class="ax-intel-ai-grid" data-intel-ai>
@@ -2212,7 +2221,7 @@
               <select id="ax-intel-model" class="ax-editbox">
                 <option value="" {{ 'selected' if not ai.selected else '' }}>Off &mdash; use live news feeds only</option>
                 {% for m in ai.models %}
-                <option value="{{ m.id }}"{{ ' selected' if m.id == ai.selected else '' }}{{ ' disabled' if not m.available else '' }}>{{ m.label }}{{ '' if m.available else ' — add API key' }}</option>
+                <option value="{{ m.id }}"{{ ' selected' if m.id == ai.selected else '' }}{{ ' disabled' if not m.available else '' }}>{{ m.label }}{{ '' if m.available else ' — not set up' }}</option>
                 {% endfor %}
               </select>
 
@@ -2244,16 +2253,30 @@
               <p class="ax-intel-lede">{{ sec.lede }}</p>
             </div>
 
+            {% if is_superadmin and sec.entries %}
+            <div class="ax-intel-bulkbar" data-intelbulk="{{ sec.key }}" hidden>
+              <span class="ax-intel-bulkcount" data-bulkcount>0 selected</span>
+              <span class="ax-intel-bulkactions">
+                <button class="ax-btn ghost small" type="button" data-bulkfav="{{ sec.key }}">&#9733; Favourite</button>
+                <button class="ax-btn ghost small" type="button" data-bulkunfav="{{ sec.key }}">Unfavourite</button>
+                <button class="ax-btn danger small" type="button" data-bulkdel="{{ sec.key }}">Delete</button>
+                <button class="ax-btn ghost small" type="button" data-bulkclear="{{ sec.key }}">Clear</button>
+              </span>
+            </div>
+            {% endif %}
+
             {% if sec.entries %}
               {% for e in sec.entries %}
-              <div class="ax-card ax-intel-item" data-intel="{{ e.id }}">
-                {% if e.heading or e.date %}
+              <div class="ax-card ax-intel-item{{ ' is-fav' if e.favourite else '' }}" data-intel="{{ e.id }}">
+                {% if is_superadmin %}
+                <label class="ax-intel-check" title="Select"><input type="checkbox" data-intelcheck data-intelsection="{{ sec.key }}" data-intelid="{{ e.id }}"></label>
+                {% endif %}
                 <div class="ax-intel-top">
+                  {% if e.favourite %}<span class="ax-intel-star" title="Favourite">&#9733;</span>{% endif %}
                   {% if e.heading %}<span class="ax-intel-eyebrow">{{ e.heading }}</span>{% endif %}
-                  {% if is_superadmin and e.auto %}<span class="ax-intel-eyebrow" style="background:#2575FC;color:#fff" title="Pulled automatically from a live news feed; edit to pin it">Auto</span>{% endif %}
+                  {% if is_superadmin and e.auto %}<span class="ax-intel-eyebrow" style="background:#2575FC;color:#fff" title="Pulled automatically; favourite or edit to keep it">Auto</span>{% endif %}
                   {% if e.date %}<span class="ax-intel-date">{{ e.date|atrium_date }}</span>{% endif %}
                 </div>
-                {% endif %}
                 {% if e.title %}<h3 class="ax-intel-title">{{ e.title }}</h3>{% endif %}
                 {% if e.body %}<p class="ax-intel-body">{{ e.body }}</p>{% endif %}
                 {% if e.source or e.link %}
@@ -2265,6 +2288,8 @@
                 {% if is_superadmin %}
                 <div class="ax-admin-tools">
                   <button class="ax-btn admin small" type="button" data-inteledit="{{ e.id }}">Edit</button>
+                  {% if e.favourite %}<button class="ax-btn ghost small" type="button" data-intelfav="{{ e.id }}" data-intelsection="{{ sec.key }}" data-favon="0">&#9733; Unfavourite</button>
+                  {% else %}<button class="ax-btn ghost small" type="button" data-intelfav="{{ e.id }}" data-intelsection="{{ sec.key }}" data-favon="1">&#9734; Favourite</button>{% endif %}
                   <button class="ax-btn danger small" type="button" data-inteldelete="{{ e.id }}" data-intelsection="{{ sec.key }}">Delete</button>
                 </div>
                 <div class="ax-edit-hidden" data-intelform="{{ e.id }}" style="margin-top:10px">
@@ -4018,6 +4043,64 @@
         adminAction("/admin/intel", fields, btn);
       });
     });
+    // Favourite / unfavourite a SINGLE entry (star + pin, or clear the star).
+    qsa("[data-intelfav]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var on = btn.getAttribute("data-favon") === "1";
+        adminAction("/admin/intel", { op: "bulk", action: on ? "favourite" : "unfavourite",
+          section: btn.getAttribute("data-intelsection"),
+          entry_ids: btn.getAttribute("data-intelfav") }, btn);
+      });
+    });
+    // --- Market Intelligence: bulk select -> mass favourite / unfavourite / delete ---
+    (function () {
+      // Selected ids per section, so each section's bar counts + acts on its own checkboxes.
+      function checksFor(section) {
+        return qsa('[data-intelcheck][data-intelsection="' + aq(section) + '"]');
+      }
+      function selectedIds(section) {
+        return checksFor(section).filter(function (c) { return c.checked; })
+          .map(function (c) { return c.getAttribute("data-intelid"); });
+      }
+      function syncBar(section) {
+        var bar = document.querySelector('[data-intelbulk="' + aq(section) + '"]');
+        if (!bar) { return; }
+        var ids = selectedIds(section);
+        var countEl = bar.querySelector("[data-bulkcount]");
+        if (countEl) { countEl.textContent = ids.length + " selected"; }
+        if (ids.length) { bar.removeAttribute("hidden"); } else { bar.setAttribute("hidden", "hidden"); }
+      }
+      function bulk(section, action) {
+        var ids = selectedIds(section);
+        if (!ids.length) { return; }
+        var run = function () {
+          adminAction("/admin/intel", { op: "bulk", action: action, section: section, entry_ids: ids });
+        };
+        if (action === "delete") {
+          axConfirm({ title: "Delete " + ids.length + " update" + (ids.length === 1 ? "" : "s") + "?",
+            message: "This cannot be undone." }, run);
+        } else { run(); }
+      }
+      qsa("[data-intelcheck]").forEach(function (c) {
+        c.addEventListener("change", function () { syncBar(c.getAttribute("data-intelsection")); });
+      });
+      qsa("[data-bulkfav]").forEach(function (b) {
+        b.addEventListener("click", function () { bulk(b.getAttribute("data-bulkfav"), "favourite"); });
+      });
+      qsa("[data-bulkunfav]").forEach(function (b) {
+        b.addEventListener("click", function () { bulk(b.getAttribute("data-bulkunfav"), "unfavourite"); });
+      });
+      qsa("[data-bulkdel]").forEach(function (b) {
+        b.addEventListener("click", function () { bulk(b.getAttribute("data-bulkdel"), "delete"); });
+      });
+      qsa("[data-bulkclear]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var section = b.getAttribute("data-bulkclear");
+          checksFor(section).forEach(function (c) { c.checked = false; });
+          syncBar(section);
+        });
+      });
+    })();
 
     // --- Market Intelligence: AI research brain (model + tunable prompts + refresh-now) ---
     (function () {

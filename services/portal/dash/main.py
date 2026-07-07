@@ -1950,8 +1950,29 @@ def atrium_admin_intel(client):
             counts = intel_refresh.refresh_client(client)
         except Exception as exc:  # never 500 the console; report it
             return jsonify(ok=False, message="Refresh failed: %s" % str(exc)[:200]), 200
-        _audit(client, "ran intel refresh", "ai" if counts.get("ai") else "news-feed fallback")
-        return jsonify(ok=True, counts=counts)
+        ws2 = workspace.load_workspace(client) or {}
+        err = (ws2.get("intel_ai") or {}).get("last_error", "")
+        _audit(client, "ran intel refresh", ("ai: %d items" % (counts.get("media_buying", 0)
+               + counts.get("business_research", 0))) if counts.get("ai") else ("no fill: %s" % err))
+        return jsonify(ok=True, ai=bool(counts.get("ai")), error=err, counts=counts)
+
+    # --- Bulk action on selected entries: mass delete / mass favourite (star + pin) ---------------
+    if op == "bulk":
+        section = request.form.get("section", "").strip()
+        if workspace._intel_key(section) is None:
+            return Response('{"error":"bad_section"}', status=400, mimetype="application/json")
+        action = request.form.get("action", "").strip()
+        if action not in workspace.INTEL_BULK_ACTIONS:
+            return jsonify(ok=False, message="Unknown bulk action."), 400
+        ids = request.form.getlist("entry_ids")
+        if not ids:  # also accept a single comma-separated field
+            ids = [i for i in (request.form.get("entry_ids", "") or "").split(",")]
+        ids = [i.strip() for i in ids if i.strip()]
+        if not ids:
+            return jsonify(ok=False, message="Nothing selected."), 400
+        workspace.bulk_intel(client, section, action, ids)
+        _audit(client, "bulk intel %s" % action, "%d entr%s" % (len(ids), "y" if len(ids) == 1 else "ies"))
+        return jsonify(ok=True, count=len(ids))
 
     # Both sections also auto-refresh DAILY (services/intel-refresh); the team ADDS/EDITS curated
     # entries here, which are preserved across the auto-refresh (only `auto` entries are swapped).

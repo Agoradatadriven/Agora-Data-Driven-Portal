@@ -693,7 +693,10 @@ def intel_sections(ws):
     for sec in _INTEL_SECTIONS:
         meta = dict(sec)
         entries = list(intel.get(sec["key"], []) or [])
+        # Newest first, then float favourited ("starred") stories to the top. Two stable sorts:
+        # date-desc first, then favourite-first keeps date order within each group.
         entries.sort(key=lambda e: (e.get("date") or ""), reverse=True)
+        entries.sort(key=lambda e: 0 if e.get("favourite") else 1)
         meta["entries"] = entries
         out.append(meta)
     return out

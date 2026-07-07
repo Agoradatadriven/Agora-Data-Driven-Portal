@@ -138,19 +138,14 @@ def run():
     _check("edited auto entry is pinned across refresh",
            sorted(e["title"] for e in mb) == ["Fresh MB", "Pinned MB"])
 
-    # 8. End-to-end refresh_client with the injected fetcher.
+    # 8. refresh_client with NO model selected does nothing (there is NO news-feed fallback -- the
+    #    AI-curation path is exercised in _intel_ai_localtest with an injected model transport).
     workspace.save_workspace(CLIENT, {"display_name": "Feed Test", "intel": {},
                                       "intel_topics": ["RV industry"]})
     counts = intel_refresh.refresh_client(CLIENT, fetcher=_fetcher)
-    _check("refresh pulled media buying", counts["media_buying"] > 0)
-    _check("refresh pulled business research", counts["business_research"] > 0)
-    after = workspace.load_workspace(CLIENT)["intel"]
-    _check("business research entries carry real links",
-           all(e.get("link") for e in after["business_research"]))
-    _check("media buying entries carry a source",
-           all(e.get("source") for e in after["media_buying"]))
-    _check("every auto entry has a heading",
-           all(e.get("heading") for e in after["business_research"] + after["media_buying"]))
+    _check("no model -> nothing filled", counts == {"media_buying": 0, "business_research": 0, "ai": False})
+    _check("no model -> reason recorded",
+           "model" in (workspace.load_workspace(CLIENT).get("intel_ai", {}).get("last_error", "").lower()))
 
     # 9. refresh_client on an unseeded client is a safe no-op.
     _check("missing workspace -> zeros",

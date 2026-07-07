@@ -81,28 +81,31 @@ $SCHED_AGENT = "service-$PNUM@gcp-sa-cloudscheduler.iam.gserviceaccount.com"
 Write-Host "[OK] project number = $PNUM ; scheduler agent = $SCHED_AGENT"
 
 # =============================================================================
-# Step 2.5 -- The AI 'brain' keys (OPTIONAL). The refresh job picks a per-client model
-#             (intel_ai.py) and curates real news with it; without a key it falls back
-#             to the plain-RSS fill. We mount whichever of these secrets EXIST (same
-#             secrets mastery-engine uses, in this same project) and grant the web SA
-#             read access to them. A missing secret is skipped, not fatal.
+# Step 2.5 -- The AI 'brain'. The refresh job picks a per-client model (intel_ai.py)
+#             and curates real news with it. There is NO news-feed fallback: a client
+#             with no model (or a failing model) is simply left as-is. Two providers:
+#               * Gemini via VERTEX AI -- GCP-billed (no key). Enable the API + grant the
+#                 runtime SA aiplatform.user, then set VERTEX_GEMINI_ENABLED=1.
+#               * DeepSeek via its API-key secret (mounted if present).
 # =============================================================================
-$AI_SECRETS = @("GEMINI_API_KEY", "DEEPSEEK_API_KEY")
+Write-Host "[..] Enabling Vertex AI + granting $WEB_SA aiplatform.user" -ForegroundColor Cyan
+gcloud services enable aiplatform.googleapis.com --project=$PROJECT *> $null
+gcloud projects add-iam-policy-binding $PROJECT `
+    --member "serviceAccount:$WEB_SA" --role "roles/aiplatform.user" *> $null
+Write-Host "[OK] Vertex Gemini available (project $PROJECT, location $REGION)"
+
 $secretPairs = @()
-foreach ($s in $AI_SECRETS) {
-    gcloud secrets describe $s --project $PROJECT *> $null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "[..] Granting $WEB_SA secretAccessor on $s" -ForegroundColor Cyan
-        gcloud secrets add-iam-policy-binding $s `
-            --project $PROJECT `
-            --member "serviceAccount:$WEB_SA" `
-            --role "roles/secretmanager.secretAccessor" *> $null
-        Must "grant secretAccessor on $s"
-        $secretPairs += "$s=${s}:latest"
-        Write-Host "[OK] will mount $s"
-    } else {
-        Write-Host "[..] secret $s not found -- skipping (news-feed fallback for its models)" -ForegroundColor Yellow
-    }
+gcloud secrets describe "DEEPSEEK_API_KEY" --project $PROJECT *> $null
+if ($LASTEXITCODE -eq 0) {
+    gcloud secrets add-iam-policy-binding "DEEPSEEK_API_KEY" `
+        --project $PROJECT `
+        --member "serviceAccount:$WEB_SA" `
+        --role "roles/secretmanager.secretAccessor" *> $null
+    Must "grant secretAccessor on DEEPSEEK_API_KEY"
+    $secretPairs += "DEEPSEEK_API_KEY=DEEPSEEK_API_KEY:latest"
+    Write-Host "[OK] will mount DEEPSEEK_API_KEY"
+} else {
+    Write-Host "[..] DEEPSEEK_API_KEY not found -- DeepSeek models unavailable (Gemini still works)" -ForegroundColor Yellow
 }
 
 # =============================================================================
@@ -124,7 +127,7 @@ $deployArgs = @(
     "--cpu", "1",
     "--max-retries", "1",
     "--task-timeout", "900",
-    "--set-env-vars", "REGISTRY_BUCKET=$BUCKET,REGISTRY_OBJECT=platform.json,WORKSPACE_BUCKET=$BUCKET,INTEL_AUTO_ENABLED=$ENABLED"
+    "--set-env-vars", "REGISTRY_BUCKET=$BUCKET,REGISTRY_OBJECT=platform.json,WORKSPACE_BUCKET=$BUCKET,INTEL_AUTO_ENABLED=$ENABLED,VERTEX_GEMINI_ENABLED=1,VERTEX_PROJECT=$PROJECT,VERTEX_LOCATION=$REGION"
 )
 if ($secretPairs.Count -gt 0) {
     $deployArgs += @("--set-secrets", ($secretPairs -join ","))
