@@ -1039,6 +1039,9 @@
     .ax-intel-ai-grid .ax-doc-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
     .ax-intel-ai-grid select.ax-editbox { background: #fff; }
     .ax-intel-ai-grid textarea.ax-editbox { min-height: 66px; }
+    .ax-intel-ai-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .ax-intel-ai-row { grid-template-columns: 1fr; } }
+    .ax-intel-ai-row .ax-doc-label { margin-top: 8px; }
     .ax-intel-ai-status { font-size: 11.5px; color: var(--ax-sub); align-self: center; }
     .ax-intel-ai-status.is-err { color: #c0392b; }
     .ax-intel-ai-off { font-size: 12.5px; color: var(--ax-sub); background: var(--ax-canvas); border: 1px dashed var(--ax-line); border-radius: var(--ax-radius); padding: 10px 13px; margin: 8px 0 0; }
@@ -2210,7 +2213,7 @@
           {% set ai = view.intel_ai %}
           <div class="ax-card ax-intel-ai" style="padding:18px 20px">
             <div class="ax-intel-ai-title">{{ ic('intel') }} AI Research Brain</div>
-            <p class="ax-intel-lede" style="margin:0">Pick the AI model that researches this client daily and tune what it looks for. The two sections refresh automatically once a day (the first run backfills the past 12 months); entries you add or edit by hand are always kept. Each headline links to its real source.</p>
+            <p class="ax-intel-lede" style="margin:0">Pick the AI model that researches this client, the date range to search, and how many stories to pull. It runs automatically once a day and each run <strong>adds</strong> new, de-duplicated stories to the list (it never wipes what's there); entries you add, edit, or favourite are always kept. Each headline links to its real source.</p>
 
             {% if not ai.any_available %}
             <p class="ax-intel-ai-off">No AI model is available on the server yet. Gemini runs on <code>Vertex AI</code> (GCP-billed &mdash; enable it in the deploy); DeepSeek needs its <code>DEEPSEEK_API_KEY</code> secret. Until one is wired, this tab stays empty.</p>
@@ -2219,11 +2222,26 @@
             <div class="ax-intel-ai-grid" data-intel-ai>
               <label class="ax-doc-label" for="ax-intel-model">Research model</label>
               <select id="ax-intel-model" class="ax-editbox">
-                <option value="" {{ 'selected' if not ai.selected else '' }}>Off &mdash; use live news feeds only</option>
+                <option value="" {{ 'selected' if not ai.selected else '' }}>Off &mdash; no automatic research</option>
                 {% for m in ai.models %}
                 <option value="{{ m.id }}"{{ ' selected' if m.id == ai.selected else '' }}{{ ' disabled' if not m.available else '' }}>{{ m.label }}{{ '' if m.available else ' — not set up' }}</option>
                 {% endfor %}
               </select>
+
+              <div class="ax-intel-ai-row">
+                <div>
+                  <label class="ax-doc-label" for="ax-intel-window">Date range to search</label>
+                  <select id="ax-intel-window" class="ax-editbox">
+                    {% for w in ai.windows %}
+                    <option value="{{ w.value }}"{{ ' selected' if w.value == ai.window else '' }}>{{ w.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="ax-doc-label" for="ax-intel-count">Articles per section</label>
+                  <input id="ax-intel-count" class="ax-editbox" type="number" min="1" max="25" step="1" value="{{ ai.count }}">
+                </div>
+              </div>
 
               <label class="ax-doc-label" for="ax-intel-topics">Research keywords <span style="font-weight:500;color:var(--ax-sub)">&mdash; this client's industry (comma-separated)</span></label>
               <textarea id="ax-intel-topics" class="ax-editbox" placeholder="e.g. contract templates, creative entrepreneurs, Etsy sellers, small business legal">{{ view.intel_topics }}</textarea>
@@ -4121,6 +4139,8 @@
               return post("/admin/intel", {
                 op: "ai_settings",
                 model: val("ax-intel-model"),
+                window: val("ax-intel-window"),
+                count: val("ax-intel-count"),
                 business_prompt: val("ax-intel-bizprompt"),
                 media_prompt: val("ax-intel-mediaprompt")
               });

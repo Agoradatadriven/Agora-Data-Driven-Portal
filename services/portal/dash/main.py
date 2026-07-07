@@ -1930,11 +1930,19 @@ def atrium_admin_intel(client):
             return jsonify(ok=False, message="Unknown model."), 400
         if model and not intel_ai.model_available(model):
             return jsonify(ok=False, message="That model's API key isn't configured on the server."), 400
-        workspace.set_intel_ai(client, {
+        window = request.form.get("window", "").strip()
+        if window and not intel_ai.valid_window(window):
+            return jsonify(ok=False, message="Unknown date range."), 400
+        fields = {
             "model": model,
             "business_prompt": request.form.get("business_prompt", ""),
             "media_prompt": request.form.get("media_prompt", ""),
-        })
+        }
+        if window:
+            fields["window"] = window
+        if request.form.get("count") is not None:
+            fields["count"] = str(intel_ai.count_of({"count": request.form.get("count", "")}))
+        workspace.set_intel_ai(client, fields)
         _audit(client, "set intel AI settings", model or "(off)")
         return jsonify(ok=True)
 

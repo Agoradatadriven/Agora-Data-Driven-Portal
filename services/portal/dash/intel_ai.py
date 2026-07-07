@@ -46,6 +46,40 @@ MODELS = (
     {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "provider": "deepseek"},
 )
 
+# Admin-choosable search look-back (how far back to pull candidate articles). The value is the
+# Google-News `when:` operator suffix; publisher feeds ignore it and just return their latest.
+WINDOWS = (
+    {"value": "7d", "label": "Past week"},
+    {"value": "30d", "label": "Past month"},
+    {"value": "3m", "label": "Past 3 months"},
+    {"value": "6m", "label": "Past 6 months"},
+    {"value": "12m", "label": "Past 12 months"},
+)
+DEFAULT_WINDOW = "3m"
+DEFAULT_COUNT = 8            # target articles the model selects per section per run
+MIN_COUNT, MAX_COUNT = 1, 25
+
+
+def valid_window(value):
+    """True iff `value` is one of the offered look-back windows."""
+    return any(o["value"] == value for o in WINDOWS)
+
+
+def window_of(cfg):
+    """The configured look-back window for a client's intel_ai config (validated; default 3m)."""
+    w = ((cfg or {}).get("window") or "").strip()
+    return w if valid_window(w) else DEFAULT_WINDOW
+
+
+def count_of(cfg):
+    """The configured article target per section (int, clamped MIN..MAX; default 8)."""
+    try:
+        n = int((cfg or {}).get("count") or DEFAULT_COUNT)
+    except (TypeError, ValueError):
+        n = DEFAULT_COUNT
+    return max(MIN_COUNT, min(n, MAX_COUNT))
+
+
 _DEEPSEEK_BASE = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/")
 _TIMEOUT = 60          # seconds; a slow model must never hang the whole refresh run.
 _BODY_MAX = 320        # a briefing summary is short by design (matches intel_refresh._BODY_MAX-ish).

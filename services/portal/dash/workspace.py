@@ -1211,6 +1211,60 @@ def replace_auto_intel(client, section, entries):
     return _mutate(client, fn)
 
 
+# How many auto (non-favourite) entries a section keeps. The daily refresh ADDS to the list rather
+# than wiping it, so this caps unbounded growth -- the oldest plain-auto entries drop off. Manual
+# and favourited entries are never dropped.
+_MAX_AUTO_PER_SECTION = 60
+
+
+def add_auto_intel(client, section, entries, cap=_MAX_AUTO_PER_SECTION):
+    """ADD freshly-curated `entries` to a section, de-duped against what's already there.
+
+    Unlike replace_auto_intel (which swapped the whole auto set each run), this GROWS the list: an
+    article whose link/title already exists in the section is skipped, genuinely new ones are added
+    (stored `auto:True`, newest-first). Manual and favourited entries are always kept; only plain
+    `auto` entries are capped (oldest by date drop past `cap`). Returns the section's entry list."""
+    key = _intel_key(section)
+    if key is None:
+        raise KeyError("no intel section '%s'" % section)
+
+    def _keys(it):
+        return ((it.get("link") or "").strip().lower(), (it.get("title") or "").strip().lower())
+
+    def fn(ws):
+        existing = ws.setdefault("intel", {}).setdefault(key, [])
+        seen_links, seen_titles = set(), set()
+        for it in existing:
+            lnk, ttl = _keys(it)
+            if lnk:
+                seen_links.add(lnk)
+            if ttl:
+                seen_titles.add(ttl)
+        added = []
+        for e in entries or []:
+            item = {}
+            for f in _INTEL_FIELDS:
+                item[f] = (e or {}).get(f, "") or ""
+            lnk, ttl = _keys(item)
+            if (lnk and lnk in seen_links) or (ttl and ttl in seen_titles):
+                continue  # already have this story -- don't duplicate it
+            item["id"] = _new_id("intel")
+            item["auto"] = True
+            added.append(item)
+            if lnk:
+                seen_links.add(lnk)
+            if ttl:
+                seen_titles.add(ttl)
+        combined = added + existing            # newest additions first (view re-sorts anyway)
+        # Cap ONLY plain-auto entries; keep every manual/favourited one untouched.
+        protected = [x for x in combined if not x.get("auto") or x.get("favourite")]
+        autos = [x for x in combined if x.get("auto") and not x.get("favourite")]
+        autos.sort(key=lambda e: (e.get("date") or ""), reverse=True)
+        ws["intel"][key] = protected + autos[:max(0, int(cap))]
+        return ws["intel"][key]
+    return _mutate(client, fn)
+
+
 # --- Market Intelligence: the AI 'brain' config (which model + the tunable prompts) --------------
 # ws["intel_ai"] holds the per-client research settings the team edits in place (see intel_ai.py):
 #   * model           -- the selected model id ("" -> feature off; the refresh keeps the plain-RSS
@@ -1221,7 +1275,7 @@ def replace_auto_intel(client, section, entries):
 #                        recent window instead of re-pulling a year every day.
 #   * last_run / last_model / last_error -- best-effort run metadata surfaced to the admin.
 # It is one more additive workspace key (no new infra), mirroring intel_topics above.
-_INTEL_AI_FIELDS = ("model", "business_prompt", "media_prompt")
+_INTEL_AI_FIELDS = ("model", "business_prompt", "media_prompt", "window", "count")
 
 
 def get_intel_ai(ws):

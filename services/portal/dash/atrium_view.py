@@ -722,6 +722,10 @@ def intel_ai_settings(ws):
         "media_prompt": (raw.get("media_prompt") or "").strip(),
         "default_business_prompt": intel_ai.default_prompt("business_research"),
         "default_media_prompt": intel_ai.default_prompt("media_buying"),
+        # Admin-choosable search look-back + article target (per section, per run).
+        "windows": [dict(w) for w in intel_ai.WINDOWS],
+        "window": intel_ai.window_of(raw),
+        "count": intel_ai.count_of(raw),
         "last_run": (raw.get("last_run") or "").strip(),
         "last_model": (raw.get("last_model") or "").strip(),
         "last_error": (raw.get("last_error") or "").strip(),

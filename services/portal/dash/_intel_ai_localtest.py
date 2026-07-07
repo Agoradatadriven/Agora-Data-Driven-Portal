@@ -145,16 +145,36 @@ def run():
             status_code = 200
         return R()
 
-    workspace.save_workspace(CLIENT, {"display_name": "Aitest Co", "intel": {},
-                                      "intel_topics": ["ppc"], "intel_ai": {"model": "deepseek-v4-pro"}})
-    counts = intel_refresh.refresh_client(CLIENT, fetcher=_rss, ai_fetcher=_deepseek_fetcher)
-    _check("refresh used the AI", counts["ai"] is True)
-    _check("refresh filled media buying", counts["media_buying"] > 0)
-    ws = workspace.load_workspace(CLIENT)
-    _check("clean run latched backfilled", workspace.intel_backfilled(ws))
-    _check("no error recorded on success", ws["intel_ai"]["last_error"] == "")
+    # Window + count config: defaults, validation, clamping.
+    _check("window default is 3m", intel_ai.window_of({}) == "3m")
+    _check("valid window honored", intel_ai.window_of({"window": "12m"}) == "12m")
+    _check("invalid window -> default", intel_ai.window_of({"window": "99y"}) == "3m")
+    _check("count default 8", intel_ai.count_of({}) == 8)
+    _check("count clamped to MAX", intel_ai.count_of({"count": "999"}) == intel_ai.MAX_COUNT)
+    _check("count clamped to MIN", intel_ai.count_of({"count": "0"}) == intel_ai.MIN_COUNT)
 
-    # 7. NO fallback: a model that fails -> section stays EMPTY, error recorded, backfill NOT latched.
+    # A hand-added entry that must survive every refresh.
+    workspace.save_workspace(CLIENT, {"display_name": "Aitest Co", "intel": {},
+                                      "intel_topics": ["ppc"],
+                                      "intel_ai": {"model": "deepseek-v4-pro", "window": "6m", "count": "5"}})
+    workspace.add_intel_entry(CLIENT, "media_buying", {"title": "Hand-written note", "body": "keep me"})
+    counts = intel_refresh.refresh_client(CLIENT, fetcher=_rss, ai_fetcher=_deepseek_fetcher)
+    _check("refresh used the AI", counts["ai"] is True and counts["media_buying"] > 0)
+    ws = workspace.load_workspace(CLIENT)
+    _check("no error recorded on success", ws["intel_ai"]["last_error"] == "")
+    mb1 = ws["intel"]["media_buying"]
+    n1 = len(mb1)
+    _check("hand-written entry survives the refresh", any(e.get("title") == "Hand-written note" for e in mb1))
+    _check("AI entries added alongside it", n1 > 1)
+
+    # 6b. ADDITIVE + de-dup: a second run with the SAME candidates adds NOTHING new (grows, never wipes).
+    intel_refresh.refresh_client(CLIENT, fetcher=_rss, ai_fetcher=_deepseek_fetcher)
+    mb2 = workspace.load_workspace(CLIENT)["intel"]["media_buying"]
+    _check("second identical run adds no duplicates", len(mb2) == n1)
+    _check("hand-written entry still there after 2nd run",
+           any(e.get("title") == "Hand-written note" for e in mb2))
+
+    # 7. NO fallback: a model that fails -> nothing added, error recorded.
     workspace.save_workspace(CLIENT + "q", {"display_name": "Quota Co", "intel": {},
                                             "intel_ai": {"model": "deepseek-v4-pro"}})
     cq = intel_refresh.refresh_client(CLIENT + "q", fetcher=_rss, ai_fetcher=_quota_fetcher)
@@ -162,7 +182,6 @@ def run():
     _check("model failure -> NO entries written (no RSS fallback)", cq["media_buying"] == 0)
     wq = workspace.load_workspace(CLIENT + "q")
     _check("failure reason recorded", "quota" in wq["intel_ai"]["last_error"])
-    _check("failed run did NOT latch backfill (retries full year)", not workspace.intel_backfilled(wq))
 
     # 8. No model selected -> refresh does nothing, records a helpful reason.
     workspace.save_workspace(CLIENT + "n", {"display_name": "NoModel Co", "intel": {}})

@@ -65,12 +65,10 @@ BUSINESS_RESEARCH_FALLBACK_QUERIES = (
     "consumer marketing trends",
 )
 
-# Final entries kept per section, and the larger candidate pool the AI curates FROM.
-_PER_SECTION = 6                 # daily
-_BACKFILL_PER_SECTION = 12       # the first 12-month fill shows more
-_CANDIDATE_POOL = 24             # real articles handed to the model to choose among
-_DAILY_WINDOW = "7d"             # Google-News `when:` recency for the daily run
-_BACKFILL_WINDOW = "12m"         # ...and for the first-run 12-month backfill
+# The look-back window and article target are ADMIN-CONFIGURED per client (intel_ai.window_of /
+# count_of, set in the AI Research Brain panel). We hand the model a candidate pool a few times the
+# requested count so it has real choice, floored so a small count still gets a decent pool.
+_MIN_CANDIDATE_POOL = 30
 
 # Heading/source defaults that make an auto entry read like the hand-written ones.
 _BUSINESS_HEADING = "Industry News"
@@ -117,15 +115,16 @@ def _business_queries(ws):
     return tuple(topics) if topics else BUSINESS_RESEARCH_FALLBACK_QUERIES
 
 
-def _fill_section(client, ws, section, feeds, queries, heading, per_section, window,
+def _fill_section(client, ws, section, feeds, queries, heading, count, window,
                   model, prompt, ai_fetcher, fetcher):
-    """Retrieve real candidates and fill one section via the AI. Returns (count, used_ai, error).
+    """Retrieve real candidates and ADD up to `count` newly-curated entries. Returns (added, ai, err).
 
-    RETRIEVES candidate articles (the AI's input) from RSS, then CURATES with the selected model.
-    There is NO news-feed fallback: if the model fails, the section is left as-is and the reason is
-    returned so it can be shown. Only replaces the section when the model produced entries, so a
-    transient outage never wipes yesterday's still-useful entries."""
-    candidates = _gather(feeds, queries, _CANDIDATE_POOL, window=window, fetcher=fetcher)
+    RETRIEVES candidate articles (the AI's input) from RSS over the admin's look-back `window`, then
+    CURATES with the selected model and ADDS the results to the section (workspace.add_auto_intel --
+    de-duped against what's already there, so the list GROWS rather than being wiped). There is NO
+    news-feed fallback: if the model fails, the section is left as-is and the reason is returned."""
+    pool = max(_MIN_CANDIDATE_POOL, count * 3)
+    candidates = _gather(feeds, queries, pool, window=window, fetcher=fetcher)
     if not candidates:
         return 0, False, "no source articles found"
     entries, err = intel_ai.curate(
@@ -135,25 +134,24 @@ def _fill_section(client, ws, section, feeds, queries, heading, per_section, win
         candidates,
         prompt=prompt,
         model=model,
-        limit=per_section,
+        limit=count,
         heading_default=heading,
         fetcher=ai_fetcher,
     )
     if entries:
-        workspace.replace_auto_intel(client, section, entries)
+        workspace.add_auto_intel(client, section, entries)
         return len(entries), True, ""
     return 0, False, err or "the model returned nothing"
 
 
 def refresh_client(client, ws=None, fetcher=None, ai_fetcher=None):
-    """Rebuild both auto sections for one client with the selected AI model. Returns a summary dict.
+    """Curate fresh news into both sections for one client and ADD it to the existing lists.
 
     `ws` may be passed to avoid a reload; `fetcher` is the intel_feed (RSS) seam and `ai_fetcher` is
     the intel_ai (LLM transport) seam -- both for tests. Returns zeros if the client has no workspace
-    OR no model selected (nothing runs without a brain -- there is no news-feed fallback). On the
-    first run for a client (not yet backfilled) it pulls a 12-month window; after that, the short
-    daily window. `backfilled` latches ONLY on a clean, error-free fill so a failed run retries the
-    full 12 months next time."""
+    OR no model selected (nothing runs without a brain -- there is no news-feed fallback). The
+    look-back window and the article target are admin-configured (intel_ai.window_of / count_of);
+    each run ADDS new, de-duped stories, so history accumulates over time."""
     if ws is None:
         ws = workspace.load_workspace(client)
     if ws is None:
@@ -168,17 +166,16 @@ def refresh_client(client, ws=None, fetcher=None, ai_fetcher=None):
         workspace.mark_intel_run(client, "", error="%s isn't available on the server (check its API access)." % model)
         return {"media_buying": 0, "business_research": 0, "ai": False}
 
-    backfilling = not workspace.intel_backfilled(ws)
-    window = _BACKFILL_WINDOW if backfilling else _DAILY_WINDOW
-    per_section = _BACKFILL_PER_SECTION if backfilling else _PER_SECTION
+    window = intel_ai.window_of(cfg)
+    count = intel_ai.count_of(cfg)
 
     try:
         media_n, media_ai, media_err = _fill_section(
             client, ws, "media_buying", MEDIA_BUYING_FEEDS, MEDIA_BUYING_QUERIES,
-            _MEDIA_HEADING, per_section, window, model, cfg.get("media_prompt"), ai_fetcher, fetcher)
+            _MEDIA_HEADING, count, window, model, cfg.get("media_prompt"), ai_fetcher, fetcher)
         biz_n, biz_ai, biz_err = _fill_section(
             client, ws, "business_research", BUSINESS_RESEARCH_FEEDS, _business_queries(ws),
-            _BUSINESS_HEADING, per_section, window, model, cfg.get("business_prompt"),
+            _BUSINESS_HEADING, count, window, model, cfg.get("business_prompt"),
             ai_fetcher, fetcher)
     except Exception as exc:
         workspace.mark_intel_run(client, model, error=str(exc)[:200])
@@ -186,11 +183,7 @@ def refresh_client(client, ws=None, fetcher=None, ai_fetcher=None):
 
     used_ai = media_ai or biz_ai
     err = biz_err or media_err                 # surface a reason if either section couldn't fill
-    did_fill = (media_n + biz_n) > 0
-    workspace.mark_intel_run(
-        client, model if used_ai else "", error=err,
-        # Latch backfill ONLY on a clean, complete fill, so a quota/outage retries the full year.
-        backfilled=True if (backfilling and did_fill and not err) else None)
+    workspace.mark_intel_run(client, model if used_ai else "", error=err)
     return {"media_buying": media_n, "business_research": biz_n, "ai": used_ai}
 
 
