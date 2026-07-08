@@ -1477,6 +1477,28 @@ def atrium_admin_edit_content(client):
     return jsonify(ok=True, content=item)
 
 
+@app.route("/w/<client>/admin/move-content", methods=["POST"])
+def atrium_admin_move_content(client):
+    """Reassign a content piece to a different campaign in place.
+
+    Returns the destination campaign's id + channel so the client can jump to it (a cross-channel
+    move lands the piece under the other tab). 404s if the piece or target campaign is gone.
+    """
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    content_id = request.form.get("content_id", "").strip()
+    campaign_id = request.form.get("campaign_id", "").strip()
+    try:
+        camp, item = workspace.move_content(client, content_id, campaign_id)
+    except KeyError:
+        return Response('{"error":"not_found"}', status=404, mimetype="application/json")
+    _audit(client, "moved content",
+           "%s -> %s" % (item.get("ref") or content_id, camp.get("name") or campaign_id))
+    return jsonify(ok=True, id=item.get("id"), campaign_id=camp.get("id"),
+                   channel=camp.get("channel") or "organic")
+
+
 @app.route("/w/<client>/admin/video-link", methods=["POST"])
 def atrium_admin_video_link(client):
     """Attach (or clear) a video by URL on a content piece. An empty url removes the link.
