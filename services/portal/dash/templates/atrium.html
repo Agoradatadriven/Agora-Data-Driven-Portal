@@ -1926,6 +1926,20 @@
                     <input class="ax-editbox" type="date" data-cf="date" value="{{ p.date|default('', true) }}" aria-label="Publish date">
                     <span class="ax-newdate-hint">Shows on the Content Calendar; clear it to remove.</span>
                   </div>
+                  {% set move_targets = ws.campaigns|rejectattr('id','equalto',c.id)|list %}
+                  {% if move_targets %}
+                  <div class="ax-newdate">
+                    <span class="ax-newdate-lab">{{ ic('arrow') }} Move to another campaign</span>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                      <select class="ax-editbox" data-movecamp="{{ p.id }}" aria-label="Move this post to another campaign" style="flex:1;min-width:180px">
+                        <option value="" selected disabled hidden>Choose a campaign…</option>
+                        {% for mc in move_targets %}<option value="{{ mc.id }}">{{ mc.name }} &mdash; {{ 'Lead Gen' if mc.channel == 'paid' else 'Organic' }}</option>{% endfor %}
+                      </select>
+                      <button class="ax-btn admin small" type="button" data-contentmove="{{ p.id }}">Move</button>
+                    </div>
+                    <span class="ax-newdate-hint">Reassigns this post &mdash; it moves out of &ldquo;{{ c.name }}&rdquo; into the campaign you pick.</span>
+                  </div>
+                  {% endif %}
                   <div class="ax-actions">
                     <button class="ax-btn violet small" type="button" data-contentsave="{{ p.id }}">Save details</button>
                     <button class="ax-btn ghost small" type="button" data-modalclose>Cancel</button>
@@ -3827,6 +3841,41 @@
         axConfirm({ title: "Delete content?", message: "Delete this content piece? This cannot be undone." }, function () {
           adminAction("/admin/delete-content", { content_id: btn.getAttribute("data-contentdelete") }, btn);
         });
+      });
+    });
+
+    // --- Move / reassign a post to another campaign ---
+    qsa("[data-contentmove]").forEach(function (btn) {
+      var id = btn.getAttribute("data-contentmove");
+      var sel = document.querySelector('[data-movecamp="' + aq(id) + '"]');
+      btn.addEventListener("click", function () {
+        var target = sel ? sel.value : "";
+        if (!target) { adminMsg("Pick a campaign to move this post to.", false); return; }
+        btn.setAttribute("disabled", "disabled");
+        adminMsg("Moving…", true);
+        post("/admin/move-content", { content_id: id, campaign_id: target })
+          .then(function (data) {
+            if (!data || data.ok === false) {
+              adminMsg((data && data.message) || "Could not move this post.", false);
+              btn.removeAttribute("disabled");
+              return;
+            }
+            // Land on the destination campaign in its own channel tab so the moved post is in view.
+            // A cross-channel move lives under the other tab, so navigate there when needed.
+            var campId = data.campaign_id || target;
+            var tab = (data.channel === "paid") ? "leadgen" : "organic";
+            var dest = base + "/" + tab;
+            if (window.location.pathname.replace(/\/+$/, "") === dest) {
+              window.location.hash = "camp-" + campId;
+              window.location.reload();
+            } else {
+              window.location.href = dest + "#camp-" + campId;
+            }
+          })
+          .catch(function () {
+            adminMsg("Could not move this post. Please try again.", false);
+            btn.removeAttribute("disabled");
+          });
       });
     });
 

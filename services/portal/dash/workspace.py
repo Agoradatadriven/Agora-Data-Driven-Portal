@@ -820,6 +820,33 @@ def insert_content(client, campaign_id, content):
     return _mutate(client, fn)
 
 
+def move_content(client, content_id, target_campaign_id):
+    """Reassign a content piece to a different campaign, preserving the piece verbatim.
+
+    Detaches the piece from whichever campaign currently holds it and appends it to
+    `target_campaign_id` (keeping its id/status/comments/creative/date). The mirrored Content
+    Calendar event is re-synced against the DESTINATION campaign, so a cross-channel move re-tags
+    the event's kind/tab (paid<->organic) to match the new campaign. Returns (target_campaign,
+    content). No-op (returns the piece where it is) when it already lives in the target. Raises
+    KeyError if the piece or the target campaign doesn't exist.
+    """
+    def fn(ws):
+        target = _find_campaign(ws, target_campaign_id)
+        if target is None:
+            raise KeyError("no campaign '%s'" % target_campaign_id)
+        src, item = _find_content(ws, content_id)
+        if item is None:
+            raise KeyError("no content '%s'" % content_id)
+        if src is not None and src.get("id") == target_campaign_id:
+            return target, item
+        if src is not None:
+            src["content"] = [it for it in src.get("content", []) if it.get("id") != content_id]
+        target.setdefault("content", []).append(item)
+        _sync_content_calendar(ws, target, item)
+        return target, item
+    return _mutate(client, fn)
+
+
 def add_content_comment(client, content_id, sender, sender_name, body, created_at=None,
                         kind="comment", set_status=None):
     """Append a threaded comment to a content piece. Returns (content, comment).
