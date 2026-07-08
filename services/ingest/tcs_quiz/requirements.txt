@@ -1,0 +1,4 @@
+google-cloud-bigquery==3.41.0
+google-auth==2.41.1
+gspread==6.2.1
+pandas==2.3.3

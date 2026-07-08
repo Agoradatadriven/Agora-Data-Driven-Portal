@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.log
+*.ndjson
+data/
+.venv/
+*.md
+cloudbuild.yaml
+deploy_*.ps1
+scheduler.ps1

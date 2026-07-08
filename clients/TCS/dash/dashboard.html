@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Contract Shop — Business Quiz Diagnostics</title>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K5CQ062CRG"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-K5CQ062CRG');
+</script>
+<!-- End Google tag (gtag.js) -->
+<style>
+  :root {
+    --teal:#17a398; --teal-d:#0e7c72; --teal-bg:#e6f4f1; --teal-soft:#bfe0da;
+    --navy:#153a5b; --navy-2:#2e6ba8;
+    --ink:#26333f; --muted:#6b7c8c;
+    --bg:#eef4f3; --surface:#ffffff; --border:#e3edeb; --grid:#eef3f2;
+    --coral:#e8705b; --amber:#d8952f;
+    --shadow:0 1px 2px rgba(21,58,91,0.06), 0 6px 20px rgba(21,58,91,0.05);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .topbar { height: 6px; background: linear-gradient(90deg, var(--teal), var(--teal-d)); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 22px 22px 56px; }
+
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+           padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
+  header .logo { height: 42px; width: auto; display: block; }
+  header .titlewrap { display: flex; flex-direction: column; gap: 2px; }
+  header .title { font-size: 18px; font-weight: 800; color: var(--navy); letter-spacing: -0.2px; }
+  header .subtitle { font-size: 13px; color: var(--muted); }
+  header .meta { margin-left: auto; text-align: right; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  header .meta b { color: var(--ink); font-weight: 600; }
+
+  #status { color: var(--muted); font-size: 15px; padding: 60px 0; text-align: center; }
+  #status.error { color: var(--coral); }
+
+  .hero { background: linear-gradient(135deg, var(--teal-bg), #fff 70%);
+          border: 1px solid var(--teal-soft); border-radius: 16px; padding: 20px 22px;
+          margin-bottom: 22px; box-shadow: var(--shadow); }
+  .hero h1 { margin: 0 0 6px; font-size: 20px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; }
+  .hero p { margin: 0; font-size: 14px; color: var(--ink); line-height: 1.55; }
+  .hero .big { color: var(--coral); font-weight: 800; }
+
+  .kpis { display: grid; gap: 14px; margin-bottom: 26px;
+          grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+         padding: 15px 16px; box-shadow: var(--shadow); }
+  .kpi .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); font-weight: 600; }
+  .kpi .value { font-size: 25px; font-weight: 800; margin-top: 7px; color: var(--navy); letter-spacing: -0.5px; }
+  .kpi .value.teal { color: var(--teal-d); }
+  .kpi .value.amber { color: var(--amber); }
+  .kpi .value.coral { color: var(--coral); }
+  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .kpi .sub .up { color: var(--teal-d); font-weight: 600; }
+  .kpi .sub .down { color: var(--coral); font-weight: 600; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+           padding: 20px 22px; margin-bottom: 22px; position: relative; box-shadow: var(--shadow); }
+  .panel h2 { margin: 0 0 3px; font-size: 15px; font-weight: 800; color: var(--navy);
+              display: flex; align-items: center; gap: 9px; letter-spacing: -0.2px; }
+  .panel h2::before { content: ""; width: 4px; height: 16px; border-radius: 3px; background: var(--teal); display: inline-block; }
+  .panel .desc { margin: 0 0 16px 13px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .panel .note { margin: 8px 0 0 13px; font-size: 12px; color: var(--muted); font-style: italic; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 6px 13px; font-size: 12px; color: var(--ink); }
+  .legend .item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .chart { width: 100%; height: 250px; display: block; }
+  .chart.short { height: 120px; }
+  .chart text { fill: var(--muted); font-size: 11px; }
+  .chart .grid { stroke: var(--grid); stroke-width: 1; }
+  .chart .axis { stroke: var(--border); stroke-width: 1; }
+  .chart .crosshair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; }
+
+  .tip { position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.08s;
+         background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px;
+         font-size: 12px; color: var(--ink); box-shadow: 0 10px 30px rgba(21,58,91,0.16);
+         white-space: nowrap; z-index: 5; }
+  .tip .th { color: var(--navy); font-weight: 700; margin-bottom: 5px; }
+  .tip .row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+  .tip .dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 680px; }
+  th, td { text-align: right; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  thead th { color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; }
+  tbody tr:hover { background: var(--teal-bg); }
+  td .name { font-weight: 600; color: var(--navy); }
+  td .em { color: var(--muted); font-size: 12px; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill.yes { background: var(--teal-bg); color: var(--teal-d); }
+  .pill.no  { background: #f1f4f6; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="topbar"></div>
+  <div class="wrap">
+    <header>
+      <img class="logo" src="__TCS_LOGO_SRC__" alt="The Contract Shop">
+      <div class="titlewrap">
+        <div class="title">Business Quiz — Lead Diagnostics</div>
+        <div class="subtitle">Who takes the quiz, who buys, and why conversion has changed.</div>
+      </div>
+      <div class="meta" id="meta"></div>
+    </header>
+
+    <div id="status">Loading dashboard…</div>
+
+    <div id="content" style="display:none">
+      <div class="hero" id="hero"></div>
+      <div class="kpis" id="kpis"></div>
+
+      <div class="panel">
+        <h2>Why has conversion dropped?</h2>
+        <p class="desc">Lead&nbsp;→&nbsp;customer conversion within 90 days of taking the quiz, by the month the lead took it, shown against that group's email open rate. When the two fall together, engagement — not the offer — is what changed.</p>
+        <div class="legend">
+          <span class="item"><span class="swatch" style="background:#153a5b"></span>Conversion (within 90 days)</span>
+          <span class="item"><span class="swatch" style="background:#17a398"></span>Email open rate</span>
+        </div>
+        <svg class="chart" id="convChart" preserveAspectRatio="none" viewBox="0 0 760 250" role="img" aria-label="Conversion and open rate by quiz cohort month"></svg>
+        <p class="note" id="convNote"></p>
+        <div class="tip" id="convTip"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Email engagement over time</h2>
+        <p class="desc">Open &amp; click rate among quiz leads by month (emails sent at/after their quiz), with send volume beneath. Hover for detail.</p>
+        <div class="legend">
+          <span class="item"><span class="swatch" style="background:#17a398"></span>Open rate</span>
+          <span class="item"><span class="swatch" style="background:#2e6ba8"></span>Click rate</span>
+        </div>
+        <svg class="chart" id="rateChart" preserveAspectRatio="none" viewBox="0 0 760 250" role="img" aria-label="Open and click rate by month"></svg>
+        <div class="legend" style="margin-top:8px"><span class="item"><span class="swatch" style="background:#bfe0da"></span>Emails sent</span></div>
+        <svg class="chart short" id="volChart" preserveAspectRatio="none" viewBox="0 0 760 120" role="img" aria-label="Emails sent by month"></svg>
+        <div class="tip" id="rateTip"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Buyers vs non-buyers — is engagement the difference?</h2>
+        <p class="desc">Open rate by month, split by whether the lead ever purchased. A wide, persistent gap means engagement is the lever separating buyers from the rest.</p>
+        <div class="legend">
+          <span class="item"><span class="swatch" style="background:#17a398"></span>Bought</span>
+          <span class="item"><span class="swatch" style="background:#e8705b"></span>Never bought</span>
+        </div>
+        <svg class="chart" id="segChart" preserveAspectRatio="none" viewBox="0 0 760 250" role="img" aria-label="Open rate by month, buyers vs non-buyers"></svg>
+        <div class="tip" id="segTip"></div>
+      </div>
+
+      <div class="panel">
+        <h2>By quiz cohort (year taken)</h2>
+        <p class="desc">Conversion and engagement by the year the lead took the quiz.</p>
+        <div class="tablewrap">
+          <table id="cohorts">
+            <thead><tr>
+              <th>Cohort</th><th></th><th>Leads</th><th>Converted</th><th>Conv. rate</th>
+              <th>Open rate</th><th>Click rate</th><th>Avg opens</th><th>Revenue</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Quiz leads</h2>
+        <p class="desc">One row per lead, newest first — with the name and email so the team can follow up.</p>
+        <div class="tablewrap">
+          <table id="leads">
+            <thead><tr>
+              <th>Name</th><th>Email</th><th>Taken</th><th>Bought</th><th>Revenue</th>
+              <th>Sent</th><th>Opens</th><th>Open rate</th><th>Days to buy</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ES5/ES2015-safe ONLY. No optional chaining (?.) / nullish coalescing (??): esprima 4.x
+  // (the pre-deploy gate) cannot parse them. Use classic && / || guards.
+
+  function isNum(n) { return !(n === null || n === undefined || isNaN(n)); }
+  function fmtInt(n) { if (!isNum(n)) { return "-"; } return Math.round(Number(n)).toLocaleString("en-US"); }
+  function fmtMoney(n) { if (!isNum(n)) { return "-"; } return "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
+  function fmtPct(r) { if (!isNum(r)) { return "-"; } return (Number(r) * 100).toFixed(1) + "%"; }
+  function fmt1(n) { if (!isNum(n)) { return "-"; } return Number(n).toFixed(1); }
+  function el(id) { return document.getElementById(id); }
+  function esc(s) {
+    s = (s === null || s === undefined) ? "" : String(s);
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function monthLabel(iso) {
+    if (!iso) { return ""; }
+    var m = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var p = String(iso).split("-");
+    if (p.length < 2) { return String(iso); }
+    var mi = parseInt(p[1], 10) - 1;
+    if (mi < 0 || mi > 11) { return String(iso); }
+    return m[mi] + " " + String(p[0]).slice(2);
+  }
+  function niceMax(v, isRate) {
+    if (!isNum(v) || v <= 0) { return isRate ? 0.1 : 1; }
+    if (isRate) {
+      var step = 0.05, top = Math.ceil((v * 1.15) / step) * step;
+      return Math.min(1, Math.max(0.1, top));
+    }
+    var mag = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+    return Math.ceil((v * 1.1) / mag) * mag;
+  }
+
+  function kpiCard(label, value, cls, sub) {
+    var vc = cls ? ("value " + cls) : "value";
+    var s = sub ? ('<div class="sub">' + sub + "</div>") : "";
+    return '<div class="kpi"><div class="label">' + label + '</div><div class="' + vc + '">' + value + "</div>" + s + "</div>";
+  }
+  function renderKpis(k) {
+    if (!k) { return; }
+    var tyCls = (k.converted_this_year === 0 && isNum(k.leads_this_year) && k.leads_this_year > 0) ? "coral" : "teal";
+    var html = "";
+    html += kpiCard("Quiz leads", fmtInt(k.leads), "", null);
+    html += kpiCard("Conversion rate", fmtPct(k.conversion_rate), "teal", fmtInt(k.converted) + " bought");
+    html += kpiCard("Revenue (post-quiz)", fmtMoney(k.revenue), "teal", null);
+    html += kpiCard("Avg days to buy", fmt1(k.avg_days_to_convert), "", null);
+    html += kpiCard("Avg opens / lead", fmt1(k.avg_opens), "", "clicks: " + fmt1(k.avg_clicks));
+    var orSub = "";
+    if (isNum(k.open_rate_this_year) && isNum(k.open_rate_prior)) {
+      var d = k.open_rate_this_year - k.open_rate_prior;
+      orSub = '<span class="' + (d < 0 ? "down" : "up") + '">' + (d < 0 ? "▼ " : "▲ ") + fmtPct(Math.abs(d)) + "</span> vs prior";
+    }
+    html += kpiCard("Open rate this yr", fmtPct(k.open_rate_this_year), "", orSub);
+    html += kpiCard("Leads this year", fmtInt(k.leads_this_year), "amber", null);
+    html += kpiCard("Converted this year", fmtInt(k.converted_this_year), tyCls, null);
+    el("kpis").innerHTML = html;
+  }
+  function renderHero(k) {
+    if (!k) { el("hero").style.display = "none"; return; }
+    var msg = "";
+    if (isNum(k.leads_this_year) && k.leads_this_year > 0 && k.converted_this_year === 0) {
+      msg = '<h1>' + fmtInt(k.leads_this_year) + ' leads took the quiz this year and <span class="big">none have bought.</span></h1>';
+    } else {
+      msg = "<h1>Quiz lead conversion diagnostics</h1>";
+    }
+    var sub = "";
+    if (isNum(k.open_rate_this_year) && isNum(k.open_rate_prior)) {
+      var d = k.open_rate_this_year - k.open_rate_prior;
+      sub = "Email open rate among quiz leads is " + fmtPct(k.open_rate_this_year) +
+            " this year vs " + fmtPct(k.open_rate_prior) + " before — " +
+            (d < 0 ? "down " + fmtPct(Math.abs(d)) + ". The charts below trace whether the conversion drop follows the engagement drop." :
+                     "roughly flat. The charts below break down what changed.");
+    }
+    el("hero").innerHTML = msg + "<p>" + sub + "</p>";
+  }
+
+  // ---- Generic multi-series line chart (optional area fill on the first series) ----
+  var GEO = { W: 760, H: 250, padL: 46, padR: 66, padT: 16, padB: 26 };
+  function xAt(i, n) { var pw = GEO.W - GEO.padL - GEO.padR; if (n <= 1) { return GEO.padL + pw / 2; } return GEO.padL + (i / (n - 1)) * pw; }
+  function yAt(v, ymax) { var ph = GEO.H - GEO.padT - GEO.padB; return GEO.padT + (1 - (Number(v) / ymax)) * ph; }
+
+  function renderLineChart(opts) {
+    var svg = el(opts.svgId), rows = opts.rows || [], n = rows.length;
+    if (!svg) { return; }
+    if (!n) { svg.innerHTML = '<text x="' + (GEO.W / 2) + '" y="' + (GEO.H / 2) + '" text-anchor="middle">No data yet.</text>'; return; }
+
+    var maxV = 0, i, s;
+    for (i = 0; i < n; i++) {
+      for (s = 0; s < opts.series.length; s++) {
+        var vv = rows[i][opts.series[s].key];
+        if (isNum(vv) && Number(vv) > maxV) { maxV = Number(vv); }
+      }
+    }
+    var ymax = niceMax(maxV, opts.isRate);
+    var parts = [], g;
+    for (g = 0; g <= 4; g++) {
+      var yv = ymax * (g / 4), yy = yAt(yv, ymax);
+      parts.push('<line class="grid" x1="' + GEO.padL + '" y1="' + yy.toFixed(1) + '" x2="' + (GEO.W - GEO.padR) + '" y2="' + yy.toFixed(1) + '"></line>');
+      parts.push('<text x="' + (GEO.padL - 7) + '" y="' + (yy + 3).toFixed(1) + '" text-anchor="end">' + (opts.isRate ? fmtPct(yv) : fmtInt(yv)) + "</text>");
+    }
+    var stepX = Math.max(1, Math.ceil(n / 8));
+    for (i = 0; i < n; i += stepX) {
+      parts.push('<text x="' + xAt(i, n).toFixed(1) + '" y="' + (GEO.H - 8) + '" text-anchor="middle">' + esc(monthLabel(rows[i][opts.xkey])) + "</text>");
+    }
+    for (s = 0; s < opts.series.length; s++) {
+      var ser = opts.series[s], pts = [], lastX = 0, lastY = 0, lastV = null;
+      for (i = 0; i < n; i++) {
+        var v = rows[i][ser.key];
+        if (!isNum(v)) { continue; }
+        var px = xAt(i, n), py = yAt(v, ymax);
+        pts.push(px.toFixed(1) + "," + py.toFixed(1));
+        lastX = px; lastY = py; lastV = v;
+      }
+      if (!pts.length) { continue; }
+      if (ser.area) {
+        var base = yAt(0, ymax).toFixed(1);
+        var first = pts[0].split(",")[0];
+        parts.push('<polygon points="' + first + "," + base + " " + pts.join(" ") + " " + lastX.toFixed(1) + "," + base + '" fill="' + ser.color + '" opacity="0.10"></polygon>');
+      }
+      parts.push('<polyline points="' + pts.join(" ") + '" fill="none" stroke="' + ser.color + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"></polyline>');
+      parts.push('<circle cx="' + lastX.toFixed(1) + '" cy="' + lastY.toFixed(1) + '" r="3.6" fill="' + ser.color + '"></circle>');
+      parts.push('<text x="' + (lastX + 7).toFixed(1) + '" y="' + (lastY + 3).toFixed(1) + '" fill="' + ser.color + '" font-weight="700">' + (opts.isRate ? fmtPct(lastV) : fmtInt(lastV)) + "</text>");
+    }
+    parts.push('<line class="crosshair" id="' + opts.svgId + '_ch" x1="0" y1="' + GEO.padT + '" x2="0" y2="' + (GEO.H - GEO.padB) + '"></line>');
+    parts.push('<rect x="' + GEO.padL + '" y="' + GEO.padT + '" width="' + (GEO.W - GEO.padL - GEO.padR) + '" height="' + (GEO.H - GEO.padT - GEO.padB) + '" fill="transparent" id="' + opts.svgId + '_hit"></rect>');
+    svg.innerHTML = parts.join("");
+    attachHover(opts, rows, n);
+  }
+
+  function attachHover(opts, rows, n) {
+    var svg = el(opts.svgId), hit = el(opts.svgId + "_hit"), ch = el(opts.svgId + "_ch"), tip = el(opts.tipId);
+    if (!hit || !ch || !tip) { return; }
+    function move(evt) {
+      var r = svg.getBoundingClientRect();
+      var relX = (evt.clientX - r.left) / r.width * GEO.W;
+      var frac = (relX - GEO.padL) / (GEO.W - GEO.padL - GEO.padR);
+      var i = Math.round(frac * (n - 1));
+      if (i < 0) { i = 0; } if (i > n - 1) { i = n - 1; }
+      var xx = xAt(i, n);
+      ch.setAttribute("x1", xx); ch.setAttribute("x2", xx); ch.style.opacity = 1;
+      var html = '<div class="th">' + esc(monthLabel(rows[i][opts.xkey])) + "</div>", s;
+      for (s = 0; s < opts.series.length; s++) {
+        var ser = opts.series[s], v = rows[i][ser.key];
+        html += '<div class="row"><span class="dot" style="background:' + ser.color + '"></span>' + esc(ser.label) + ": " + (opts.isRate ? fmtPct(v) : fmtInt(v)) + "</div>";
+      }
+      if (opts.extra) { html += opts.extra(rows[i]); }
+      tip.innerHTML = html; tip.style.opacity = 1;
+      var pr = svg.parentNode.getBoundingClientRect();
+      var left = evt.clientX - pr.left + 14;
+      if (left > pr.width - 170) { left = evt.clientX - pr.left - 170; }
+      tip.style.left = left + "px";
+      tip.style.top = (evt.clientY - pr.top + 12) + "px";
+    }
+    hit.addEventListener("mousemove", move);
+    hit.addEventListener("mouseleave", function () { ch.style.opacity = 0; tip.style.opacity = 0; });
+  }
+
+  function renderBars(svgId, rows, key) {
+    var svg = el(svgId), n = rows.length;
+    if (!svg) { return; }
+    if (!n) { svg.innerHTML = ""; return; }
+    var W = 760, H = 120, padL = 46, padR = 66, padT = 8, padB = 22;
+    var maxV = 0, i;
+    for (i = 0; i < n; i++) { if (isNum(rows[i][key]) && rows[i][key] > maxV) { maxV = rows[i][key]; } }
+    var ymax = niceMax(maxV, false), pw = W - padL - padR, ph = H - padT - padB, bw = pw / n, parts = [];
+    parts.push('<line class="axis" x1="' + padL + '" y1="' + (H - padB) + '" x2="' + (W - padR) + '" y2="' + (H - padB) + '"></line>');
+    parts.push('<text x="' + (padL - 7) + '" y="' + (padT + 8) + '" text-anchor="end">' + fmtInt(ymax) + "</text>");
+    for (i = 0; i < n; i++) {
+      var v = isNum(rows[i][key]) ? rows[i][key] : 0, h = (v / ymax) * ph, x = padL + i * bw + 1, y = (H - padB) - h;
+      parts.push('<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#bfe0da" rx="1.5"></rect>');
+    }
+    svg.innerHTML = parts.join("");
+  }
+
+  function renderCohorts(rows) {
+    var tb = document.querySelector("#cohorts tbody");
+    if (!rows || !rows.length) { tb.innerHTML = '<tr><td colspan="9">No cohorts yet.</td></tr>'; return; }
+    var html = "", i;
+    for (i = 0; i < rows.length; i++) {
+      var c = rows[i];
+      html += "<tr><td>" + esc(c.cohort) + "</td><td></td><td>" + fmtInt(c.leads) + "</td><td>" + fmtInt(c.converted) +
+        "</td><td>" + fmtPct(c.conversion_rate) + "</td><td>" + fmtPct(c.open_rate) + "</td><td>" + fmtPct(c.click_rate) +
+        "</td><td>" + fmt1(c.avg_opens) + "</td><td>" + fmtMoney(c.revenue) + "</td></tr>";
+    }
+    tb.innerHTML = html;
+  }
+  function renderLeads(rows) {
+    var tb = document.querySelector("#leads tbody");
+    if (!rows || !rows.length) { tb.innerHTML = '<tr><td colspan="9">No leads yet.</td></tr>'; return; }
+    var html = "", i;
+    for (i = 0; i < rows.length; i++) {
+      var d = rows[i];
+      var bought = d.is_converted ? '<span class="pill yes">yes</span>' : '<span class="pill no">no</span>';
+      var dtc = isNum(d.days_to_convert) ? fmtInt(d.days_to_convert) : "—";
+      var nm = (d.first_name && String(d.first_name).trim()) ? esc(d.first_name) : "—";
+      html += '<tr><td><span class="name">' + nm + '</span></td><td><span class="em">' + esc(d.email) + "</span></td><td>" +
+        esc((d.submitted_at || "").slice(0, 10)) + "</td><td>" + bought + "</td><td>" +
+        (d.is_converted ? fmtMoney(d.revenue_post_quiz) : "—") + "</td><td>" + fmtInt(d.emails_sent) + "</td><td>" +
+        fmtInt(d.opens) + "</td><td>" + fmtPct(d.open_rate) + "</td><td>" + dtc + "</td></tr>";
+    }
+    tb.innerHTML = html;
+  }
+
+  function render(data) {
+    var meta = "";
+    if (data.data_through) { meta += "<div>data through <b>" + esc(String(data.data_through).slice(0, 10)) + "</b></div>"; }
+    if (data.last_updated) { meta += "<div>updated " + esc(String(data.last_updated).slice(0, 10)) + "</div>"; }
+    el("meta").innerHTML = meta;
+
+    renderHero(data.kpis);
+    renderKpis(data.kpis);
+
+    // Conversion trend: plot the 90-day rate only for MATURE cohorts (recent ones are too young to judge).
+    var ct = (data.conversion_trend || []).slice(), i, immature = 0;
+    for (i = 0; i < ct.length; i++) {
+      var row = ct[i];
+      row.conv_plot = row.mature ? row.conversion_rate_90d : null;
+      if (!row.mature) { immature++; }
+    }
+    renderLineChart({
+      svgId: "convChart", tipId: "convTip", rows: ct, xkey: "cohort_month", isRate: true,
+      series: [
+        { key: "conv_plot", label: "Conversion (90d)", color: "#153a5b", area: true },
+        { key: "open_rate", label: "Open rate", color: "#17a398" }
+      ],
+      extra: function (r) { return '<div class="row" style="color:#6b7c8c">leads: ' + fmtInt(r.leads) + (r.mature ? "" : " · maturing") + "</div>"; }
+    });
+    el("convNote").textContent = immature > 0
+      ? ("The most recent " + immature + " month(s) are omitted from the conversion line — those leads took the quiz under 90 days ago and haven't had a fair window to buy yet.")
+      : "";
+
+    renderLineChart({
+      svgId: "rateChart", tipId: "rateTip", rows: data.monthly || [], xkey: "month", isRate: true,
+      series: [
+        { key: "open_rate", label: "Open rate", color: "#17a398" },
+        { key: "click_rate", label: "Click rate", color: "#2e6ba8" }
+      ],
+      extra: function (r) { return '<div class="row" style="color:#6b7c8c">sent: ' + fmtInt(r.emails_sent) + " · leads: " + fmtInt(r.active_leads) + "</div>"; }
+    });
+    renderBars("volChart", data.monthly || [], "emails_sent");
+
+    renderLineChart({
+      svgId: "segChart", tipId: "segTip", rows: data.monthly || [], xkey: "month", isRate: true,
+      series: [
+        { key: "converted_open_rate", label: "Bought", color: "#17a398" },
+        { key: "nonconverted_open_rate", label: "Never bought", color: "#e8705b" }
+      ]
+    });
+
+    renderCohorts(data.cohorts);
+    renderLeads(data.leads);
+
+    el("status").style.display = "none";
+    el("content").style.display = "block";
+  }
+
+  function fail(msg) { var s = el("status"); s.className = "error"; s.textContent = msg; }
+
+  function load() {
+    fetch("/data.json", { credentials: "same-origin" })
+      .then(function (resp) { if (!resp.ok) { throw new Error("HTTP " + resp.status); } return resp.json(); })
+      .then(function (data) { render(data); })
+      .catch(function (err) { fail("Could not load dashboard data (" + (err && err.message ? err.message : "error") + ")."); });
+  }
+
+  load();
+</script>
+</body>
+</html>
