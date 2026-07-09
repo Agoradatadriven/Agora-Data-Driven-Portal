@@ -43,19 +43,24 @@
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
     --shadow-lg:0 2px 8px rgba(0,0,0,.4),0 18px 44px rgba(0,0,0,.5); }
 
+  /* Brand categorical palette for bars — distinguishable but on the Riverdance/Agora kit. */
+  :root{ --c1:#2E6B33; --c2:#5AA654; --c3:#C99A46; --c4:#2F6BB0; --c5:#A6402F; --c6:#3F8F7A; --c7:#9C7A2E; }
+  @media (prefers-color-scheme:dark){ :root{ --c1:#66B861; --c2:#8FD389; --c3:#D8B368; --c4:#6FA8E0; --c5:#DE7359; --c6:#5FB3A0; --c7:#C9A867; } }
+  :root[data-theme="light"]{ --c1:#2E6B33; --c2:#5AA654; --c3:#C99A46; --c4:#2F6BB0; --c5:#A6402F; --c6:#3F8F7A; --c7:#9C7A2E; }
+  :root[data-theme="dark"]{ --c1:#66B861; --c2:#8FD389; --c3:#D8B368; --c4:#6FA8E0; --c5:#DE7359; --c6:#5FB3A0; --c7:#C9A867; }
   *{box-sizing:border-box}
   .rv{background:radial-gradient(1000px 340px at 82% -70px,var(--paper2),transparent 60%),var(--paper);
       color:var(--ink);font-family:var(--sans);line-height:1.45;-webkit-font-smoothing:antialiased;
-      min-height:100%;font-size:13.5px;position:relative;overflow:hidden}
+      min-height:100%;font-size:14.5px;position:relative;overflow:hidden;text-rendering:optimizeLegibility}
   .rv-ribbon{height:3px;background:linear-gradient(90deg,var(--red) 0%,var(--red-d) 8%,var(--green-d) 24%,var(--green) 60%,var(--green-l) 100%)}
-  .rv-wrap{max-width:1080px;margin:0 auto;padding:0 18px;position:relative;z-index:2}
+  .rv-wrap{max-width:1560px;margin:0 auto;padding:0 28px;position:relative;z-index:2}
   .rv-mtns{position:absolute;left:0;right:0;bottom:0;height:48vh;min-height:320px;z-index:0;pointer-events:none;opacity:.05}
   .rv-mtns svg{width:100%;height:100%;display:block}
 
   .rv-mast{background:linear-gradient(180deg,var(--band),color-mix(in srgb,var(--band) 55%,var(--paper)));border-bottom:1px solid var(--line);position:relative;z-index:2;overflow:hidden}
   .rv-mast-mtn{position:absolute;left:0;right:0;bottom:-1px;height:56px;width:100%;opacity:.13;pointer-events:none}
   .rv-mast-mtn svg{width:100%;height:100%;display:block}
-  .rv-mast-in{max-width:1080px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;position:relative;z-index:1}
+  .rv-mast-in{max-width:1560px;margin:0 auto;padding:15px 28px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;position:relative;z-index:1}
   .rv-brand{display:flex;align-items:center;gap:12px}
   .rv-logo{height:46px;width:auto;display:block;border-radius:9px;box-shadow:0 2px 8px rgba(46,107,51,.14)}
   .rv-div{width:1px;height:32px;background:linear-gradient(var(--line),color-mix(in srgb,var(--green) 40%,var(--line)),var(--line))}
@@ -84,7 +89,8 @@
   .rv-h{font-family:var(--serif);font-size:19px;font-weight:600;color:var(--green-d);margin:0 0 3px;letter-spacing:.2px}
   .rv-sub{color:var(--muted);font-size:12.5px;margin:0 0 12px;max-width:66ch}
 
-  .rv-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+  .rv-kpis{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
+  @media (max-width:1240px){ .rv-kpis{grid-template-columns:repeat(4,1fr)} }
   .rv-tile{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px 11px;box-shadow:var(--shadow);position:relative;overflow:hidden;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
   .rv-tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green)}
   .rv-tile.accent::before{background:var(--red)}
@@ -95,8 +101,8 @@
   .rv-tile .k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:6px}
   .rv-tile .spark{opacity:.5}
   .rv-tile:hover .spark,.rv-tile[aria-pressed="true"] .spark{opacity:1}
-  .rv-tile .spark svg{width:56px;height:18px;display:block}
-  .rv-tile .v{font-family:var(--serif);font-size:24px;font-weight:600;color:var(--ink);line-height:1.05;margin-top:5px;font-variant-numeric:tabular-nums}
+  .rv-tile .spark svg{width:46px;height:17px;display:block}
+  .rv-tile .v{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--ink);line-height:1.05;margin-top:4px;font-variant-numeric:tabular-nums}
   .rv-tile .v small{font-size:13px;color:var(--muted);font-weight:600}
   .rv-tile .c{font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
   .rv-tile .c b{color:var(--green-d);font-weight:700}
@@ -285,7 +291,7 @@
             <span><i class="dot"></i>Booking day</span>
           </div>
         </div>
-        <svg id="rv-hero" viewBox="0 0 900 250" role="img" aria-label="Daily trend"></svg>
+        <svg id="rv-hero" viewBox="0 0 1000 210" role="img" aria-label="Daily trend"></svg>
       </div>
     </section>
 
@@ -421,6 +427,7 @@ var METRICS={ spend:{label:"Ad spend",short:"Spend",unit:"money"}, rev:{label:"R
 var CHIP_ORDER=["spend","rev","roas","pur","reach","imps","clicks","lclk","ctr","cpc","cpm","freq"];
 var heroMetric="spend", viewMode="abs", lastDaily=[], rStart="", rEnd="";
 var lastAds=[], lastKpi=null, tableSort={key:"spend",dir:-1};
+var PAL=["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)"];
 
 function fmtU(u,v){ if(u==="money")return money(v,0); if(u==="money2")return money(v,2); if(u==="pct")return r2(v)+"%"; if(u==="mult")return r2(v)+"×"; return num(Math.round(v)); }
 function axisU(u,v){ if(u==="money"||u==="money2")return "$"+Math.round(v).toLocaleString("en-US"); if(u==="pct")return r2(v)+"%"; if(u==="mult")return r2(v)+"×"; return Math.round(v).toLocaleString("en-US"); }
@@ -471,7 +478,7 @@ function renderHero(daily,mkey,mode){
   var cfg=METRICS[mkey], raw=daily.map(function(r){ return r[mkey]; });
   var avg=raw.reduce(function(a,b){return a+b;},0)/(raw.length||1);
   var rel=(mode==="rel"); var vals=rel?raw.map(function(v){ return avg?v/avg*100:0; }):raw;
-  var W=900,H=250,mL=58,mR=14,mT=14,mB=30;
+  var W=1000,H=210,mL=54,mR=14,mT=12,mB=28;
   var maxV=0; vals.forEach(function(v){ if(v>maxV)maxV=v; }); if(maxV<=0)maxV=1;
   var pw=Math.pow(10,Math.floor(Math.log(maxV)/Math.log(10))); maxV=Math.ceil(maxV/pw*1.05)*pw;
   var iw=W-mL-mR,ih=H-mT-mB,N=daily.length;
@@ -517,7 +524,7 @@ function renderFunnel(k){
     var w=Math.max(s.v/top*100,1.5);
     var row=document.createElement("div"); row.className="rv-frow";
     row.innerHTML='<div class="rv-fmeta"><div class="fl">'+s.l+'</div><div class="fv">'+num(s.v)+'</div></div>'+
-      '<div class="rv-fbar-wrap"><div class="rv-fbar" style="width:'+w+'%"></div></div>'+
+      '<div class="rv-fbar-wrap"><div class="rv-fbar" style="width:'+w+'%;background:'+PAL[i%PAL.length]+'"></div></div>'+
       '<div class="rv-fconv">'+(i===0?(pctTop+"%"):("↓ "+conv+"%"))+'</div>';
     box.appendChild(row);
   });
@@ -536,7 +543,7 @@ function renderDow(daily){
   for(var t=0;t<=3;t++){ var yv=maxV*t/3,y=Y(yv); svg.appendChild(el("line",{class:"rv-gl",x1:mL,y1:y,x2:W-mR,y2:y}));
     var lab=el("text",{class:"rv-axis",x:mL-6,y:y+3,"text-anchor":"end"}); lab.textContent=Math.round(yv).toLocaleString("en-US"); svg.appendChild(lab); }
   order.forEach(function(d,i){ var v=sums[d],x=mL+iw*i/7+(iw/7-bw)/2,y=Y(v),h=mT+ih-y;
-    var bar=el("rect",{x:x,y:y,width:bw,height:Math.max(h,0),rx:3,style:"fill:var(--green-l)"});
+    var bar=el("rect",{x:x,y:y,width:bw,height:Math.max(h,0),rx:3,style:"fill:"+PAL[i%PAL.length]});
     bar.addEventListener("mousemove",function(ev){ showTip('<div class="td">'+DOW[d]+'</div><div class="tr"><span class="m">Clicks</span><span>'+num(v)+'</span></div>', ev.clientX, ev.clientY); });
     bar.addEventListener("mouseleave",hideTip); svg.appendChild(bar);
     var lab=el("text",{class:"rv-axis",x:x+bw/2,y:H-9,"text-anchor":"middle"}); lab.textContent=DOW[d]; svg.appendChild(lab); });
@@ -623,7 +630,7 @@ function barsV(svgId,items){
   function Y(v){ return mT+ih-(v/maxV)*ih; }
   for(var t=0;t<=3;t++){ var yv=maxV*t/3,y=Y(yv); svg.appendChild(el("line",{class:"rv-gl",x1:mL,y1:y,x2:W-mR,y2:y})); var lab=el("text",{class:"rv-axis",x:mL-6,y:y+3,"text-anchor":"end"}); lab.textContent=shortNum(yv); svg.appendChild(lab); }
   items.forEach(function(it,i){ var x=mL+iw*i/N+(iw/N-bw)/2,y=Y(it.imps),h=mT+ih-y;
-    var bar=el("rect",{x:x,y:y,width:bw,height:Math.max(h,0),rx:3,style:"fill:var(--green-l)"}); bar.addEventListener("mousemove",function(ev){ tipDemo(it,ev); }); bar.addEventListener("mouseleave",hideTip); svg.appendChild(bar);
+    var bar=el("rect",{x:x,y:y,width:bw,height:Math.max(h,0),rx:3,style:"fill:"+PAL[i%PAL.length]}); bar.addEventListener("mousemove",function(ev){ tipDemo(it,ev); }); bar.addEventListener("mouseleave",hideTip); svg.appendChild(bar);
     var lab=el("text",{class:"rv-axis",x:x+bw/2,y:H-9,"text-anchor":"middle"}); lab.textContent=it.label; svg.appendChild(lab); });
 }
 function barsH(svgId,items){
@@ -634,7 +641,7 @@ function barsH(svgId,items){
     var lt=el("text",{class:"rv-axis",x:mL,y:top+10,"text-anchor":"start"}); lt.textContent=it.label; svg.appendChild(lt);
     var vt=el("text",{class:"rv-axis",x:W-mR,y:top+10,"text-anchor":"end",style:"font-weight:700;fill:var(--ink)"}); vt.textContent=shortNum(it.imps); svg.appendChild(vt);
     svg.appendChild(el("rect",{x:mL,y:y,width:W-mL-mR,height:bh,rx:5,style:"fill:var(--grid)"}));
-    var bar=el("rect",{x:mL,y:y,width:w,height:bh,rx:5,style:"fill:var(--green-l)"}); bar.addEventListener("mousemove",function(ev){ tipDemo(it,ev); }); bar.addEventListener("mouseleave",hideTip); svg.appendChild(bar); });
+    var bar=el("rect",{x:mL,y:y,width:w,height:bh,rx:5,style:"fill:"+PAL[i%PAL.length]}); bar.addEventListener("mousemove",function(ev){ tipDemo(it,ev); }); bar.addEventListener("mouseleave",hideTip); svg.appendChild(bar); });
 }
 function renderDemographics(){
   var dm=DATA.demographics||{}, ag=dm.age_gender||[], rg=dm.region||[];
