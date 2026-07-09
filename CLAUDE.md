@@ -273,6 +273,17 @@ Adding a metric is usually three edits, one per stage. **Renaming a key in one s
 next** — the names must match exactly. For `template` the chain is: `kpi_overview` /
 `daily_performance` columns → `data["kpis"].*` / `data["daily"][].*` → `data.kpis.*` / `data.daily`.
 
+**Exception — `client_riverdance` is a Windsor-LIVE client (no BigQuery/SQL views).** Meta's rich
+fields (reach, link clicks, pixel-purchase bookings, revenue) and the creative images/copy are NOT in
+the shared `raw_windsor` mirror, and Meta rejects revenue on a breakdown query — so this client's
+export job pulls the Windsor connector API **directly** each run (main per-ad/day pull + separate
+age×gender + region breakdown pulls) and writes `riverdance.json` itself. There is no `sql/`, no
+dataset, and no freshness watermark; refresh is operator-driven (the Atrium console **Sync all
+dashboards** button → `services/portal/dash/sync_dash.py`, which triggers every `<c>-export` Cloud
+Run job via the Run Admin API — no scheduler). The dash service runs OPEN (no login) so it embeds in
+the gated Atrium. Stand it up with `clients/client_riverdance/deploy_riverdance.ps1`. Treat it as the
+pattern for any connector whose data isn't (yet) flowing through `raw_windsor`.
+
 ## Redeploy after an edit — MANUAL, never cloudbuild from a laptop
 
 Deploys are manual: build the image as yourself, then deploy. A laptop must **never** trigger Cloud
