@@ -2078,13 +2078,13 @@ def admin_atrium():
     activity = []
     for a in audit.recent_activity(limit=300):
         a2 = dict(a)
-        a2["client_name"] = name_by_key.get(a.get("client", ""), a.get("client", "")) or "—"
+        a2["client_name"] = name_by_key.get(a.get("client", ""), a.get("client", "")) or "-"
         a2["when"] = _short_when(a.get("ts", ""))
         activity.append(a2)
     trash = []
     for t in audit.trash_list():
         t2 = dict(t)
-        t2["client_name"] = name_by_key.get(t.get("client", ""), t.get("client", "")) or "—"
+        t2["client_name"] = name_by_key.get(t.get("client", ""), t.get("client", "")) or "-"
         t2["when"] = _short_when(t.get("ts", ""))
         trash.append(t2)
 
@@ -2395,7 +2395,7 @@ def admin_atrium_delete(client):
     _trash(client, "client", name, client_entry or {"key": client},
            extra={"workspace": ws_snapshot})
     _audit(client, "deleted client", name)
-    return _atrium_redirect_list("Deleted client '%s' — restorable from Trash for 30 days." % client)
+    return _atrium_redirect_list("Deleted client '%s'. Restorable from Trash for 30 days." % client)
 
 
 @app.route("/admin/atrium/restore", methods=["POST"])
@@ -2427,7 +2427,7 @@ def admin_atrium_restore():
             return _atrium_redirect_list("Can't restore that item type.", section="trash", err=True)
     except KeyError:
         return _atrium_redirect_list(
-            "Couldn't restore '%s' — its campaign was deleted too (restore the campaign first)." % label,
+            "Couldn't restore '%s'. Its campaign was deleted too (restore the campaign first)." % label,
             section="trash", err=True)
     except Exception:
         return _atrium_redirect_list("Couldn't restore '%s'." % label, section="trash", err=True)
