@@ -1,0 +1,9 @@
+# WEB (dash) pins -- this unit pins its OWN dependencies.
+# NOTE: the dash deliberately pins a possibly-different google-cloud-storage from the
+# export job (job pins 3.10.1). That divergence is WHY the dev .venv excludes the dash
+# requirements -- the two would otherwise fight over the storage client version.
+Flask==3.0.3
+gunicorn==23.0.0
+google-cloud-storage==2.18.2
+google-cloud-secret-manager==2.28.0
+requests==2.34.2

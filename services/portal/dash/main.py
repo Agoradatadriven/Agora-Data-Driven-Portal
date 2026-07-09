@@ -48,6 +48,7 @@ import brand
 import notify
 import platform_sso
 import store
+import sync_dash
 import workspace
 import feedback as feedback_store
 
@@ -400,6 +401,20 @@ def login():
             max_age=platform_sso.DEFAULT_TTL_SECONDS,
         )
     return resp
+
+
+# --- Compatibility: dead "Sign in with Google" links -> the real login page ----------------
+# The marketing site (agoradatadriven.com) has a "Sign in with Google" button that points at
+# /auth/google/login -- an OAuth route this portal never implemented, so every click 404s. Google
+# SSO is not built here (portal auth is email/password + the shared .agoradatadriven.com SSO
+# cookie), so rather than 404 we forward any /auth/... hit to the working login page, preserving
+# ?next= so the visitor still lands where the button intended. Purely additive; nothing else is
+# served under /auth. Remove this shim if real Google OAuth is ever implemented.
+@app.route("/auth/google/login", methods=["GET"])
+@app.route("/auth/google/callback", methods=["GET"])
+@app.route("/auth/<path:rest>", methods=["GET"])
+def auth_compat(rest=None):
+    return redirect(url_for("login", next=request.args.get("next", "/")))
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -2078,13 +2093,13 @@ def admin_atrium():
     activity = []
     for a in audit.recent_activity(limit=300):
         a2 = dict(a)
-        a2["client_name"] = name_by_key.get(a.get("client", ""), a.get("client", "")) or "—"
+        a2["client_name"] = name_by_key.get(a.get("client", ""), a.get("client", "")) or "-"
         a2["when"] = _short_when(a.get("ts", ""))
         activity.append(a2)
     trash = []
     for t in audit.trash_list():
         t2 = dict(t)
-        t2["client_name"] = name_by_key.get(t.get("client", ""), t.get("client", "")) or "—"
+        t2["client_name"] = name_by_key.get(t.get("client", ""), t.get("client", "")) or "-"
         t2["when"] = _short_when(t.get("ts", ""))
         trash.append(t2)
 
@@ -2113,6 +2128,30 @@ def _slugify_key(name):
         elif out and out[-1] != "-":
             out.append("-")
     return "".join(out).strip("-")
+
+
+@app.route("/admin/atrium/sync-status", methods=["GET"])
+def admin_atrium_sync_status():
+    """Last-sync stamp for the console's Sync control (super-admin only)."""
+    if not is_superadmin():
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    st = sync_dash.read_state()
+    return jsonify(ok=True, last_sync=st.get("last_sync"),
+                   triggered=st.get("triggered", []), job_count=st.get("job_count"))
+
+
+@app.route("/admin/atrium/sync-all", methods=["POST"])
+def admin_atrium_sync_all():
+    """'Sync all dashboards' — discover every <c>-export Cloud Run job and trigger a fresh Windsor
+    pull for each (no scheduler; refresh is operator-driven). Returns immediately; dashboards rebuild
+    over the next minute or two. New clients are picked up automatically (jobs are discovered)."""
+    if not is_superadmin():
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    triggered, failed, ts = sync_dash.trigger_all()
+    _audit("", "synced all dashboards",
+           "%d triggered%s" % (len(triggered), (", %d failed" % len(failed)) if failed else ""))
+    return jsonify(ok=(not failed), triggered=triggered,
+                   failed=[f["job"] for f in failed], last_sync=ts)
 
 
 @app.route("/admin/atrium/new", methods=["POST"])
@@ -2395,7 +2434,7 @@ def admin_atrium_delete(client):
     _trash(client, "client", name, client_entry or {"key": client},
            extra={"workspace": ws_snapshot})
     _audit(client, "deleted client", name)
-    return _atrium_redirect_list("Deleted client '%s' — restorable from Trash for 30 days." % client)
+    return _atrium_redirect_list("Deleted client '%s'. Restorable from Trash for 30 days." % client)
 
 
 @app.route("/admin/atrium/restore", methods=["POST"])
@@ -2427,7 +2466,7 @@ def admin_atrium_restore():
             return _atrium_redirect_list("Can't restore that item type.", section="trash", err=True)
     except KeyError:
         return _atrium_redirect_list(
-            "Couldn't restore '%s' — its campaign was deleted too (restore the campaign first)." % label,
+            "Couldn't restore '%s'. Its campaign was deleted too (restore the campaign first)." % label,
             section="trash", err=True)
     except Exception:
         return _atrium_redirect_list("Couldn't restore '%s'." % label, section="trash", err=True)

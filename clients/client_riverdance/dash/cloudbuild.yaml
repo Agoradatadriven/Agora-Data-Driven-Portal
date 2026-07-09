@@ -1,0 +1,19 @@
+# NOT used from a developer laptop. Present only for a FUTURE push-to-main Cloud Build trigger.
+# A laptop build must NOT use Cloud Build: the Cloud Build SA cannot iam.serviceAccounts.actAs the
+# runtime service account, so `gcloud builds submit` from a laptop fails. Deploy manually instead
+# (build the image as yourself, then `gcloud run ... deploy`). See tools/README.md.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/template-dash:$SHORT_SHA
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/template-dash:$SHORT_SHA
+images:
+  - asia-southeast1-docker.pkg.dev/agora-data-driven/agora/template-dash:$SHORT_SHA
+options:
+  logging: CLOUD_LOGGING_ONLY

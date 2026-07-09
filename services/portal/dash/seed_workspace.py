@@ -113,8 +113,8 @@ def riverdance_workspace():
             {
                 "id": "c_paid_1",
                 "channel": "paid",
-                "name": "Summer Lead-Gen Push",
-                "eyebrow": "PAID ADS · LEAD GEN",
+                "name": "Summer Paid Ads Push",
+                "eyebrow": "PAID ADS",
                 "strategy": {
                     "what": "Launched Meta and Google campaigns on the $80/night summer offer, with "
                             "three creative angles all pointing at a dedicated riverside landing page.",
@@ -132,7 +132,7 @@ def riverdance_workspace():
                 "content": [
                     {
                         "id": "RVR-014", "ref": "RVR-014", "type_tag": "Static Post",
-                        "sub_tag": "Lead Gen", "platform": "Instagram · Facebook",
+                        "sub_tag": "Paid Ads", "platform": "Instagram · Facebook",
                         "caption": "Riverside mornings start at $80/night. Wake up to the sound of "
                                    "the river, just minutes from Vail. Book your summer escape →",
                         "file_name": "5.png", "thumb_kind": "mountains",
@@ -151,7 +151,7 @@ def riverdance_workspace():
                     },
                     {
                         "id": "RVR-016", "ref": "RVR-016", "type_tag": "Static Post",
-                        "sub_tag": "Lead Gen", "platform": "Instagram · Facebook",
+                        "sub_tag": "Paid Ads", "platform": "Instagram · Facebook",
                         "caption": "Last call for summer, $80/night riverside sites are going "
                                    "fast. Reserve your spot before the season fills up.",
                         "file_name": "6.png", "thumb_kind": "river",
@@ -208,7 +208,7 @@ def riverdance_workspace():
         "calendar": [
             {"date": "2026-06-02", "label": "Project kickoff", "kind": "milestone"},
             {"date": "2026-06-09", "label": "Weekly sync", "kind": "milestone"},
-            {"date": "2026-06-12", "label": "Summer Lead-Gen Push goes live", "kind": "paid"},
+            {"date": "2026-06-12", "label": "Summer Paid Ads Push goes live", "kind": "paid"},
             {"date": "2026-06-16", "label": "Weekly sync", "kind": "milestone"},
             {"date": "2026-06-18", "label": "June nurture email sent", "kind": "organic"},
             {"date": "2026-06-22", "label": "UTM tracking due", "kind": "due"},
