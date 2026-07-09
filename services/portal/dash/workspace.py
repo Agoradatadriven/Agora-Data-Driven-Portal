@@ -1077,7 +1077,7 @@ def update_communication(client, kind, item_id, fields):
 # Report" shape (a sub-heading + headline + paragraph + a source tag/link). Same load-modify-save
 # posture as the Client Communications summaries above; no new infra.
 INTEL_SECTIONS = ("business_research", "media_buying")
-_INTEL_FIELDS = ("heading", "title", "body", "source", "link", "date")
+_INTEL_FIELDS = ("heading", "title", "body", "relevance", "source", "link", "date")
 
 
 def _intel_key(section):

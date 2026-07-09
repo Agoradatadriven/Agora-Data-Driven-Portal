@@ -65,6 +65,14 @@ def valid_window(value):
     return any(o["value"] == value for o in WINDOWS)
 
 
+def window_label(value):
+    """The human label for a look-back window value ('12m' -> 'Past 12 months'), else 'recent'."""
+    for o in WINDOWS:
+        if o["value"] == value:
+            return o["label"]
+    return "recent"
+
+
 def window_of(cfg):
     """The configured look-back window for a client's intel_ai config (validated; default 3m)."""
     w = ((cfg or {}).get("window") or "").strip()
@@ -457,7 +465,11 @@ def _shape(entry, candidates, heading_default):
 def curate(section, client_name, topics, candidates, prompt=None, model=None,
            limit=6, heading_default="", fetcher=None, token_fetcher=None, max_tokens=8192,
            capture_thinking=False, trace=None):
-    """Curate real `candidates` into up to `limit` briefing entries for `section`, using `model`.
+    """LEGACY retrieve-then-curate primitive (curate a supplied candidate list). Not used by the daily
+    refresh anymore -- that now uses `research()` (grounded live web search). Kept as a general
+    curation helper (and covered by tests); prefer `research()` for real intelligence.
+
+    Curate real `candidates` into up to `limit` briefing entries for `section`, using `model`.
 
     Returns `(entries, error)`:
       * on success: (list of intel-field dicts mapped onto the real articles, most-important first, "").
@@ -495,6 +507,196 @@ def curate(section, client_name, topics, candidates, prompt=None, model=None,
         row = _shape(e, cands, hd)
         if row is None:
             continue
+        key = (row["title"].lower(), row["link"].lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+        if len(out) >= limit:
+            break
+    if not out:
+        return None, "the model found no relevant items"
+    return out, ""
+
+
+# ================================================================================================
+# GROUNDED RESEARCH -- the real research engine (Gemini + live Google Search grounding).
+# ================================================================================================
+# This is what makes the feature behave like Gemini chat: instead of scraping Google News RSS and
+# re-ranking it, we let Gemini PLAN -> SEARCH the whole web (grounding) -> CURATE with citations.
+# The model reads the client profile, decides the angles that matter, runs its own Google searches,
+# reads real pages, and returns items each with a REAL source URL and a "why this matters to THIS
+# client" line. Grounding is a Gemini/Vertex capability (DeepSeek can't search the live web), so this
+# path is Gemini-only; a non-Gemini model returns a clear reason (no junk, no fallback).
+
+def provider_supports_grounding(provider):
+    """True iff `provider` can do live web-search grounding (Gemini via Vertex only)."""
+    return provider == "gemini"
+
+
+def model_supports_grounding(model_id):
+    """True iff `model_id` is a known, configured model that can ground on Google Search."""
+    m = model_meta(model_id)
+    return bool(m and provider_supports_grounding(m["provider"]) and provider_configured(m["provider"]))
+
+
+def _grounded_system_prompt(section, client_name, topics, editorial, limit, recency="recent"):
+    """The research contract for a grounded run: PLAN -> SEARCH -> CURATE, with a per-item rationale."""
+    section_label = ("Media Buying News" if section == "media_buying" else "Business Research")
+    name = client_name or "the client"
+    tops = ", ".join(t for t in (topics or []) if (t or "").strip()) or "(none given)"
+    return (
+        "You are the senior research editor at AGORA, a marketing agency, preparing the \"%s\" "
+        "section of the Market Intelligence briefing for the client \"%s\".\n\n"
+        "Do REAL web research -- do not summarise a supplied list. Work in three steps:\n"
+        "  1) PLAN: from the client profile below, think about THIS client's business and decide the "
+        "few angles that genuinely matter to them right now (competitor moves, market/demand shifts, "
+        "pricing, regulation, how their customers buy; for Media Buying: ad-platform format/policy/"
+        "targeting/measurement/pricing changes on Google, Meta, TikTok, LinkedIn, Amazon).\n"
+        "  2) SEARCH: use Google Search to find developments from roughly %s across the WHOLE web "
+        "for those angles -- not just news sites. Prefer concrete, decision-relevant, well-sourced "
+        "items; avoid evergreen explainers and generic 'top tips' listicles.\n"
+        "  3) CURATE: select the %d strongest, most relevant items. Keep the REAL source name and the "
+        "REAL URL you actually found.\n\n"
+        "CLIENT PROFILE:\n"
+        "  - Client: %s\n"
+        "  - Their focus / seed keywords (treat as SEEDS to expand into real angles, not literal "
+        "search strings): %s\n"
+        "  - Editorial guidance: %s\n\n"
+        "Return STRICT JSON and nothing else (no markdown, no code fences, no commentary):\n"
+        "{\"entries\": [{\"heading\": \"2-4 word tag\", \"title\": \"the real headline\", "
+        "\"summary\": \"1-2 plain sentences: what happened\", \"relevance\": \"one sentence: why this "
+        "specifically matters to %s\", \"source\": \"publisher name\", \"url\": \"the real source "
+        "URL\", \"date\": \"YYYY-MM-DD if known, else empty\"}]}\n"
+        "Order most-important first. Quality over quantity -- fewer strong, on-topic items beat "
+        "padding. Only include items you actually found via search, each with a real URL."
+        % (section_label, name, recency, limit, name, tops, editorial or default_prompt(section), name)
+    )
+
+
+def _call_vertex_grounded(model_id, system, user, fetcher, token_fetcher=None, capture=False, max_tokens=8192):
+    """Vertex Gemini :generateContent WITH the Google Search tool. Returns (text, error, thinking, grounding).
+
+    `grounding` = {queries:[...], sources:[{title,uri}], suggestions:<html>} pulled from the response's
+    groundingMetadata -- the exact searches it ran (the visible "gameplan"), the sources it found, and
+    Google's required Search-Suggestions chip HTML. We do NOT set responseMimeType: JSON mode is
+    unreliable alongside the search tool, so we ask for JSON in the prompt and parse leniently."""
+    token = _gcp_access_token(token_fetcher)
+    if not token:
+        return "", "could not get GCP credentials for Vertex", "", {}
+    loc = _VERTEX_LOCATION
+    host = "aiplatform.googleapis.com" if loc == "global" else ("%s-aiplatform.googleapis.com" % loc)
+    url = ("https://%s/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent"
+           % (host, _VERTEX_PROJECT, loc, model_id))
+    gen = {}
+    if capture:
+        gen["thinkingConfig"] = {"thinkingBudget": 2048, "includeThoughts": True}
+        gen["maxOutputTokens"] = max(max_tokens, 8192) + 2048
+    else:
+        gen["thinkingConfig"] = {"thinkingBudget": 128 if "pro" in model_id else 512}
+        gen["maxOutputTokens"] = max(max_tokens, 8192)
+    payload = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
+        "tools": [{"googleSearch": {}}],
+        "generationConfig": gen,
+    }
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    fn = fetcher or _requests_post
+    try:
+        resp = fn(url, headers, payload, _TIMEOUT)
+    except Exception as exc:
+        return "", "could not reach Vertex AI (%s)" % type(exc).__name__, "", {}
+    if getattr(resp, "status_code", 0) >= 400:
+        return "", _short_error(resp, "Vertex error"), "", {}
+    try:
+        data = resp.json()
+        cand = data["candidates"][0]
+        parts = cand["content"]["parts"]
+        answer = "".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
+        thinking = "".join(p.get("text", "") for p in parts if p.get("thought")).strip() if capture else ""
+        gm = cand.get("groundingMetadata") or {}
+        chunks = gm.get("groundingChunks") or []
+        grounding = {
+            "queries": [q for q in (gm.get("webSearchQueries") or []) if q],
+            "sources": [{"title": (c.get("web") or {}).get("title", ""),
+                         "uri": (c.get("web") or {}).get("uri", "")}
+                        for c in chunks if c.get("web")],
+            "suggestions": ((gm.get("searchEntryPoint") or {}).get("renderedContent") or ""),
+        }
+        return answer, "", thinking, grounding
+    except Exception:
+        return "", "Vertex returned an unexpected response", "", {}
+
+
+def _shape_grounded(entry, heading_default):
+    """Turn one grounded model entry into a stored intel-field dict (with `relevance`). None if empty."""
+    if not isinstance(entry, dict):
+        return None
+    title = (entry.get("title") or "").strip()
+    body = (entry.get("summary") or entry.get("body") or "").strip()
+    if not (title or body):
+        return None
+    if len(body) > _BODY_MAX:
+        body = body[:_BODY_MAX].rsplit(" ", 1)[0] + "…"
+    relevance = (entry.get("relevance") or "").strip()
+    if len(relevance) > _BODY_MAX:
+        relevance = relevance[:_BODY_MAX].rsplit(" ", 1)[0] + "…"
+    url = (entry.get("url") or entry.get("link") or "").strip()
+    if not url.lower().startswith("http"):
+        url = ""                          # never keep a fabricated/relative URL
+    return {
+        "heading": (entry.get("heading") or "").strip() or heading_default,
+        "title": title,
+        "body": body,
+        "relevance": relevance,
+        "source": (entry.get("source") or "").strip(),
+        "link": url,
+        "date": (entry.get("date") or "").strip(),
+    }
+
+
+def research(section, client_name, topics, prompt=None, model=None, limit=8, heading_default="",
+             recency="recent", capture_thinking=False, trace=None, fetcher=None, token_fetcher=None,
+             max_tokens=8192):
+    """Grounded web research for `section` using `model` (Gemini only). Returns `(entries, error)`.
+
+    The model plans, searches Google live, and curates -- each returned entry carries a real source
+    URL and a `relevance` ("why this matters to the client") line. No fallback: on any failure returns
+    (None, <short reason>). `trace` (if given) is filled with the model's reasoning, the searches it
+    ran (`queries`), the `sources` it grounded on, Google's `suggestions` chip HTML, and the raw text."""
+    meta = model_meta(model)
+    if meta is None:
+        return None, "no model selected"
+    if not provider_supports_grounding(meta["provider"]):
+        return None, "%s can't do live web research — pick a Gemini model" % meta["label"]
+    if not provider_configured(meta["provider"]):
+        return None, "%s isn't configured on the server" % meta["label"]
+    editorial = (prompt or "").strip() or default_prompt(section)
+    system = _grounded_system_prompt(section, client_name, topics, editorial, limit, recency)
+    user = "Research the client's world now and return the briefing JSON."
+    raw, err, thinking, grounding = _call_vertex_grounded(
+        meta["id"], system, user, fetcher, token_fetcher, capture_thinking, max_tokens)
+    if trace is not None:
+        trace["thinking"] = thinking or ""
+        trace["raw"] = raw or ""
+        trace["queries"] = grounding.get("queries") or []
+        trace["sources"] = grounding.get("sources") or []
+        trace["suggestions"] = grounding.get("suggestions") or ""
+    if err:
+        return None, err
+    parsed = _parse_entries(raw)
+    if not parsed:
+        return None, "the model returned nothing usable"
+    hd = heading_default or ("Platform Update" if section == "media_buying" else "Industry News")
+    src_uris = [s["uri"] for s in (grounding.get("sources") or []) if s.get("uri")]
+    out, seen = [], set()
+    for i, e in enumerate(parsed):
+        row = _shape_grounded(e, hd)
+        if row is None:
+            continue
+        if not row["link"] and src_uris:            # back the item with a real grounded source URL
+            row["link"] = src_uris[min(i, len(src_uris) - 1)]
         key = (row["title"].lower(), row["link"].lower())
         if key in seen:
             continue

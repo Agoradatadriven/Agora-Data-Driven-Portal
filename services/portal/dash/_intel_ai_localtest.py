@@ -130,62 +130,96 @@ def run():
     e5 = intel_ai.curate("media_buying", "X", [], _CANDS, model="deepseek-v4-pro", fetcher=_bad_json_fetcher)
     _check("unparseable -> (None, reason)", e5[0] is None and e5[1])
 
-    # 6. refresh_client end-to-end (deepseek; RSS feeds the candidates, model curates).
-    def _rss(url, timeout):
-        rss = ("<rss version='2.0'><channel><title>Google News</title>"
-               "<item><title>Google Ads adds a new PMax control - Search Engine Land</title>"
-               "<link>https://sel.com/a1</link><pubDate>Wed, 01 Jul 2026 10:00:00 GMT</pubDate>"
-               "<source url='x'>Search Engine Land</source></item>"
-               "<item><title>Meta overhauls Advantage+ targeting - Marketing Dive</title>"
-               "<link>https://sel.com/a2</link><pubDate>Sun, 28 Jun 2026 10:00:00 GMT</pubDate>"
-               "<source url='x'>Marketing Dive</source></item></channel></rss>").encode("utf-8")
-
-        class R(object):
-            content = rss
-            status_code = 200
-        return R()
-
     # Window + count config: defaults, validation, clamping.
     _check("window default is 3m", intel_ai.window_of({}) == "3m")
     _check("valid window honored", intel_ai.window_of({"window": "12m"}) == "12m")
     _check("invalid window -> default", intel_ai.window_of({"window": "99y"}) == "3m")
+    _check("window_label maps value -> label", intel_ai.window_label("12m") == "Past 12 months")
     _check("count default 8", intel_ai.count_of({}) == 8)
     _check("count clamped to MAX", intel_ai.count_of({"count": "999"}) == intel_ai.MAX_COUNT)
     _check("count clamped to MIN", intel_ai.count_of({"count": "0"}) == intel_ai.MIN_COUNT)
 
-    # A hand-added entry that must survive every refresh.
+    # 6. refresh_client end-to-end via GROUNDED research (Gemini + injected grounded fetcher + token).
+    #    The model plans, "searches" (grounding), and returns entries with a per-item relevance line;
+    #    the trace captures the search plan (queries) + grounded sources + reasoning.
+    _GROUNDED = json.dumps({"entries": [
+        {"heading": "Regulation", "title": "New freelancer tax rule for 2026",
+         "summary": "The government introduced a new tax rule affecting freelancers.",
+         "relevance": "The Contract Shop's freelancer customers will need updated contract clauses.",
+         "source": "Legal Times", "url": "https://legaltimes.com/freelancer-tax", "date": "2026-07-01"},
+        {"heading": "Market", "title": "Gig economy keeps growing",
+         "summary": "Freelance workforce grew again this year.",
+         "relevance": "A bigger freelance market means more demand for ready-made legal templates.",
+         "source": "Biz Daily", "url": "https://bizdaily.com/gig-growth", "date": "2026-06-20"},
+    ]})
+
+    def _grounded_fetcher(url, headers, payload, timeout):
+        include = payload["generationConfig"]["thinkingConfig"].get("includeThoughts")
+        parts = []
+        if include:
+            parts.append({"text": "Planning: freelancer legal + gig-economy angles for this client.",
+                          "thought": True})
+        parts.append({"text": _GROUNDED})
+        return _Resp({"candidates": [{
+            "content": {"parts": parts},
+            "groundingMetadata": {
+                "webSearchQueries": ["freelancer contract law 2026", "gig economy regulation"],
+                "groundingChunks": [
+                    {"web": {"uri": "https://legaltimes.com/freelancer-tax", "title": "Legal Times"}},
+                    {"web": {"uri": "https://bizdaily.com/gig-growth", "title": "Biz Daily"}}],
+                "searchEntryPoint": {"renderedContent": "<div class='chips'>suggestions</div>"},
+            }}]})
+
     workspace.save_workspace(CLIENT, {"display_name": "Aitest Co", "intel": {},
-                                      "intel_topics": ["ppc"],
-                                      "intel_ai": {"model": "deepseek-v4-pro", "window": "6m", "count": "5"}})
+                                      "intel_topics": ["freelance contracts"],
+                                      "intel_ai": {"model": "gemini-2.5-flash", "window": "6m",
+                                                   "count": "5", "show_thinking": "1"}})
     workspace.add_intel_entry(CLIENT, "media_buying", {"title": "Hand-written note", "body": "keep me"})
-    counts = intel_refresh.refresh_client(CLIENT, fetcher=_rss, ai_fetcher=_deepseek_fetcher)
-    _check("refresh used the AI", counts["ai"] is True and counts["media_buying"] > 0)
+    counts = intel_refresh.refresh_client(CLIENT, ai_fetcher=_grounded_fetcher, token_fetcher=_token)
+    _check("grounded refresh used the AI (both sections)",
+           counts["ai"] is True and counts["media_buying"] > 0 and counts["business_research"] > 0)
     ws = workspace.load_workspace(CLIENT)
     _check("no error recorded on success", ws["intel_ai"]["last_error"] == "")
     mb1 = ws["intel"]["media_buying"]
     n1 = len(mb1)
     _check("hand-written entry survives the refresh", any(e.get("title") == "Hand-written note" for e in mb1))
-    _check("AI entries added alongside it", n1 > 1)
+    br1 = ws["intel"]["business_research"]
+    _check("business entries carry a relevance line", any((e.get("relevance") or "").strip() for e in br1))
+    _check("real grounded source link kept", any((e.get("link") or "").startswith("http") for e in br1))
+    tr = ws["intel_ai"]["last_trace"]["business_research"]
+    _check("trace captured the search plan (queries)", len(tr.get("queries") or []) >= 1)
+    _check("trace captured grounded sources", len(tr.get("sources") or []) >= 1)
+    _check("trace captured reasoning (thoughts on)", tr.get("thinking", "").startswith("Planning"))
 
-    # 6b. ADDITIVE + de-dup: a second run with the SAME candidates adds NOTHING new (grows, never wipes).
-    intel_refresh.refresh_client(CLIENT, fetcher=_rss, ai_fetcher=_deepseek_fetcher)
+    # 6b. ADDITIVE + de-dup: a second identical run adds NOTHING new (grows, never wipes).
+    intel_refresh.refresh_client(CLIENT, ai_fetcher=_grounded_fetcher, token_fetcher=_token)
     mb2 = workspace.load_workspace(CLIENT)["intel"]["media_buying"]
     _check("second identical run adds no duplicates", len(mb2) == n1)
     _check("hand-written entry still there after 2nd run",
            any(e.get("title") == "Hand-written note" for e in mb2))
 
-    # 7. NO fallback: a model that fails -> nothing added, error recorded.
-    workspace.save_workspace(CLIENT + "q", {"display_name": "Quota Co", "intel": {},
+    # 7. NO grounding on a non-Gemini model -> nothing added, clear reason (no fallback).
+    workspace.save_workspace(CLIENT + "d", {"display_name": "DeepSeek Co", "intel": {},
+                                            "intel_topics": ["x"],
                                             "intel_ai": {"model": "deepseek-v4-pro"}})
-    cq = intel_refresh.refresh_client(CLIENT + "q", fetcher=_rss, ai_fetcher=_quota_fetcher)
+    cd = intel_refresh.refresh_client(CLIENT + "d", ai_fetcher=_grounded_fetcher, token_fetcher=_token)
+    _check("non-Gemini model -> ai False, nothing added", cd["ai"] is False and cd["media_buying"] == 0)
+    _check("non-Gemini reason recorded",
+           "web research" in workspace.load_workspace(CLIENT + "d")["intel_ai"]["last_error"].lower())
+
+    # 7b. A Vertex error (e.g. quota) -> nothing added, reason recorded.
+    workspace.save_workspace(CLIENT + "q", {"display_name": "Quota Co", "intel": {},
+                                            "intel_topics": ["x"],
+                                            "intel_ai": {"model": "gemini-2.5-flash"}})
+    cq = intel_refresh.refresh_client(CLIENT + "q", ai_fetcher=_quota_fetcher, token_fetcher=_token)
     _check("model failure -> ai False", cq["ai"] is False)
-    _check("model failure -> NO entries written (no RSS fallback)", cq["media_buying"] == 0)
-    wq = workspace.load_workspace(CLIENT + "q")
-    _check("failure reason recorded", "quota" in wq["intel_ai"]["last_error"])
+    _check("model failure -> NO entries written", cq["media_buying"] == 0)
+    _check("failure reason recorded",
+           "quota" in workspace.load_workspace(CLIENT + "q")["intel_ai"]["last_error"])
 
     # 8. No model selected -> refresh does nothing, records a helpful reason.
     workspace.save_workspace(CLIENT + "n", {"display_name": "NoModel Co", "intel": {}})
-    cn = intel_refresh.refresh_client(CLIENT + "n", fetcher=_rss, ai_fetcher=_deepseek_fetcher)
+    cn = intel_refresh.refresh_client(CLIENT + "n", ai_fetcher=_grounded_fetcher, token_fetcher=_token)
     _check("no model -> zeros + ai False", cn == {"media_buying": 0, "business_research": 0, "ai": False})
     _check("no model -> reason recorded",
            "model" in workspace.load_workspace(CLIENT + "n")["intel_ai"]["last_error"].lower())

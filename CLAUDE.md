@@ -185,30 +185,35 @@ auto-refresh (see those bullets below). Product name is one constant:
   `section`, gated `is_superadmin()`); clients read only. `atrium_view.intel_sections(ws)` decorates
   the two lists with their display label/lede/icon for the template. No new infra (one more workspace
   JSON key, mirrors Client Communications).
-  - **Daily AI-curated auto-refresh (an AI 'brain', LIVE):** a Cloud Run job `intel-refresh`
-    (`dash/intel_refresh.py`, Cloud Scheduler `intel-refresh-daily` 07:00 SGT) does
-    **retrieve-then-curate** (`dash/intel_ai.py`): RETRIEVE real candidate articles from Google News
-    RSS + publisher feeds (`dash/intel_feed.py` — keyless stdlib `xml.etree` + lazy `requests`), then
-    the client's **selected model** CURATES them (picks the relevant ones, writes a client-facing
-    summary, keeps the REAL link/source/date — never invents a URL; `curate` returns `(entries,
-    error)` — **NO news-feed fallback**, a failed model shows the reason). Two providers:
-    **Vertex AI Gemini** (`gemini-2.5-flash`/`-pro`, GCP-billed via the runtime SA's metadata token,
-    gated `VERTEX_GEMINI_ENABLED=1` + `VERTEX_PROJECT`/`VERTEX_LOCATION`; NB set
-    `thinkingConfig.thinkingBudget` 0/128 or thinking starves the JSON output) and **DeepSeek V4**
-    (`DEEPSEEK_API_KEY`). Per-client config `ws["intel_ai"]` = `{model, business_prompt, media_prompt,
-    window, count, show_thinking}` (admin-set in the **AI Research Brain** panel; `intel_ai.window_of`/
-    `count_of` validate the look-back window `7d…12m` + article target 1–25). **RELEVANCE + SPEED
-    (2026-07):** retrieval (`intel_refresh._gather`) fetches every feed/query **in parallel** and
-    **round-robin-interleaves** the pool (no single prolific source can flood it — a global newest-first
-    sort used to let Search Engine Journal crowd out the client's own hits); the two sections curate
-    **concurrently** (writes stay serial). **Business Research is keyed ENTIRELY off `ws["intel_topics"]`
-    with NO fallback** — no keywords ⇒ the section stays empty with a "set keywords" reason, never
-    generic agency-industry filler (the old `BUSINESS_RESEARCH_FEEDS`/`_FALLBACK_QUERIES` are gone).
-    **Media Buying News** is universal (feeds `ppc.land` + Search Engine Journal — SEL's category feed
-    000s from Cloud Run). **`show_thinking`** (admin toggle, default off) captures the model's reasoning
-    + the candidate list + raw output into `ws["intel_ai"]["last_trace"]` (per section), shown in the
-    panel — a debugging aid; it enables Gemini `includeThoughts` (slower) and reads DeepSeek
-    `reasoning_content`. Each run is **ADDITIVE**:
+  - **Daily AI auto-refresh — GROUNDED web research (an AI 'brain', LIVE):** a Cloud Run job
+    `intel-refresh` (`dash/intel_refresh.py`, Cloud Scheduler `intel-refresh-daily` 07:00 SGT) runs
+    **grounded research** (`intel_ai.research`): the selected **Vertex Gemini** model, with the live
+    **Google Search grounding** tool (`tools:[{googleSearch:{}}]`), PLANS the angles that matter to
+    THIS client → SEARCHES the whole web → CURATES the strongest items, each with a REAL source URL
+    (from `groundingMetadata.groundingChunks[].web.uri`) and a **`relevance`** ("why this matters for
+    <client>") line. Same engine as Gemini chat — broad + on-topic, NOT a Google-News re-rank.
+    `research` returns `(entries, error)`; **NO fallback** — a failure shows the reason and adds
+    nothing. **Grounding is Gemini-only** (`intel_ai.model_supports_grounding`): a non-Gemini model
+    (DeepSeek) reports "can't do live web research — pick a Gemini model" and adds nothing. (The old
+    retrieve-then-curate `intel_ai.curate` + `intel_feed` RSS scrape is LEGACY — kept as a helper +
+    for tests, no longer wired into the refresh.) Vertex Gemini (`gemini-2.5-flash`/`-pro`) is
+    GCP-billed via the runtime SA's metadata token, gated `VERTEX_GEMINI_ENABLED=1` +
+    `VERTEX_PROJECT`/`VERTEX_LOCATION` (grounding works at `global`); ⚠️ grounded search bills extra
+    per prompt, and we do NOT set `responseMimeType` (JSON mode is unreliable with the search tool —
+    we prompt for JSON and parse leniently). Per-client config `ws["intel_ai"]` = `{model,
+    business_prompt, media_prompt, window, count, show_thinking}` (admin-set in the **AI Research
+    Brain** panel; `intel_ai.window_of`/`count_of`/`window_label` validate the recency `7d…12m` +
+    target 1–25; keywords `ws["intel_topics"]` are SEEDS the model expands, not literal queries).
+    **Business Research is keyed ENTIRELY off `ws["intel_topics"]` with NO fallback** — no keywords ⇒
+    empty section + "set keywords" reason, never filler. **Media Buying News** is universal (runs for
+    every client). The two sections research **concurrently** (writes stay serial). Intel entries gain
+    a `relevance` field (`workspace._INTEL_FIELDS`), rendered as "Why this matters for <client>" under
+    each summary. **`show_thinking`** (admin toggle, default off) captures the model's reasoning + the
+    **search plan** (`groundingMetadata.webSearchQueries`) + grounded **sources** + Google **Search
+    Suggestions** (`searchEntryPoint.renderedContent`) + raw output into `ws["intel_ai"]["last_trace"]`
+    (per section), shown in the panel — a debugging aid; it enables Gemini `includeThoughts` (slower).
+    ⚠️ Google's grounding ToS asks that Search Suggestions be shown to end-users; currently rendered
+    only in the admin trace panel (client-facing display is a TODO). Each run is **ADDITIVE**:
     `workspace.add_auto_intel` de-dupes new stories and APPENDS them (list grows, never wiped;
     plain-auto capped 60/section, manual + favourited always kept). Team edits via `POST
     /w/<c>/admin/intel` ops: `ai_settings` (model/prompts/window/count/show_thinking), `topics`, `refresh-now`,

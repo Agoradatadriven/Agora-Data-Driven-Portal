@@ -1024,6 +1024,9 @@
     .ax-intel-date { font-size: 11.5px; color: var(--ax-sub); white-space: nowrap; flex: 0 0 auto; }
     .ax-intel-title { font-size: 15px; font-weight: 800; margin: 0 0 6px; color: var(--ax-ink); }
     .ax-intel-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
+    .ax-intel-why { font-size: 12.5px; color: #33383f; margin: 8px 0 0; padding: 8px 11px; background: var(--ax-violet-bg); border-left: 3px solid var(--ax-violet); border-radius: 6px; }
+    .ax-intel-why-tag { font-weight: 800; color: var(--ax-violet-d, #5C4BD0); }
+    .ax-intel-why-tag::after { content: ": "; }
     .ax-intel-src { margin-top: 10px; }
     .ax-intel-srctag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ax-sub); background: var(--ax-canvas); border: 1px solid var(--ax-line); border-radius: var(--ax-pill); padding: 3px 11px; }
     .ax-intel-srctag.is-link { color: var(--ax-violet-d); border-color: rgba(37,117,252,.4); }
@@ -1040,6 +1043,7 @@
     .ax-intel-ai-pill.is-on { color: var(--ax-green-d); background: rgba(79,171,74,.14); }
     .ax-intel-ai-pill.is-err { color: #c0392b; background: #fdecea; }
     .ax-intel-ai-pill.is-off { color: var(--ax-sub); background: var(--ax-canvas); }
+    .ax-intel-ai-pill.is-warn { color: #9a6a00; background: #fff5e0; }
     .ax-intel-ai-sub { font-size: 12.5px; color: var(--ax-sub); margin: 8px 0 0; line-height: 1.5; }
     .ax-intel-ai-controls { display: grid; grid-template-columns: 1.5fr 1fr .9fr; gap: 12px; margin-top: 16px; }
     @media (max-width: 620px) { .ax-intel-ai-controls { grid-template-columns: 1fr; } }
@@ -1075,6 +1079,11 @@
     .ax-trace-cands { margin: 0; padding-left: 20px; font-size: 12px; color: var(--ax-ink); }
     .ax-trace-cands li { margin: 2px 0; }
     .ax-trace-pre { margin: 0; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.5; background: #fff; border: 1px solid var(--ax-line); border-radius: 8px; padding: 10px 12px; color: var(--ax-ink); }
+    .ax-trace-queries { margin: 0; padding-left: 20px; font-size: 12px; color: var(--ax-ink); }
+    .ax-trace-queries li { margin: 2px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ax-trace-cands a { color: var(--ax-violet-d, #5C4BD0); text-decoration: none; }
+    .ax-trace-cands a:hover { text-decoration: underline; }
+    .ax-trace-suggest { max-width: 100%; overflow-x: auto; }
     .ax-trace-empty { font-size: 12px; color: var(--ax-sub); font-style: italic; margin: 12px 0 0; }
     .ax-intel-item { position: relative; }
     .ax-intel-item.is-fav { border-color: var(--ax-green); box-shadow: 0 0 0 1px var(--ax-green) inset; }
@@ -2261,6 +2270,7 @@
             <div class="ax-intel-ai-head">
               <div class="ax-intel-ai-title">{{ ic('intel') }} AI Research Brain</div>
               {% if not ai.selected %}<span class="ax-intel-ai-pill is-off">Off</span>
+              {% elif ai.last_model and ai.last_error %}<span class="ax-intel-ai-pill is-warn">Partial</span>
               {% elif ai.last_error %}<span class="ax-intel-ai-pill is-err">Needs attention</span>
               {% else %}<span class="ax-intel-ai-pill is-on">Active</span>{% endif %}
             </div>
@@ -2293,7 +2303,7 @@
             </div>
 
             <div class="ax-fld">
-              <label class="ax-fld-label" for="ax-intel-topics">Research keywords <span class="ax-fld-hint">&mdash; this client's industry, comma-separated</span></label>
+              <label class="ax-fld-label" for="ax-intel-topics">Research keywords <span class="ax-fld-hint">&mdash; this client's industry/topics; the AI expands these into live web searches</span></label>
               <textarea id="ax-intel-topics" class="ax-editbox" rows="2" placeholder="e.g. contract templates, creative entrepreneurs, Etsy sellers, small business legal">{{ view.intel_topics }}</textarea>
             </div>
 
@@ -2329,11 +2339,17 @@
               {% set tr = ai.last_trace.get(key) %}
               {% if tr %}
               <details class="ax-intel-trace-sec">
-                <summary>{{ label }} &mdash; {{ tr.candidate_count }} article{{ '' if tr.candidate_count == 1 else 's' }} considered{% if tr.seconds %} &middot; {{ tr.seconds }}s{% endif %}</summary>
-                {% if tr.candidates %}
+                <summary>{{ label }} &mdash; {{ tr.added or 0 }} added{% if tr.candidate_count %} &middot; {{ tr.candidate_count }} live source{{ '' if tr.candidate_count == 1 else 's' }}{% endif %}{% if tr.seconds %} &middot; {{ tr.seconds }}s{% endif %}</summary>
+                {% if tr.queries %}
                 <div class="ax-trace-block">
-                  <div class="ax-trace-h">Articles it chose from ({{ tr.candidates|length }})</div>
-                  <ol class="ax-trace-cands">{% for c in tr.candidates %}<li>{{ c }}</li>{% endfor %}</ol>
+                  <div class="ax-trace-h">Its search plan &mdash; the Google searches it ran</div>
+                  <ul class="ax-trace-queries">{% for q in tr.queries %}<li>{{ q }}</li>{% endfor %}</ul>
+                </div>
+                {% endif %}
+                {% if tr.sources %}
+                <div class="ax-trace-block">
+                  <div class="ax-trace-h">Sources it grounded on ({{ tr.sources|length }})</div>
+                  <ol class="ax-trace-cands">{% for s in tr.sources %}<li>{% if s.uri %}<a href="{{ s.uri }}" target="_blank" rel="noopener noreferrer">{{ s.title or s.uri }}</a>{% else %}{{ s.title }}{% endif %}</li>{% endfor %}</ol>
                 </div>
                 {% endif %}
                 {% if tr.thinking %}
@@ -2342,8 +2358,11 @@
                 {% if tr.raw %}
                 <div class="ax-trace-block"><div class="ax-trace-h">Raw model output</div><pre class="ax-trace-pre">{{ tr.raw }}</pre></div>
                 {% endif %}
-                {% if not tr.thinking and not tr.raw %}
-                <p class="ax-trace-empty">This model didn't return a separate reasoning trace. The article list and raw output above show what it worked from.</p>
+                {% if tr.suggestions %}
+                <div class="ax-trace-block"><div class="ax-trace-h">Google Search suggestions</div><div class="ax-trace-suggest">{{ tr.suggestions|safe }}</div></div>
+                {% endif %}
+                {% if not tr.queries and not tr.thinking and not tr.raw %}
+                <p class="ax-trace-empty">Nothing captured for this section on the last run{% if tr.added == 0 %} (it added no items){% endif %}.</p>
                 {% endif %}
               </details>
               {% endif %}
@@ -2391,6 +2410,7 @@
                 </div>
                 {% if e.title %}<h3 class="ax-intel-title">{{ e.title }}</h3>{% endif %}
                 {% if e.body %}<p class="ax-intel-body">{{ e.body }}</p>{% endif %}
+                {% if e.relevance %}<p class="ax-intel-why"><span class="ax-intel-why-tag">Why this matters{% if ws.display_name %} for {{ ws.display_name }}{% endif %}</span> {{ e.relevance }}</p>{% endif %}
                 {% if e.source or e.link %}
                 <div class="ax-intel-src">
                   {% if e.link %}<a class="ax-intel-srctag is-link" href="{{ e.link }}" target="_blank" rel="noopener noreferrer">{{ e.source or 'Read source' }} {{ ic('arrow') }}</a>
@@ -2408,6 +2428,7 @@
                   <input class="ax-editbox" data-ie="heading" value="{{ e.heading }}" placeholder="Section heading (e.g. {{ sec.placeholder }})">
                   <input class="ax-editbox" data-ie="title" value="{{ e.title }}" placeholder="Headline (optional)">
                   <textarea class="ax-editbox" data-ie="body" placeholder="What's happening&hellip;">{{ e.body }}</textarea>
+                  <textarea class="ax-editbox" data-ie="relevance" placeholder="Why this matters for {{ ws.display_name or 'the client' }}&hellip;">{{ e.relevance }}</textarea>
                   <div class="ax-intel-srcrow">
                     <input class="ax-editbox" data-ie="source" value="{{ e.source }}" placeholder="Source (e.g. Mordor Intelligence)">
                     <input class="ax-editbox" data-ie="link" value="{{ e.link }}" placeholder="Source link (optional)">
@@ -2431,6 +2452,7 @@
               <input class="ax-editbox" data-ia="heading" placeholder="Section heading (e.g. {{ sec.placeholder }})">
               <input class="ax-editbox" data-ia="title" placeholder="Headline (optional)">
               <textarea class="ax-editbox" data-ia="body" placeholder="What's happening&hellip;"></textarea>
+              <textarea class="ax-editbox" data-ia="relevance" placeholder="Why this matters for {{ ws.display_name or 'the client' }}&hellip;"></textarea>
               <div class="ax-intel-srcrow">
                 <input class="ax-editbox" data-ia="source" placeholder="Source (e.g. Mordor Intelligence)">
                 <input class="ax-editbox" data-ia="link" placeholder="Source link (optional)">
