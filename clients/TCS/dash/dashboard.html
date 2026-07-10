@@ -102,11 +102,35 @@
   th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
   thead th { color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; }
   tbody tr:hover { background: var(--teal-bg); }
+  .tablewrap.scrolly { max-height: 560px; overflow: auto; }
+  .tablewrap.scrolly thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; box-shadow: 0 1px 0 var(--border); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--ink); }
+  th .arrow { font-size: 9px; margin-left: 3px; }
+  .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px 13px; font-size: 13px; color: var(--muted); }
+  .filterbar label { display: inline-flex; align-items: center; gap: 6px; }
+  .filterbar select { font: inherit; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--ink); }
+  .filterbar button { font: inherit; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--muted); cursor: pointer; }
+  .filterbar .fltcount { margin-left: auto; font-size: 12px; }
   td .name { font-weight: 600; color: var(--navy); }
   td .em { color: var(--muted); font-size: 12px; }
   .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .pill.yes { background: var(--teal-bg); color: var(--teal-d); }
   .pill.no  { background: #f1f4f6; color: var(--muted); }
+  .sidebyside { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+  .sidebyside .panel { margin-bottom: 0; min-width: 0; }
+  .sidebyside .scrolly table { min-width: 0; }
+  .sidebyside th, .sidebyside td { white-space: normal; padding: 8px 9px; }
+  @media (max-width: 940px) { .sidebyside { grid-template-columns: 1fr; } }
+  #leads tbody tr { cursor: pointer; }
+  tbody tr.selrow, tbody tr.selrow:hover { background: var(--teal-soft); }
+  .fsbtn { font: inherit; font-size: 13px; padding: 7px 13px; border: 1px solid var(--border);
+           border-radius: 999px; background: #fff; color: var(--navy); cursor: pointer; white-space: nowrap; }
+  .fsbtn:hover { background: var(--teal-bg); }
+  .emreset a { color: var(--teal-d); font-size: 12px; cursor: pointer; text-decoration: none; }
+  .emreset a:hover { text-decoration: underline; }
+  :fullscreen .wrap { max-width: none; }
+  :fullscreen { background: var(--bg); overflow: auto; }
 </style>
 </head>
 <body>
@@ -119,6 +143,7 @@
         <div class="subtitle">Who takes the quiz, who buys, and why conversion has changed.</div>
       </div>
       <div class="meta" id="meta"></div>
+      <button type="button" class="fsbtn" id="fsBtn" title="Toggle full screen">⛶ Full screen</button>
     </header>
 
     <div id="status">Loading dashboard…</div>
@@ -129,7 +154,11 @@
 
       <div class="panel">
         <h2>Leads, sales &amp; click rate over time</h2>
-        <p class="desc">Quiz-lead activity by month, all scoped to the same people: new quiz leads, orders they placed after taking the quiz, and their email <b>click rate</b> (emails clicked ÷ emails sent — one click per email). Each line is indexed to its own peak (100%) so their shape and timing compare on one axis; hover for the actual values. Open rate is left out on purpose — Apple Mail Privacy auto-opens make it unreliable.</p>
+        <p class="desc">Quiz-lead activity by month or week, all scoped to the same people: new quiz leads, orders they placed after taking the quiz, and their email <b>click rate</b> (emails clicked ÷ emails sent — one click per email). Each line is indexed to its own peak (100%) so their shape and timing compare on one axis; hover for the actual values. Open rate is left out on purpose — Apple Mail Privacy auto-opens make it unreliable.</p>
+        <div class="toggle" id="actToggle" role="group" aria-label="Time grain">
+          <button type="button" class="tg on" data-mode="month" aria-pressed="true">Monthly</button>
+          <button type="button" class="tg" data-mode="week" aria-pressed="false">Weekly</button>
+        </div>
         <div class="legend">
           <span class="item"><span class="swatch" style="background:#153a5b"></span>Leads</span>
           <span class="item"><span class="swatch" style="background:#17a398"></span>Sales</span>
@@ -142,29 +171,56 @@
 
       <div class="panel">
         <h2>By quiz cohort (year taken)</h2>
-        <p class="desc">Conversion and engagement by the year the lead took the quiz.</p>
+        <p class="desc">Conversion and open engagement by the year the lead took the quiz. <b>Open rate = % of a cohort's leads who opened that email; "first email" / "first 5" are position-matched so cohorts compare like-for-like.</b> <span style="color:#b45309">Caveat: email data only starts Aug 2024 and has missing months (Jan–Jul 2025, Nov 2025, Apr 2026), and Apple Mail Privacy auto-opens inflate open rates — treat the open columns as directional, not exact.</span></p>
         <div class="tablewrap">
           <table id="cohorts">
             <thead><tr>
               <th>Cohort</th><th></th><th>Leads</th><th>Converted</th><th>Conv. rate</th>
-              <th>Click rate</th><th>Avg clicks</th><th>Revenue</th>
+              <th>% opened</th><th>First email open</th><th>First 5 open</th><th>Revenue</th>
             </tr></thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
 
-      <div class="panel">
-        <h2>Quiz leads</h2>
-        <p class="desc">One row per lead, newest first — with the name and email so the team can follow up.</p>
-        <div class="tablewrap">
-          <table id="leads">
-            <thead><tr>
-              <th>Name</th><th>Email</th><th>Taken</th><th>Bought</th><th>Revenue</th>
-              <th>Sent</th><th>Clicks</th><th>Click rate</th><th>Days to buy</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
+      <div class="sidebyside">
+        <div class="panel">
+          <h2>Quiz leads</h2>
+          <p class="desc">One row per lead. Filter by when they took the quiz; click any heading to sort. <b>Click a lead</b> to see every email they've received on the right.</p>
+          <div class="filterbar" id="leadFilter">
+            <label>Year <select id="fltYear"><option value="">All</option></select></label>
+            <label>Month <select id="fltMonth"><option value="">All</option></select></label>
+            <button type="button" id="fltReset">Reset</button>
+            <span class="fltcount" id="leadCount"></span>
+          </div>
+          <div class="tablewrap scrolly">
+            <table id="leads">
+              <thead><tr>
+                <th class="sortable" data-key="first_name" data-type="str">Name</th>
+                <th class="sortable" data-key="email" data-type="str">Email</th>
+                <th class="sortable" data-key="submitted_at" data-type="str">Taken</th>
+                <th class="sortable" data-key="is_converted" data-type="num">Bought</th>
+                <th class="sortable" data-key="revenue_post_quiz" data-type="num">Revenue</th>
+                <th class="sortable" data-key="emails_sent" data-type="num">Sent</th>
+                <th class="sortable" data-key="clicks" data-type="num">Clicks</th>
+                <th class="sortable" data-key="click_rate" data-type="num">Click rate</th>
+                <th class="sortable" data-key="days_to_convert" data-type="num">Days to buy</th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 id="emTitle">Emails sent to leads</h2>
+          <p class="desc" id="emDesc">Each subject line sent to quiz leads (at/after their quiz) — when it last went out, how many leads it reached, and its <b>click rate</b> among them. Click a heading to sort, or click a lead on the left to see just their emails.</p>
+          <div class="emreset" id="emReset" style="display:none; margin:0 0 10px 13px;"><a id="emResetLink">← Back to all campaigns</a></div>
+          <div class="tablewrap scrolly">
+            <table id="camps">
+              <thead id="campHead"></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -192,6 +248,15 @@
     var mi = parseInt(p[1], 10) - 1;
     if (mi < 0 || mi > 11) { return String(iso); }
     return m[mi] + " " + String(p[0]).slice(2);
+  }
+  function weekLabel(iso) {
+    if (!iso) { return ""; }
+    var m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var p = String(iso).split("-");
+    if (p.length < 3) { return String(iso); }
+    var mi = parseInt(p[1], 10) - 1, dd = parseInt(p[2], 10);
+    if (mi < 0 || mi > 11) { return String(iso); }
+    return m[mi] + " " + dd;
   }
   function niceMax(v, isRate) {
     if (!isNum(v) || v <= 0) { return isRate ? 0.1 : 1; }
@@ -272,7 +337,7 @@
     }
     var stepX = Math.max(1, Math.ceil(n / 8));
     for (i = 0; i < n; i += stepX) {
-      parts.push('<text x="' + xAt(i, n).toFixed(1) + '" y="' + (GEO.H - 8) + '" text-anchor="middle">' + esc(monthLabel(rows[i][opts.xkey])) + "</text>");
+      parts.push('<text x="' + xAt(i, n).toFixed(1) + '" y="' + (GEO.H - 8) + '" text-anchor="middle">' + esc((opts.xLabel || monthLabel)(rows[i][opts.xkey])) + "</text>");
     }
     for (s = 0; s < opts.series.length; s++) {
       var ser = opts.series[s], pts = [], lastX = 0, lastY = 0, lastV = null;
@@ -310,7 +375,7 @@
       if (i < 0) { i = 0; } if (i > n - 1) { i = n - 1; }
       var xx = xAt(i, n);
       ch.setAttribute("x1", xx); ch.setAttribute("x2", xx); ch.style.opacity = 1;
-      var html = '<div class="th">' + esc(monthLabel(rows[i][opts.xkey])) + "</div>", s;
+      var html = '<div class="th">' + esc((opts.xLabel || monthLabel)(rows[i][opts.xkey])) + "</div>", s;
       for (s = 0; s < opts.series.length; s++) {
         var ser = opts.series[s], v = rows[i][ser.key];
         html += '<div class="row"><span class="dot" style="background:' + ser.color + '"></span>' + esc(ser.label) + ": " + (opts.isRate ? fmtPct(v) : fmtInt(v)) + "</div>";
@@ -351,49 +416,246 @@
     for (i = 0; i < rows.length; i++) {
       var c = rows[i];
       html += "<tr><td>" + esc(c.cohort) + "</td><td></td><td>" + fmtInt(c.leads) + "</td><td>" + fmtInt(c.converted) +
-        "</td><td>" + fmtPct(c.conversion_rate) + "</td><td>" + fmtPct(c.click_rate) +
-        "</td><td>" + fmt1(c.avg_clicks) + "</td><td>" + fmtMoney(c.revenue) + "</td></tr>";
+        "</td><td>" + fmtPct(c.conversion_rate) + "</td><td>" + fmtPct(c.pct_leads_opened) +
+        "</td><td>" + fmtPct(c.first_email_open_rate) + "</td><td>" + fmtPct(c.first5_open_rate) +
+        "</td><td>" + fmtMoney(c.revenue) + "</td></tr>";
     }
     tb.innerHTML = html;
   }
-  function renderLeads(rows) {
-    var tb = document.querySelector("#leads tbody");
-    if (!rows || !rows.length) { tb.innerHTML = '<tr><td colspan="9">No leads yet.</td></tr>'; return; }
-    var html = "", i;
+  // ---- Quiz leads table: year/month filter + click-to-sort + sticky header ----
+  var LEADS = { all: [], key: "submitted_at", keyType: "str", dir: -1, wired: false };
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function leadYear(d) { return String(d.submitted_at || "").slice(0, 4); }
+  function leadMonth(d) { return String(d.submitted_at || "").slice(5, 7); }
+  function leadCmp(a, b) {
+    var k = LEADS.key, av = a[k], bv = b[k];
+    if (LEADS.keyType === "num") {
+      var an = isNum(av) ? Number(av) : -Infinity, bn = isNum(bv) ? Number(bv) : -Infinity;
+      return (an < bn ? -1 : an > bn ? 1 : 0) * LEADS.dir;
+    }
+    var as = (av === null || av === undefined) ? "" : String(av).toLowerCase();
+    var bs = (bv === null || bv === undefined) ? "" : String(bv).toLowerCase();
+    return (as < bs ? -1 : as > bs ? 1 : 0) * LEADS.dir;
+  }
+  function leadRowsView() {
+    var y = el("fltYear").value, m = el("fltMonth").value, out = [], i;
+    for (i = 0; i < LEADS.all.length; i++) {
+      var d = LEADS.all[i];
+      if (y && leadYear(d) !== y) { continue; }
+      if (m && leadMonth(d) !== m) { continue; }
+      out.push(d);
+    }
+    out.sort(leadCmp);
+    return out;
+  }
+  function paintLeadHeaders() {
+    var ths = document.querySelectorAll("#leads thead th"), i;
+    for (i = 0; i < ths.length; i++) {
+      var base = ths[i].getAttribute("data-label");
+      if (base === null) { base = ths[i].textContent; ths[i].setAttribute("data-label", base); }
+      var arrow = (ths[i].getAttribute("data-key") === LEADS.key)
+        ? ' <span class="arrow">' + (LEADS.dir < 0 ? "▼" : "▲") + "</span>" : "";
+      ths[i].innerHTML = base + arrow;
+    }
+  }
+  function renderLeadRows() {
+    var rows = leadRowsView(), tb = document.querySelector("#leads tbody"), html = "", i;
+    el("leadCount").textContent = rows.length + " lead" + (rows.length === 1 ? "" : "s");
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="9">No leads match.</td></tr>'; paintLeadHeaders(); return; }
     for (i = 0; i < rows.length; i++) {
       var d = rows[i];
       var bought = d.is_converted ? '<span class="pill yes">yes</span>' : '<span class="pill no">no</span>';
       var dtc = isNum(d.days_to_convert) ? fmtInt(d.days_to_convert) : "—";
       var nm = (d.first_name && String(d.first_name).trim()) ? esc(d.first_name) : "—";
-      html += '<tr><td><span class="name">' + nm + '</span></td><td><span class="em">' + esc(d.email) + "</span></td><td>" +
+      var selCls = (EM && d.email === EM.selEmail) ? ' class="selrow"' : "";
+      html += '<tr data-email="' + esc(d.email) + '"' + selCls + '><td><span class="name">' + nm + '</span></td><td><span class="em">' + esc(d.email) + "</span></td><td>" +
         esc((d.submitted_at || "").slice(0, 10)) + "</td><td>" + bought + "</td><td>" +
         (d.is_converted ? fmtMoney(d.revenue_post_quiz) : "—") + "</td><td>" + fmtInt(d.emails_sent) + "</td><td>" +
         fmtInt(d.clicks) + "</td><td>" + fmtPct(d.click_rate) + "</td><td>" + dtc + "</td></tr>";
     }
     tb.innerHTML = html;
+    paintLeadHeaders();
+  }
+  function renderLeads(rows) {
+    LEADS.all = rows || [];
+    var i, years = {};
+    for (i = 0; i < LEADS.all.length; i++) { var y = leadYear(LEADS.all[i]); if (y) { years[y] = 1; } }
+    var yk = Object.keys(years).sort().reverse(), yhtml = '<option value="">All</option>';
+    for (i = 0; i < yk.length; i++) { yhtml += '<option value="' + yk[i] + '">' + yk[i] + "</option>"; }
+    el("fltYear").innerHTML = yhtml;
+    var mhtml = '<option value="">All</option>';
+    for (i = 0; i < 12; i++) { var mm = (i < 9 ? "0" : "") + (i + 1); mhtml += '<option value="' + mm + '">' + MONTHS[i] + "</option>"; }
+    el("fltMonth").innerHTML = mhtml;
+    if (!LEADS.wired) {
+      el("fltYear").addEventListener("change", renderLeadRows);
+      el("fltMonth").addEventListener("change", renderLeadRows);
+      el("fltReset").addEventListener("click", function () { el("fltYear").value = ""; el("fltMonth").value = ""; renderLeadRows(); });
+      var ths = document.querySelectorAll("#leads thead th"), j;
+      for (j = 0; j < ths.length; j++) {
+        (function (th) {
+          th.addEventListener("click", function () {
+            var k = th.getAttribute("data-key");
+            if (LEADS.key === k) { LEADS.dir = -LEADS.dir; }
+            else { LEADS.key = k; LEADS.keyType = th.getAttribute("data-type"); LEADS.dir = (LEADS.keyType === "num") ? -1 : 1; }
+            renderLeadRows();
+          });
+        })(ths[j]);
+      }
+      document.querySelector("#leads tbody").addEventListener("click", function (e) {
+        var tr = e.target;
+        while (tr && tr.tagName !== "TR") { tr = tr.parentNode; }
+        if (!tr) { return; }
+        var email = tr.getAttribute("data-email");
+        if (email) { selectLead(email); }
+      });
+      LEADS.wired = true;
+    }
+    renderLeadRows();
+  }
+
+  // ---- Emails panel: aggregate campaign view, OR per-lead drill-down when a lead is clicked ----
+  var pill = function (on) { return on ? '<span class="pill yes">yes</span>' : '<span class="pill no">no</span>'; };
+  var EM = {
+    agg: [], byLead: {}, mode: "agg", sortI: 0, dir: -1, selEmail: null, selName: null, wired: false,
+    aggCols: [
+      { key: "last_sent", type: "str", label: "Sent date", cell: function (c) { return esc(String(c.last_sent || "").slice(0, 10)); } },
+      { key: "subject", type: "str", label: "Email subject", cell: function (c) { return '<span class="em">' + esc(c.subject) + "</span>"; } },
+      { key: "sends", type: "num", label: "Sent", cell: function (c) { return fmtInt(c.sends); } },
+      { key: "clicks", type: "num", label: "Clicks", cell: function (c) { return fmtInt(c.clicks); } },
+      { key: "click_rate", type: "num", label: "Click rate", cell: function (c) { return fmtPct(c.click_rate); } }
+    ],
+    leadCols: [
+      { key: "d", type: "str", label: "Sent date", cell: function (r) { return esc(String(r.d || "").slice(0, 10)); } },
+      { key: "s", type: "str", label: "Email subject", cell: function (r) { return '<span class="em">' + esc(r.s) + "</span>"; } },
+      { key: "o", type: "num", label: "Opened", cell: function (r) { return pill(r.o); } },
+      { key: "c", type: "num", label: "Clicked", cell: function (r) { return pill(r.c); } }
+    ]
+  };
+  function renderEmailTable(cols, rows) {
+    var col = cols[EM.sortI] || cols[0];
+    rows = rows.slice();
+    rows.sort(function (a, b) {
+      var av = a[col.key], bv = b[col.key];
+      if (col.type === "num") {
+        var an = isNum(av) ? Number(av) : -Infinity, bn = isNum(bv) ? Number(bv) : -Infinity;
+        return (an < bn ? -1 : an > bn ? 1 : 0) * EM.dir;
+      }
+      var as = (av === null || av === undefined) ? "" : String(av).toLowerCase();
+      var bs = (bv === null || bv === undefined) ? "" : String(bv).toLowerCase();
+      return (as < bs ? -1 : as > bs ? 1 : 0) * EM.dir;
+    });
+    var hh = "<tr>", i;
+    for (i = 0; i < cols.length; i++) {
+      var arrow = (i === EM.sortI) ? ' <span class="arrow">' + (EM.dir < 0 ? "▼" : "▲") + "</span>" : "";
+      hh += '<th class="sortable">' + cols[i].label + arrow + "</th>";
+    }
+    hh += "</tr>";
+    el("campHead").innerHTML = hh;
+    var body = "", j;
+    for (j = 0; j < rows.length; j++) {
+      body += "<tr>";
+      for (i = 0; i < cols.length; i++) { body += "<td>" + cols[i].cell(rows[j]) + "</td>"; }
+      body += "</tr>";
+    }
+    if (!rows.length) { body = '<tr><td colspan="' + cols.length + '">No emails.</td></tr>'; }
+    document.querySelector("#camps tbody").innerHTML = body;
+    var ths = document.querySelectorAll("#campHead th");
+    for (i = 0; i < ths.length; i++) {
+      (function (idx) {
+        ths[idx].addEventListener("click", function () {
+          if (EM.sortI === idx) { EM.dir = -EM.dir; }
+          else { EM.sortI = idx; EM.dir = (cols[idx].type === "num") ? -1 : 1; }
+          renderEmails();
+        });
+      })(i);
+    }
+  }
+  function renderEmails() {
+    if (EM.mode === "lead" && EM.selEmail) {
+      el("emTitle").textContent = "Emails to " + (EM.selName || EM.selEmail);
+      el("emDesc").textContent = "Every email this lead received at/after taking the quiz, newest first — with whether they opened and clicked it.";
+      el("emReset").style.display = "";
+      var raw = EM.byLead[EM.selEmail] || [], rows = [], i;
+      for (i = 0; i < raw.length; i++) { rows.push({ d: raw[i][0], s: raw[i][1], o: raw[i][2], c: raw[i][3] }); }
+      renderEmailTable(EM.leadCols, rows);
+    } else {
+      el("emTitle").textContent = "Emails sent to leads";
+      el("emDesc").innerHTML = "Each subject line sent to quiz leads (at/after their quiz) — when it last went out, how many leads it reached, and its <b>click rate</b> among them. Click a heading to sort, or click a lead on the left to see just their emails.";
+      el("emReset").style.display = "none";
+      renderEmailTable(EM.aggCols, EM.agg);
+    }
+  }
+  function highlightLead(email) {
+    var trs = document.querySelectorAll("#leads tbody tr"), i;
+    for (i = 0; i < trs.length; i++) {
+      trs[i].className = (trs[i].getAttribute("data-email") === email) ? "selrow" : "";
+    }
+  }
+  function selectLead(email) {
+    var nm = "", i;
+    for (i = 0; i < LEADS.all.length; i++) {
+      if (LEADS.all[i].email === email) {
+        nm = (LEADS.all[i].first_name && String(LEADS.all[i].first_name).trim()) ? LEADS.all[i].first_name : email;
+        break;
+      }
+    }
+    EM.selEmail = email; EM.selName = nm; EM.mode = "lead"; EM.sortI = 0; EM.dir = -1;
+    highlightLead(email);
+    renderEmails();
+  }
+  function clearLeadSel() {
+    EM.selEmail = null; EM.selName = null; EM.mode = "agg"; EM.sortI = 0; EM.dir = -1;
+    highlightLead(null);
+    renderEmails();
+  }
+  function renderCampaigns(campaigns, byLead) {
+    EM.agg = campaigns || [];
+    EM.byLead = byLead || {};
+    EM.mode = "agg"; EM.sortI = 0; EM.dir = -1; EM.selEmail = null;
+    if (!EM.wired) {
+      el("emResetLink").addEventListener("click", function () { clearLeadSel(); });
+      EM.wired = true;
+    }
+    renderEmails();
+  }
+  function toggleFullscreen() {
+    var d = document;
+    if (!d.fullscreenElement && !d.webkitFullscreenElement) {
+      var e0 = d.documentElement;
+      if (e0.requestFullscreen) { e0.requestFullscreen(); }
+      else if (e0.webkitRequestFullscreen) { e0.webkitRequestFullscreen(); }
+    } else {
+      if (d.exitFullscreen) { d.exitFullscreen(); }
+      else if (d.webkitExitFullscreen) { d.webkitExitFullscreen(); }
+    }
   }
 
   // ---- Leads / sales / clicks trend (relative %-of-peak default, or absolute counts) ----
-  var ACT = { rows: [], mode: "relative" };
+  var ACT = { monthly: [], weekly: [], period: "month" };
   function seriesMax(rows, key) {
     var m = 0, i;
     for (i = 0; i < rows.length; i++) { var v = rows[i][key]; if (isNum(v) && Number(v) > m) { m = Number(v); } }
     return m;
   }
   function renderActivity() {
-    var rows = ACT.rows || [];
+    var weekly = (ACT.period === "week");
+    var rows = (weekly ? ACT.weekly : ACT.monthly) || [];
+    var xkey = weekly ? "week" : "month";
     var maxL = seriesMax(rows, "leads"), maxS = seriesMax(rows, "sales"), maxC = seriesMax(rows, "click_rate");
     function norm(v, mx) { if (!isNum(v)) { return null; } return mx > 0 ? Number(v) / mx : null; }
     var plot = [], i;
     for (i = 0; i < rows.length; i++) {
       var r = rows[i];
-      plot.push({
-        month: r.month, leads: r.leads, sales: r.sales, clicks: r.clicks, sends: r.sends, click_rate: r.click_rate,
+      var row = {
+        leads: r.leads, sales: r.sales, clicks: r.clicks, sends: r.sends, click_rate: r.click_rate,
         leads_v: norm(r.leads, maxL), sales_v: norm(r.sales, maxS), rate_v: norm(r.click_rate, maxC)
-      });
+      };
+      row[xkey] = r[xkey];
+      plot.push(row);
     }
     renderLineChart({
-      svgId: "actChart", tipId: "actTip", rows: plot, xkey: "month", isRate: true,
+      svgId: "actChart", tipId: "actTip", rows: plot, xkey: xkey, isRate: true,
+      xLabel: weekly ? weekLabel : monthLabel,
       series: [
         { key: "leads_v", label: "Leads", color: "#153a5b" },
         { key: "sales_v", label: "Sales", color: "#17a398" },
@@ -408,19 +670,20 @@
     });
   }
   function initActToggle() {
-    var t = el("actToggle"); if (!t) { return; }
+    var t = el("actToggle"); if (!t || t._wired) { return; }
     var btns = t.getElementsByTagName("button"), j;
     function onClick() {
-      ACT.mode = this.getAttribute("data-mode");
+      ACT.period = this.getAttribute("data-mode");
       var bs = el("actToggle").getElementsByTagName("button"), q;
       for (q = 0; q < bs.length; q++) {
-        var on = (bs[q].getAttribute("data-mode") === ACT.mode);
+        var on = (bs[q].getAttribute("data-mode") === ACT.period);
         bs[q].className = on ? "tg on" : "tg";
         bs[q].setAttribute("aria-pressed", on ? "true" : "false");
       }
       renderActivity();
     }
     for (j = 0; j < btns.length; j++) { btns[j].addEventListener("click", onClick); }
+    t._wired = true;
   }
 
   function render(data) {
@@ -434,16 +697,20 @@
 
     // Leads / sales / click-rate trend — all scoped to the quiz-lead cohort, indexed to each
     // series' own peak so their shape/timing compare on one axis.
-    ACT.rows = data.activity_monthly || [];
+    ACT.monthly = data.activity_monthly || [];
+    ACT.weekly = data.activity_weekly || [];
+    ACT.period = "month";
+    initActToggle();
     renderActivity();
     var actClicks = 0, ai;
-    for (ai = 0; ai < ACT.rows.length; ai++) { if (isNum(ACT.rows[ai].click_rate)) { actClicks++; } }
-    el("actNote").textContent = (ACT.rows.length && actClicks === 0)
+    for (ai = 0; ai < ACT.monthly.length; ai++) { if (isNum(ACT.monthly[ai].click_rate)) { actClicks++; } }
+    el("actNote").textContent = (ACT.monthly.length && actClicks === 0)
       ? "Email click data is still backfilling — the click-rate line will fill in as data lands."
       : "";
 
     renderCohorts(data.cohorts);
     renderLeads(data.leads);
+    renderCampaigns(data.campaigns, data.lead_emails);
 
     el("status").style.display = "none";
     el("content").style.display = "block";
@@ -458,6 +725,7 @@
       .catch(function (err) { fail("Could not load dashboard data (" + (err && err.message ? err.message : "error") + ")."); });
   }
 
+  (function () { var b = el("fsBtn"); if (b) { b.addEventListener("click", toggleFullscreen); } })();
   load();
 </script>
 </body>

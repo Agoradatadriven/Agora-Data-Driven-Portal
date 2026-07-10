@@ -137,9 +137,11 @@ def _read_monthly(bq):
 
 
 def _read_cohorts(bq):
+    """cohort_performance -> data.cohorts[]. Engagement is OPEN-based now (first-email / first-5
+    open rate + cumulative % opened); scoped to the complete-data window (submitted >= 2024-08-01)."""
     sql = f"""
-        SELECT cohort, leads, converted, conversion_rate, avg_opens, avg_clicks,
-               open_rate, click_rate, revenue
+        SELECT cohort, leads, converted, conversion_rate, pct_leads_opened,
+               first_email_open_rate, first5_open_rate, revenue
         FROM `{PROJECT}.{DATASET}.cohort_performance`
         ORDER BY cohort
     """
@@ -150,10 +152,9 @@ def _read_cohorts(bq):
             "leads": _i(r["leads"]),
             "converted": _i(r["converted"]),
             "conversion_rate": _f(r["conversion_rate"]),
-            "avg_opens": _f(r["avg_opens"]),
-            "avg_clicks": _f(r["avg_clicks"]),
-            "open_rate": _f(r["open_rate"]),
-            "click_rate": _f(r["click_rate"]),
+            "pct_leads_opened": _f(r["pct_leads_opened"]),
+            "first_email_open_rate": _f(r["first_email_open_rate"]),
+            "first5_open_rate": _f(r["first5_open_rate"]),
             "revenue": _f(r["revenue"]),
         })
     return out
@@ -213,6 +214,69 @@ def _read_activity(bq):
     return out
 
 
+def _read_activity_weekly(bq):
+    """activity_weekly -> data.activity_weekly[] (same shape as activity_monthly but keyed on the
+    week-start date, last 52 complete weeks). Feeds the trend chart's Week view."""
+    sql = f"""
+        SELECT week, leads, sales, sends, clicks, click_rate
+        FROM `{PROJECT}.{DATASET}.activity_weekly`
+        ORDER BY week
+    """
+    out = []
+    for r in bq.query(sql, location=LOC).result():
+        out.append({
+            "week": _date(r["week"]),
+            "leads": _i(r["leads"]),
+            "sales": _i(r["sales"]),
+            "sends": None if r["sends"] is None else int(r["sends"]),
+            "clicks": None if r["clicks"] is None else int(r["clicks"]),
+            "click_rate": _f(r["click_rate"]),
+        })
+    return out
+
+
+def _read_campaigns(bq):
+    """lead_campaigns -> data.campaigns[] (per subject line sent to leads: Sent Date, Subject,
+    Click rate). Capped at 300 rows, most-recent first."""
+    sql = f"""
+        SELECT subject, campaign, flow, last_sent, sends, clicks, click_rate
+        FROM `{PROJECT}.{DATASET}.lead_campaigns`
+        ORDER BY last_sent DESC, sends DESC
+        LIMIT 300
+    """
+    out = []
+    for r in bq.query(sql, location=LOC).result():
+        out.append({
+            "subject": r["subject"],
+            "campaign": r["campaign"],
+            "flow": r["flow"],
+            "last_sent": _date(r["last_sent"]),
+            "sends": _i(r["sends"]),
+            "clicks": _i(r["clicks"]),
+            "click_rate": _f(r["click_rate"]),
+        })
+    return out
+
+
+def _read_lead_emails(bq):
+    """lead_emails -> data.lead_emails: { email: [[sent_date, subject, opened, clicked], ...] }
+    (newest first), for the per-lead drill-down. Compact arrays keep the payload small (~16k rows)."""
+    sql = f"""
+        SELECT email, sent_at, subject, is_open, is_click
+        FROM `{PROJECT}.{DATASET}.lead_emails`
+        ORDER BY email, sent_at DESC
+    """
+    out = {}
+    for r in bq.query(sql, location=LOC).result():
+        out.setdefault(r["email"], []).append([
+            _date(r["sent_at"]),
+            r["subject"],
+            1 if r["is_open"] else 0,
+            1 if r["is_click"] else 0,
+        ])
+    return out
+
+
 def _data_through(observed, monthly):
     stamps = [ts for ts in (observed or {}).values() if ts]
     if stamps:
@@ -245,6 +309,9 @@ def main():
         "conversion_trend": _read_conversion_trend(bq),
         "monthly": monthly,
         "activity_monthly": _read_activity(bq),
+        "activity_weekly": _read_activity_weekly(bq),
+        "campaigns": _read_campaigns(bq),
+        "lead_emails": _read_lead_emails(bq),
         "cohorts": _read_cohorts(bq),
         "leads": _read_leads(bq),
     }

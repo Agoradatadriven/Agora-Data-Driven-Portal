@@ -11,9 +11,9 @@
 --                clicks) / emails sent to quiz leads, that month. This is the engagement-drop
 --                signal (open rate is unusable -- Apple Mail Privacy auto-opens inflate it).
 --
--- CLICK_RATE / SENDS stay NULL for a month with NO email data loaded (LEFT JOIN miss) so the chart
--- skips it rather than implying zero while the Klaviyo backfill is still catching up. LEADS/SALES
--- are counts (0 when none that month).
+-- ONLY COMPLETE MONTHS: we emit a month only if it has email data loaded (a gap in the Klaviyo
+-- backfill would otherwise show as an empty/misleading point) AND it is a fully-elapsed calendar
+-- month (the current in-progress month is partial, so its click rate reads artificially low).
 CREATE OR REPLACE VIEW `agora-data-driven.client_tcs.activity_monthly` AS
 WITH lead AS (            -- one row per quiz lead (email already LOWER(TRIM) in stg_quiz)
   SELECT email, submitted_at FROM `agora-data-driven.client_tcs.stg_quiz`
@@ -49,5 +49,7 @@ FROM spine sp
 LEFT JOIN leads l ON l.m = sp.m
 LEFT JOIN sales s ON s.m = sp.m
 LEFT JOIN email e ON e.m = sp.m
-WHERE sp.m >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 24 MONTH), MONTH)
+WHERE e.sends IS NOT NULL                                   -- only months WITH complete email data
+  AND sp.m < DATE_TRUNC(CURRENT_DATE(), MONTH)              -- drop the in-progress (partial) current month
+  AND sp.m >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 24 MONTH), MONTH)
 ORDER BY month;
