@@ -12,3 +12,6 @@ gunicorn==23.0.0
 google-cloud-storage==2.18.2
 google-cloud-secret-manager==2.28.0
 requests==2.34.2
+# Watcher tab (watcher.py): per-video YouTube transcripts. Imported lazily, so tests/CI run without
+# it -- but the deployed container needs it for transcript fetching to work.
+youtube-transcript-api==1.2.4

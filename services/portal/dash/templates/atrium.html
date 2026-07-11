@@ -38,6 +38,7 @@
 {%- elif name == 'file' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8L19 7v14.5H6z"/><path d="M14 2.5V7h4"/></svg>
 {%- elif name == 'download' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20.5h14"/></svg>
 {%- elif name == 'health' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 12h4l1.6-3.5L12 16l1.8-4 1.2 0h4.5"/></svg>
+{%- elif name == 'watcher' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
 {%- elif name == 'intel' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12.5a1 1 0 0 1 1 1v11a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17.5 8.5H20a1 1 0 0 1 1 1v8.5a2 2 0 0 1-2 2"/><line x1="7.5" y1="9.5" x2="14" y2="9.5"/><line x1="7.5" y1="13" x2="14" y2="13"/><line x1="7.5" y1="16.5" x2="11.5" y2="16.5"/></svg>
 {%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
 {%- endif -%}
@@ -106,7 +107,7 @@
 {%- set _sel = (current.split(' · ') if current else []) -%}
 {%- for x in _sel %}{%- if x %}<span class="ax-platone">{{ plat_ic(x) }}<span>{{ x }}</span></span>{%- endif %}{%- endfor %}
 {%- endmacro %}
-{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health'} %}
+{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher'} %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -1250,6 +1251,55 @@
     .ax-wh-empty .ax-ic { width: 30px; height: 30px; color: var(--ax-green); flex: 0 0 auto; }
     .ax-wh-notes { width: 100%; box-sizing: border-box; }
     @media (max-width: 560px) { .ax-wh-cells { grid-template-columns: repeat(2, 1fr); } }
+
+    /* ---- Watcher (team-only tab): channel panels + a uniform grid of expandable transcript cards */
+    .ax-wt-addcard { margin-bottom: 16px; }
+    .ax-wt-addrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ax-wt-eye .ax-ic { width: 26px; height: 26px; color: var(--ax-purple, #9484FB); }
+    .ax-wt-url { flex: 1 1 280px; min-width: 200px; }
+    .ax-wt-addmsg { margin-top: 10px; font-size: 13.5px; font-weight: 600; color: #c0322f; }
+    .ax-wt-addmsg.is-busy { color: var(--ax-sub); }
+    .ax-wt-channel { margin-bottom: 18px; }
+    .ax-wt-chhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+    .ax-wt-chtitle { font-size: 17px; font-weight: 800; color: var(--ax-ink); }
+    .ax-wt-chmeta { font-size: 13px; color: var(--ax-sub); margin-top: 3px; }
+    .ax-wt-chmeta a { color: var(--ax-deep, #1856C9); }
+    .ax-wt-chactions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ax-wt-progress { margin-top: 12px; }
+    .ax-wt-bar { height: 8px; border-radius: 999px; background: var(--ax-canvas); border: 1px solid var(--ax-line); overflow: hidden; }
+    .ax-wt-bar span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--ax-purple, #9484FB); transition: width .3s ease; }
+    .ax-wt-ptext { margin-top: 6px; font-size: 12.5px; font-weight: 600; color: var(--ax-sub); }
+    .ax-wt-search { width: 100%; box-sizing: border-box; margin-top: 12px; }
+    /* Uniform boxes: every card is the SAME fixed height; the preview is clipped with a fade and the
+       full transcript opens in the reader modal on click. */
+    .ax-wt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 14px; }
+    .ax-wt-video { position: relative; display: flex; flex-direction: column; height: 185px; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: var(--ax-canvas); border: 1px solid var(--ax-line); overflow: hidden; cursor: pointer; transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease; }
+    .ax-wt-video:hover, .ax-wt-video:focus-visible { border-color: var(--ax-purple, #9484FB); box-shadow: 0 6px 18px rgba(20,24,40,.10); transform: translateY(-2px); outline: none; }
+    .ax-wt-video.is-pending, .ax-wt-video.is-failed { cursor: default; }
+    .ax-wt-video.is-pending:hover, .ax-wt-video.is-failed:hover { border-color: var(--ax-line); box-shadow: none; transform: none; }
+    .ax-wt-vtitle { font-size: 13.5px; font-weight: 800; color: var(--ax-ink); line-height: 1.3; max-height: 2.6em; overflow: hidden; flex: 0 0 auto; }
+    .ax-wt-vprev { position: relative; flex: 1 1 auto; margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ax-sub); overflow: hidden; }
+    .ax-wt-video.is-ready .ax-wt-vprev::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26px; background: linear-gradient(rgba(247,248,251,0), var(--ax-canvas)); }
+    .ax-wt-vprev.is-err { color: #c0322f; }
+    .ax-wt-vprev.is-dim { font-style: italic; }
+    .ax-wt-vfoot { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .ax-wt-chip { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); }
+    .ax-wt-chip.ok { color: #2f7a2c; border-color: rgba(79,171,74,.4); background: rgba(79,171,74,.08); }
+    .ax-wt-chip.bad { color: #c0322f; border-color: rgba(229,65,62,.34); background: rgba(229,65,62,.08); }
+    .ax-wt-open { font-size: 11.5px; font-weight: 700; color: var(--ax-deep, #1856C9); }
+    .ax-wt-empty { display: flex; align-items: center; gap: 14px; color: var(--ax-sub); font-size: 14px; }
+    .ax-wt-empty .ax-ic { width: 30px; height: 30px; color: var(--ax-purple, #9484FB); flex: 0 0 auto; }
+    /* The transcript reader modal. */
+    .ax-wt-modal { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15,18,30,.45); }
+    .ax-wt-modal[hidden] { display: none; }
+    .ax-wt-progress[hidden], .ax-wt-addmsg[hidden] { display: none; }
+    .ax-wt-mbox { display: flex; flex-direction: column; width: 100%; max-width: 860px; max-height: 84vh; background: var(--ax-white, #fff); border-radius: var(--ax-radius, 14px); box-shadow: var(--ax-shadow-lg, 0 18px 50px rgba(20,24,40,.25)); padding: 20px 22px; animation: axConfirmIn .14s ease-out; }
+    .ax-wt-mhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+    .ax-wt-mtitle { font-size: 17px; font-weight: 800; color: var(--ax-ink); flex: 1 1 260px; }
+    .ax-wt-mactions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ax-wt-mmeta { margin-top: 4px; font-size: 12.5px; color: var(--ax-sub); }
+    .ax-wt-mbody { margin-top: 12px; overflow-y: auto; font-size: 14px; line-height: 1.65; color: var(--ax-ink); white-space: pre-wrap; }
+    @media (max-width: 560px) { .ax-wt-video { height: 165px; } }
   </style>
 </head>
 <body>
@@ -1287,6 +1337,9 @@
         {% if is_superadmin %}
         <a href="{{ '/w/' ~ view.client ~ '/website-health' }}" data-tab="website-health" title="Website Health" class="ax-nav-team {{ 'is-active' if view.active_tab == 'website-health' else '' }}">
           {{ ic('health') }}<span>Website Health</span>
+        </a>
+        <a href="{{ '/w/' ~ view.client ~ '/watcher' }}" data-tab="watcher" title="Watcher" class="ax-nav-team {{ 'is-active' if view.active_tab == 'watcher' else '' }}">
+          {{ ic('watcher') }}<span>Watcher</span>
         </a>
         {% endif %}
       </nav>
@@ -2576,6 +2629,102 @@
         </section>
         {% endif %}
 
+        <!-- ============ WATCHER (team-only: YouTube channel transcript archive) ============ -->
+        {% if is_superadmin %}
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='watcher' else '' }}" data-pane="watcher">
+          <h1 class="ax-greet">Watcher</h1>
+          <p class="ax-lede">Watch a YouTube channel and archive the transcript of every video it has published. Paste the channel link below &mdash; raw transcripts for now, AI summaries later.</p>
+
+          <div class="ax-panel ax-wt-addcard">
+            <div class="ax-wt-addrow">
+              <span class="ax-wt-eye">{{ ic('watcher') }}</span>
+              <input class="ax-editbox ax-wt-url" id="ax-wt-url" type="url" inputmode="url" placeholder="https://www.youtube.com/@channel">
+              <button class="ax-btn violet" id="ax-wt-add" type="button">Watch channel</button>
+            </div>
+            <div class="ax-wt-addmsg" id="ax-wt-addmsg" hidden></div>
+          </div>
+
+          {% for ch in watcher %}
+          <div class="ax-panel ax-wt-channel" data-wtchannel="{{ ch.id }}">
+            <div class="ax-wt-chhead">
+              <div class="ax-wt-chinfo">
+                <div class="ax-wt-chtitle">{{ ch.title }}</div>
+                <div class="ax-wt-chmeta">
+                  <a href="{{ ch.url }}" target="_blank" rel="noopener noreferrer">YouTube channel</a>
+                  &middot; {{ ch.video_count }} video{{ '' if ch.video_count == 1 else 's' }}
+                  &middot; {{ ch.transcript_count }} transcript{{ '' if ch.transcript_count == 1 else 's' }}
+                  {% if ch.failed_count %} &middot; {{ ch.failed_count }} unavailable{% endif %}
+                  {% if ch.last_fetch %} &middot; updated {{ ch.last_fetch|atrium_dt }}{% endif %}
+                </div>
+              </div>
+              <div class="ax-wt-chactions">
+                {% if ch.transcript_count + ch.failed_count < ch.video_count %}
+                <button class="ax-btn violet" type="button" data-wtfetch="{{ ch.id }}">Fetch transcripts</button>
+                {% elif ch.failed_count %}
+                <button class="ax-btn violet" type="button" data-wtfetch="{{ ch.id }}" data-wtretry="1">Retry failed</button>
+                {% endif %}
+                <button class="ax-btn" type="button" data-wtrefresh="{{ ch.id }}">Check for new videos</button>
+                <button class="ax-btn" type="button" data-wtdelete="{{ ch.id }}" data-wtname="{{ ch.title }}">Remove</button>
+              </div>
+            </div>
+            <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" hidden>
+              <div class="ax-wt-bar"><span></span></div>
+              <div class="ax-wt-ptext"></div>
+            </div>
+            {% if ch.videos|length > 8 %}
+            <input class="ax-editbox ax-wt-search" type="search" data-wtsearch="{{ ch.id }}" placeholder="Search video titles&hellip;">
+            {% endif %}
+            <div class="ax-wt-grid">
+              {% for v in ch.videos %}
+              <div class="ax-wt-video {{ 'is-ready' if v.has_transcript else ('is-failed' if v.error else 'is-pending') }}"
+                   data-wtvideo="{{ v.id }}" data-wtchan="{{ ch.id }}" role="button" tabindex="0"
+                   title="{{ 'Click to read the full transcript' if v.has_transcript else v.error or 'Transcript not fetched yet' }}">
+                <div class="ax-wt-vtitle">{{ v.title }}</div>
+                {% if v.has_transcript %}
+                <div class="ax-wt-vprev">{{ v.preview }}</div>
+                {% elif v.error %}
+                <div class="ax-wt-vprev is-err">{{ v.error }}</div>
+                {% else %}
+                <div class="ax-wt-vprev is-dim">Transcript not fetched yet.</div>
+                {% endif %}
+                <div class="ax-wt-vfoot">
+                  {% if v.has_transcript %}
+                  <span class="ax-wt-chip ok">{{ v.words }} words</span><span class="ax-wt-open">Expand</span>
+                  {% elif v.error %}
+                  <span class="ax-wt-chip bad">No transcript</span>
+                  {% else %}
+                  <span class="ax-wt-chip">Pending</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% else %}
+          <div class="ax-panel ax-wt-empty">
+            {{ ic('watcher') }}
+            <div>No channels are being watched yet. Paste a YouTube channel link above and click <strong>Watch channel</strong> &mdash; Watcher will list every video, then pull each transcript.</div>
+          </div>
+          {% endfor %}
+
+          <!-- Full-transcript reader: opened by clicking any video card. -->
+          <div class="ax-wt-modal" id="ax-wt-modal" hidden>
+            <div class="ax-wt-mbox" role="dialog" aria-modal="true" aria-label="Video transcript">
+              <div class="ax-wt-mhead">
+                <div class="ax-wt-mtitle" id="ax-wt-mtitle"></div>
+                <div class="ax-wt-mactions">
+                  <a class="ax-btn" id="ax-wt-mopen" href="#" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>
+                  <button class="ax-btn" id="ax-wt-mcopy" type="button">Copy transcript</button>
+                  <button class="ax-btn" id="ax-wt-mclose" type="button">Close</button>
+                </div>
+              </div>
+              <div class="ax-wt-mmeta" id="ax-wt-mmeta"></div>
+              <div class="ax-wt-mbody" id="ax-wt-mbody"></div>
+            </div>
+          </div>
+        </section>
+        {% endif %}
+
         <section class="ax-pane {{ 'is-active' if view.active_tab=='settings' else '' }}" data-pane="settings">
           <h1 class="ax-greet">Notification settings</h1>
           <p class="ax-lede">Choose what AGORA emails you about. Everything still appears here in your workspace either way.</p>
@@ -2730,7 +2879,7 @@
     overview: "Overview", dashboard: "Dashboard", leadgen: "Lead Generation",
     organic: "Organic Content", calendar: "Content Calendar",
     conversations: "Client Communications", intel: "Market Intelligence",
-    settings: "Notification settings", "website-health": "Website Health"
+    settings: "Notification settings", "website-health": "Website Health", watcher: "Watcher"
   };
   // Looker Studio embed: scale the fixed-canvas report to fill the container width (runs for ALL
   // users, not just admins). The report has a fixed native canvas (data-native-w/h); a 100%-width
@@ -2989,6 +3138,168 @@
             checkBtn.innerHTML = label;
             adminMsg("Could not run the check. Please try again.", false);
           });
+      });
+    }
+  })();
+
+  // ---- Watcher (team-only tab): watch channels, batch-fetch transcripts, expand a video --------
+  // Add resolves + lists the whole channel in one POST (can take a while on big channels). Fetch
+  // loops short batch POSTs (op=fetch) until `remaining` is 0, driving the per-channel progress
+  // bar, then reloads. Clicking a ready card GETs the FULL transcript (only previews are inlined
+  // in the page) into the reader modal.
+  (function () {
+    var addBtn = document.getElementById("ax-wt-add");
+    var addMsg = document.getElementById("ax-wt-addmsg");
+    function showAddMsg(text, busy) {
+      if (!addMsg) { return; }
+      addMsg.hidden = !text;
+      addMsg.textContent = text || "";
+      addMsg.classList.toggle("is-busy", !!busy);
+    }
+    if (addBtn) {
+      addBtn.addEventListener("click", function () {
+        var input = document.getElementById("ax-wt-url");
+        var url = input ? input.value.replace(/^\s+|\s+$/g, "") : "";
+        if (!url) { showAddMsg("Paste a YouTube channel link first.", false); return; }
+        addBtn.setAttribute("disabled", "disabled");
+        showAddMsg("Finding the channel and listing every video — this can take a minute for big channels…", true);
+        post("/admin/watcher", { op: "add", url: url })
+          .then(function (data) {
+            if (data && data.ok === false) {
+              addBtn.removeAttribute("disabled");
+              showAddMsg(data.message || "Could not add that channel.", false);
+              return;
+            }
+            window.location.reload();
+          })
+          .catch(function () {
+            addBtn.removeAttribute("disabled");
+            showAddMsg("Could not add that channel. Please try again.", false);
+          });
+      });
+    }
+
+    // Fetch transcripts: loop batches until nothing is pending, then reload.
+    qsa("[data-wtfetch]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var chan = btn.getAttribute("data-wtfetch");
+        var retry = btn.getAttribute("data-wtretry") === "1";
+        var wrap = document.querySelector('[data-wtprogress="' + aq(chan) + '"]');
+        var bar = wrap ? wrap.querySelector(".ax-wt-bar span") : null;
+        var ptext = wrap ? wrap.querySelector(".ax-wt-ptext") : null;
+        btn.setAttribute("disabled", "disabled");
+        if (wrap) { wrap.hidden = false; }
+        if (ptext) { ptext.textContent = "Fetching transcripts…"; }
+        function step(first) {
+          post("/admin/watcher", { op: "fetch", channel_id: chan, retry: (first && retry) ? "1" : "0" })
+            .then(function (data) {
+              if (!data || data.ok === false) {
+                btn.removeAttribute("disabled");
+                if (ptext) { ptext.textContent = (data && data.message) || "Could not fetch transcripts."; }
+                return;
+              }
+              if (bar && data.total > 0) { bar.style.width = Math.round((data.done / data.total) * 100) + "%"; }
+              if (ptext) { ptext.textContent = "Fetched " + data.done + " of " + data.total + " transcripts…"; }
+              if (data.remaining > 0 && data.fetched > 0) {
+                step(false);
+              } else {
+                window.location.reload();
+              }
+            })
+            .catch(function () {
+              btn.removeAttribute("disabled");
+              if (ptext) { ptext.textContent = "Fetching stopped (network error) — click Fetch transcripts to resume."; }
+            });
+        }
+        step(true);
+      });
+    });
+
+    qsa("[data-wtrefresh]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        adminAction("/admin/watcher", { op: "refresh", channel_id: btn.getAttribute("data-wtrefresh") }, btn);
+      });
+    });
+
+    qsa("[data-wtdelete]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var name = btn.getAttribute("data-wtname") || "this channel";
+        axConfirm({ title: "Stop watching?", message: "Remove " + name + " and delete every archived transcript? This cannot be undone." }, function () {
+          adminAction("/admin/watcher", { op: "delete", channel_id: btn.getAttribute("data-wtdelete") }, btn);
+        });
+      });
+    });
+
+    // Title search: hides non-matching cards within one channel's grid.
+    qsa("[data-wtsearch]").forEach(function (input) {
+      input.addEventListener("input", function () {
+        var q = input.value.toLowerCase();
+        var panel = document.querySelector('[data-wtchannel="' + aq(input.getAttribute("data-wtsearch")) + '"]');
+        if (!panel) { return; }
+        qsa(".ax-wt-video", panel).forEach(function (card) {
+          var t = card.querySelector(".ax-wt-vtitle");
+          var hit = !q || (t && t.textContent.toLowerCase().indexOf(q) !== -1);
+          card.style.display = hit ? "" : "none";
+        });
+      });
+    });
+
+    // The reader modal: fetch + show one full transcript.
+    var modal = document.getElementById("ax-wt-modal");
+    var mTitle = document.getElementById("ax-wt-mtitle");
+    var mMeta = document.getElementById("ax-wt-mmeta");
+    var mBody = document.getElementById("ax-wt-mbody");
+    var mOpen = document.getElementById("ax-wt-mopen");
+    var mCopy = document.getElementById("ax-wt-mcopy");
+    var mClose = document.getElementById("ax-wt-mclose");
+    function closeModal() { if (modal) { modal.hidden = true; } }
+    function openVideo(chan, vid) {
+      if (!modal) { return; }
+      mTitle.textContent = "Loading…";
+      mMeta.textContent = "";
+      mBody.textContent = "";
+      modal.hidden = false;
+      fetch(base + "/watcher/video/" + encodeURIComponent(chan) + "/" + encodeURIComponent(vid), { credentials: "same-origin" })
+        .then(function (resp) {
+          if (!resp || !resp.ok) { throw new Error("request failed"); }
+          return resp.json();
+        })
+        .then(function (data) {
+          mTitle.textContent = data.title || "Transcript";
+          if (mOpen) { mOpen.href = data.url || "#"; }
+          var bits = [];
+          if (data.language) { bits.push("Captions: " + data.language); }
+          if (data.fetched_at) { bits.push("fetched " + data.fetched_at.slice(0, 10)); }
+          mMeta.textContent = bits.join(" · ");
+          mBody.textContent = data.transcript || data.error || "No transcript stored for this video.";
+        })
+        .catch(function () {
+          mTitle.textContent = "Could not load the transcript";
+          mBody.textContent = "Please try again.";
+        });
+    }
+    qsa(".ax-wt-video.is-ready").forEach(function (card) {
+      function go() { openVideo(card.getAttribute("data-wtchan"), card.getAttribute("data-wtvideo")); }
+      card.addEventListener("click", go);
+      card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
+    if (mClose) { mClose.addEventListener("click", closeModal); }
+    if (modal) {
+      modal.addEventListener("click", function (e) { if (e.target === modal) { closeModal(); } });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) { closeModal(); } });
+    }
+    if (mCopy) {
+      mCopy.addEventListener("click", function () {
+        var text = mBody ? mBody.textContent : "";
+        function copied() {
+          mCopy.textContent = "Copied ✓";
+          window.setTimeout(function () { mCopy.textContent = "Copy transcript"; }, 1800);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(copied, function () { fallbackCopy(text, copied); });
+        } else {
+          fallbackCopy(text, copied);
+        }
       });
     }
   })();

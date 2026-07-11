@@ -53,6 +53,14 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
 - **`atrium_docs.py` / `feedback_ai.py`** — the opt-in Google-Doc → AI strategy feature (gated, degrades).
 - **`atrium_health.py`** — the team-only Website Health tab: fetches the client's live site + detects
   installed marketing tags (GTM/GA4/pixels) by scanning the page HTML (no GTM API, infra-free, degrades).
+- **`watcher.py`** — the team-only Watcher tab: paste a YouTube channel link, archive EVERY video's
+  raw transcript. No YouTube API key: channel-page scrape → public `youtubei/v1/browse` playlist
+  paging (classic renderer AND 2025+ lockupViewModel shapes) → `youtube-transcript-api` (pinned in
+  requirements, lazy import). Registry in `ws["watcher"]`; each channel's transcripts in its own
+  `workspace/watcher/<c>/<id>.json` object. `POST /w/<c>/admin/watcher` (op add|fetch|refresh|delete;
+  fetch = batches of 8, page JS loops it) + `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript
+  behind the click-to-expand cards). Degrades gracefully; `WATCHER_PROXY_URL` optional if YouTube
+  blocks the Cloud Run egress IPs. Test: `python _watcher_localtest.py`.
 - **`intel_feed.py` / `intel_refresh.py`** — the DAILY Market Intelligence auto-refresh (opt-in,
   `INTEL_AUTO_ENABLED=1`). `intel_feed` parses Google News RSS + publisher feeds (keyless, stdlib
   `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**
@@ -76,5 +84,6 @@ they exist, so a default deploy stays unaffected (button off) until you create t
 `https://portal.agoradatadriven.com/auth/google/callback` on the OAuth client.
 **Test (off-cloud, what CI runs):** `python _workspace_localtest.py`, `python _accounts_localtest.py`,
 `python _google_oauth_localtest.py`, `python _atrium_smoketest.py`, `python _auth_smoketest.py`,
-`python _audit_localtest.py`, and `python _slashid_creative_test.py` from this dir.
+`python _audit_localtest.py`, `python _watcher_localtest.py`, and `python _slashid_creative_test.py`
+from this dir.
 **Preview:** `run_local.ps1` (or `preview/Preview Portal (admin).cmd` at repo root).

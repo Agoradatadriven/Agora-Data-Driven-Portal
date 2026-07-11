@@ -76,6 +76,10 @@ jobs:
         working-directory: services/portal/dash
         run: python _atrium_smoketest.py
 
+      - name: Watcher tab test (YouTube fetchers stubbed, no network)
+        working-directory: services/portal/dash
+        run: python _watcher_localtest.py
+
       - name: Audit feed + Trash restore test (stubs GCS)
         working-directory: services/portal/dash
         run: python _audit_localtest.py

@@ -206,6 +206,94 @@ def save_website_check(client, result):
     return _mutate(client, fn)
 
 
+# --- Watcher (team-only tab: watched YouTube channels + their transcript archives) ---------------
+# The channel REGISTRY is small and lives in the workspace JSON: ws["watcher"]["channels"] =
+# [{id, url, title, channel_id, video_count, transcript_count, failed_count, last_fetch, added_at}].
+# Each channel's full video list + transcripts is its OWN private object (a big channel's archive
+# runs to megabytes; keeping it out of workspace/<c>.json keeps the rewrite-in-full document small,
+# mirroring the uploaded-creatives posture):
+#     workspace/watcher/<c>/<channel_id>.json  ->  {"videos": [{id, title, url, transcript, ...}]}
+def watcher_channels(ws):
+    """The watched-channel registry list (never None)."""
+    return list(((ws or {}).get("watcher") or {}).get("channels") or [])
+
+
+def find_watcher_channel(ws, channel_id):
+    """The registry entry with id `channel_id`, or None."""
+    for ch in watcher_channels(ws):
+        if ch.get("id") == channel_id:
+            return ch
+    return None
+
+
+def watcher_object_name(client, channel_id):
+    """Object name for one channel's archive, e.g. 'workspace/watcher/riverdance/wch_1a2b3c4d.json'."""
+    return "%swatcher/%s/%s.json" % (_prefix(), client, channel_id)
+
+
+def read_watcher_videos(client, channel_id):
+    """The channel's stored video list (with transcripts), or [] when nothing is stored yet."""
+    raw = _read_object(watcher_object_name(client, channel_id))
+    if raw is None:
+        return []
+    try:
+        return json.loads(raw.decode("utf-8")).get("videos") or []
+    except (ValueError, AttributeError):
+        return []
+
+
+def write_watcher_videos(client, channel_id, videos):
+    """Persist the channel's full video list (its own object, NOT the workspace JSON)."""
+    body = json.dumps({"videos": videos}, indent=2, sort_keys=True).encode("utf-8")
+    _write_object(watcher_object_name(client, channel_id), body)
+
+
+def add_watcher_channel(client, fields):
+    """Append a watched channel to the registry (newest first). Returns the stored entry."""
+    entry = {
+        "id": _new_id("wch"),
+        "url": fields.get("url", ""),
+        "title": fields.get("title", ""),
+        "channel_id": fields.get("channel_id", ""),
+        "video_count": int(fields.get("video_count", 0) or 0),
+        "transcript_count": 0,
+        "failed_count": 0,
+        "last_fetch": "",
+        "added_at": now_iso(),
+    }
+
+    def fn(ws):
+        ws.setdefault("watcher", {}).setdefault("channels", []).insert(0, entry)
+        return entry
+    return _mutate(client, fn)
+
+
+def update_watcher_channel(client, channel_id, fields):
+    """Merge `fields` into a registry entry (counts / last_fetch / title). Returns the entry."""
+    def fn(ws):
+        # watcher_channels copies the list but not the dicts, so this is the live entry.
+        ch = find_watcher_channel(ws, channel_id)
+        if ch is None:
+            raise KeyError("no watcher channel '%s'" % channel_id)
+        ch.update(fields)
+        return ch
+    return _mutate(client, fn)
+
+
+def delete_watcher_channel(client, channel_id):
+    """Remove a channel from the registry AND delete its archive object. Returns the removed entry
+    (or None if it wasn't there)."""
+    def fn(ws):
+        channels = (ws.get("watcher") or {}).get("channels") or []
+        for i, ch in enumerate(channels):
+            if ch.get("id") == channel_id:
+                return channels.pop(i)
+        return None
+    removed = _mutate(client, fn)
+    _delete_object(watcher_object_name(client, channel_id))
+    return removed
+
+
 # --- Uploaded creatives (binary objects in the SAME private bucket) -----------------------------
 # A creative the team uploads for a content piece is stored as its OWN object alongside the
 # workspace JSON (so a multi-KB image never bloats workspace/<c>.json, which is rewritten in full on

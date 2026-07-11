@@ -876,8 +876,9 @@ def feedback():
 ATRIUM_TABS = {"overview", "dashboard", "leadgen", "organic", "calendar", "conversations",
                "intel", "settings"}
 # Team-only tabs: rendered ONLY for admins/super-admins (is_superadmin), never shown to clients. The
-# Website Health tab monitors the client's live site + the marketing tags installed on it.
-ATRIUM_TEAM_TABS = {"website-health"}
+# Website Health tab monitors the client's live site + the marketing tags installed on it; the
+# Watcher tab archives every video transcript from watched YouTube channels.
+ATRIUM_TEAM_TABS = {"website-health", "watcher"}
 
 
 @app.template_filter("atrium_dt")
@@ -999,6 +1000,9 @@ def atrium(client, tab):
         is_superadmin=(is_superadmin() and not admin_preview),
         # Website Health is editable by THE super admin only; admins see it read-only.
         can_edit_health=(is_root_admin() and not admin_preview),
+        # Watcher (team-only tab): per-channel video cards with transcript PREVIEWS only -- the
+        # full transcripts stay in each channel's own archive object, fetched on click.
+        watcher=(_watcher_view(ws, client) if (is_superadmin() and not admin_preview) else []),
         admin_preview=admin_preview,
         admin_name=_admin_sender_name(user),
         profile_photo=(current_account() or {}).get("photo", ""),
@@ -2103,6 +2107,149 @@ def atrium_admin_website_health_check(client):
     workspace.save_website_check(client, result)
     _audit(client, "ran website health check", url)
     return jsonify(ok=True, result=result)
+
+
+# --- Watcher (team-only tab: YouTube channel transcript archive) ---------------------------------
+_WATCHER_PREVIEW_CHARS = 260
+
+
+def _watcher_view(ws, client):
+    """The Watcher pane's render model: each registry entry + its video cards, transcript bodies
+    trimmed to a short preview (the full text is served on demand by atrium_watcher_video)."""
+    out = []
+    for ch in workspace.watcher_channels(ws):
+        entry = dict(ch)
+        cards = []
+        for v in workspace.read_watcher_videos(client, ch.get("id", "")):
+            text = v.get("transcript") or ""
+            cards.append({
+                "id": v.get("id", ""),
+                "title": v.get("title", ""),
+                "url": v.get("url", ""),
+                "has_transcript": bool(text),
+                "preview": (text[:_WATCHER_PREVIEW_CHARS] + "…") if len(text) > _WATCHER_PREVIEW_CHARS else text,
+                "words": len(text.split()) if text else 0,
+                "error": v.get("error", ""),
+            })
+        entry["videos"] = cards
+        out.append(entry)
+    return out
+
+
+def _watcher_counts(client, channel_id, videos):
+    """Refresh a registry entry's counts/last_fetch from its video list; returns pending count."""
+    pending = sum(1 for v in videos if not v.get("transcript") and not v.get("error"))
+    workspace.update_watcher_channel(client, channel_id, {
+        "video_count": len(videos),
+        "transcript_count": sum(1 for v in videos if v.get("transcript")),
+        "failed_count": sum(1 for v in videos if v.get("error")),
+        "last_fetch": workspace.now_iso(),
+    })
+    return pending
+
+
+def _watcher_video_entry(v):
+    """A fresh archive entry for one listed video (no transcript yet)."""
+    return {"id": v["id"], "title": v.get("title", ""),
+            "url": "https://www.youtube.com/watch?v=" + v["id"],
+            "transcript": "", "language": "", "generated": False,
+            "error": "", "permanent": False, "fetched_at": ""}
+
+
+@app.route("/w/<client>/admin/watcher", methods=["POST"])
+def atrium_admin_watcher(client):
+    """Manage watched YouTube channels (team-only). `op` is one of:
+
+    * add     -- resolve the pasted channel `url`, list EVERY video, store the (transcript-less)
+                 archive; transcripts are then pulled by repeated `fetch` calls.
+    * fetch   -- fetch the next batch of missing transcripts (the page JS loops this until
+                 `remaining` hits 0, so each request stays short). `retry=1` first clears
+                 non-permanent errors so blocked/failed videos are tried again.
+    * refresh -- re-list the channel and add any newly uploaded videos (existing transcripts kept).
+    * delete  -- remove the channel and its whole transcript archive.
+    """
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    import watcher  # lazy: only this route (and the GET below) needs it
+    op = request.form.get("op", "")
+
+    if op == "add":
+        info = watcher.resolve_channel(request.form.get("url", ""))
+        if not info["ok"]:
+            return jsonify(ok=False, message=info["error"])
+        for ch in workspace.watcher_channels(ws):
+            if ch.get("channel_id") == info["channel_id"]:
+                return jsonify(ok=False, message="Already watching %s." % (ch.get("title") or "that channel"))
+        listing = watcher.list_videos(info["channel_id"])
+        if not listing["ok"]:
+            return jsonify(ok=False, message=listing["error"])
+        entry = workspace.add_watcher_channel(client, {
+            "url": info["url"], "title": info["title"], "channel_id": info["channel_id"],
+            "video_count": len(listing["videos"]),
+        })
+        workspace.write_watcher_videos(client, entry["id"],
+                                       [_watcher_video_entry(v) for v in listing["videos"]])
+        _audit(client, "added watcher channel", "%s (%d videos)" % (info["title"], len(listing["videos"])))
+        return jsonify(ok=True, channel=entry["id"])
+
+    channel_id = request.form.get("channel_id", "").strip()
+    if workspace.find_watcher_channel(ws, channel_id) is None:
+        return Response('{"error":"not_found"}', status=404, mimetype="application/json")
+
+    if op == "fetch":
+        videos = workspace.read_watcher_videos(client, channel_id)
+        if _bool_field("retry"):
+            for v in videos:
+                if v.get("error") and not v.get("permanent"):
+                    v["error"] = ""
+        fetched = watcher.fetch_transcripts_batch(videos)
+        workspace.write_watcher_videos(client, channel_id, videos)
+        pending = _watcher_counts(client, channel_id, videos)
+        if fetched:
+            _audit(client, "fetched watcher transcripts", "%d videos" % fetched)
+        return jsonify(ok=True, fetched=fetched, remaining=pending, total=len(videos),
+                       done=len(videos) - pending)
+
+    if op == "refresh":
+        ch = workspace.find_watcher_channel(ws, channel_id)
+        listing = watcher.list_videos(ch.get("channel_id", ""))
+        if not listing["ok"]:
+            return jsonify(ok=False, message=listing["error"])
+        videos = workspace.read_watcher_videos(client, channel_id)
+        known = {v.get("id") for v in videos}
+        new = [_watcher_video_entry(v) for v in listing["videos"] if v["id"] not in known]
+        if new:
+            videos = new + videos  # the listing is newest-first; keep the archive that way too
+            workspace.write_watcher_videos(client, channel_id, videos)
+        _watcher_counts(client, channel_id, videos)
+        _audit(client, "refreshed watcher channel", "%s: %d new" % (ch.get("title", ""), len(new)))
+        return jsonify(ok=True, new=len(new))
+
+    if op == "delete":
+        removed = workspace.delete_watcher_channel(client, channel_id)
+        if removed:
+            _audit(client, "removed watcher channel", removed.get("title", ""))
+        return jsonify(ok=True)
+
+    return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
+
+
+@app.route("/w/<client>/watcher/video/<channel_id>/<video_id>", methods=["GET"])
+def atrium_watcher_video(client, channel_id, video_id):
+    """One video's FULL transcript as JSON (team-only) -- the click-to-expand behind the cards."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    for v in workspace.read_watcher_videos(client, channel_id):
+        if v.get("id") == video_id:
+            return jsonify(ok=True, title=v.get("title", ""), url=v.get("url", ""),
+                           transcript=v.get("transcript", ""), error=v.get("error", ""),
+                           language=v.get("language", ""), fetched_at=v.get("fetched_at", ""))
+    return Response('{"error":"not_found"}', status=404, mimetype="application/json")
 
 
 @app.route("/w/<client>/admin/calendar", methods=["POST"])

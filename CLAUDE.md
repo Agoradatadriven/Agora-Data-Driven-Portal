@@ -114,6 +114,25 @@ auto-refresh (see those bullets below). Product name is one constant:
   stays out of scope). It degrades gracefully (a dead site is recorded in the result, never a 500).
   Routes: `POST /w/<c>/admin/website-health/{save,check}` (root-only). State lives under
   `ws["website_health"]` via `workspace.set_website_url`/`set_website_notes`/`save_website_check`.
+- **Watcher is a TEAM-ONLY tab (YouTube channel transcript archive):** paste a channel link and
+  Watcher lists EVERY video, then pulls each video's raw transcript (AI summaries are a later step).
+  Rendered/gated exactly like Website Health (`ATRIUM_TEAM_TABS`, never shown to clients), but
+  editing is any-admin (`is_superadmin()`), not root-only. `dash/watcher.py` does the fetching with
+  NO YouTube API key: channel page scrape → the public web `youtubei/v1/browse` endpoint pages the
+  uploads playlist (handles BOTH the classic `playlistVideoRenderer` and the 2025+ `lockupViewModel`
+  shapes) → `youtube-transcript-api` (pinned in dash requirements, imported LAZILY so tests/CI run
+  without it) per video. State: the small channel registry lives in `ws["watcher"]["channels"]`
+  (counts only); each channel's full archive is its OWN object
+  `workspace/watcher/<c>/<channel_id>.json` (transcripts run to MBs — same posture as creatives).
+  Routes: `POST /w/<c>/admin/watcher` (`op` add|fetch|refresh|delete — fetch pulls transcripts in
+  short batches of 8 and the page JS loops it with a progress bar, so requests stay short) and
+  `GET /w/<c>/watcher/video/<channel_id>/<video_id>` (the click-to-expand full transcript; the page
+  itself only inlines previews). The tab shows uniform fixed-height cards per video; clicking a
+  ready card opens the transcript reader modal. Every failure degrades to a friendly message
+  (`ok:false`), incl. YouTube rate-limiting datacenter IPs — transient errors are retryable
+  ("Retry failed"), permanent ones (subtitles disabled) are not; optional `WATCHER_PROXY_URL` routes
+  all YouTube traffic through a proxy if blocking bites on Cloud Run. Off-cloud test:
+  `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube fetchers).
 - **Content with a date mirrors onto the Content Calendar (linked event):** when an admin gives a
   content piece a `date` (in the add/edit-content form), `workspace.add_content`/`update_content`
   mirror it into `calendar[]` as a linked event carrying `content_id` + `tab` (paid→`leadgen`,
