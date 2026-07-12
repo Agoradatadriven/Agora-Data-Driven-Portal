@@ -66,6 +66,13 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   newest videos, filter bar (search/platform/industry/type) + date sort. YouTube blocks datacenter
   IPs — for Cloud Run fetching create Secret `watcher-proxy-url` (mounted as `WATCHER_PROXY_URL`
   when present). Test: `python _watcher_localtest.py`.
+- **`assistant_ai.py`** — the team-only Assistant tab: RAG chat over EVERY workspace source
+  (watcher transcripts, intel, campaigns/content, metrics, calendar, conversations, health, plus
+  the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Pure-Python
+  BM25 index stored as `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change);
+  answers via `intel_ai._call` (JSON-mode, parsed leniently) with cited sources.
+  `POST /w/<c>/admin/assistant` (op ask|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs Vertex
+  off-cloud. Test: `python _assistant_localtest.py`.
 - **`intel_feed.py` / `intel_refresh.py`** — the DAILY Market Intelligence auto-refresh (opt-in,
   `INTEL_AUTO_ENABLED=1`). `intel_feed` parses Google News RSS + publisher feeds (keyless, stdlib
   `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**

@@ -130,6 +130,39 @@ def run():
     e5 = intel_ai.curate("media_buying", "X", [], _CANDS, model="deepseek-v4-pro", fetcher=_bad_json_fetcher)
     _check("unparseable -> (None, reason)", e5[0] is None and e5[1])
 
+    # 5b. suggest_config ("Write these for me"): drafts the three settings from client context.
+    _SUGGEST_JSON = json.dumps({"topics": "RV rentals, campgrounds, roadtrip travellers",
+                                "business_prompt": "Watch RV rental demand and campground policy.",
+                                "media_prompt": "Focus on Google and Meta travel-ad changes."})
+
+    def _suggest_grounded_fetcher(url, headers, payload, timeout):
+        assert payload.get("tools"), "a Gemini suggest should ground on Google Search"
+        return _Resp({"candidates": [{"content": {"parts": [{"text": _SUGGEST_JSON}]}}]})
+
+    sg, serr = intel_ai.suggest_config("RV Co", "Their website: https://rv.example",
+                                       model="gemini-2.5-flash",
+                                       fetcher=_suggest_grounded_fetcher, token_fetcher=_token)
+    _check("suggest via Gemini ok (grounded)", serr == "" and sg is not None)
+    _check("suggest returns all three fields",
+           "RV rentals" in sg["topics"] and sg["business_prompt"] and sg["media_prompt"])
+
+    def _suggest_deepseek_fetcher(url, headers, payload, timeout):
+        return _Resp({"choices": [{"message": {"content": _SUGGEST_JSON}}]})
+
+    os.environ.pop("VERTEX_GEMINI_ENABLED", None)   # only DeepSeek left -> plain JSON-mode call
+    sd, sderr = intel_ai.suggest_config("RV Co", "", model="", fetcher=_suggest_deepseek_fetcher)
+    _check("suggest falls back to the default available model", sderr == "" and sd["topics"])
+    os.environ["VERTEX_GEMINI_ENABLED"] = "1"
+    sq, sqerr = intel_ai.suggest_config("RV Co", "", model="gemini-2.5-flash",
+                                        fetcher=_quota_fetcher, token_fetcher=_token)
+    _check("suggest surfaces a model failure", sq is None and "quota" in sqerr)
+    os.environ.pop("DEEPSEEK_API_KEY", None)
+    os.environ.pop("VERTEX_GEMINI_ENABLED", None)
+    sn, snerr = intel_ai.suggest_config("RV Co", "")
+    _check("suggest with no provider -> (None, reason)", sn is None and "configured" in snerr)
+    os.environ["DEEPSEEK_API_KEY"] = "sk-test"
+    os.environ["VERTEX_GEMINI_ENABLED"] = "1"
+
     # Window + count config: defaults, validation, clamping.
     _check("window default is 3m", intel_ai.window_of({}) == "3m")
     _check("valid window honored", intel_ai.window_of({"window": "12m"}) == "12m")

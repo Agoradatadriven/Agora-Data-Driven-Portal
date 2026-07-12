@@ -25,6 +25,7 @@ Org policy forbids public Cloud Run: deploy with --no-invoker-iam-check (never
 """
 
 import datetime
+import json
 import os
 import re
 import secrets
@@ -877,8 +878,9 @@ ATRIUM_TABS = {"overview", "dashboard", "leadgen", "organic", "calendar", "conve
                "intel", "settings"}
 # Team-only tabs: rendered ONLY for admins/super-admins (is_superadmin), never shown to clients. The
 # Website Health tab monitors the client's live site + the marketing tags installed on it; the
-# Watcher tab archives every video transcript from watched YouTube channels.
-ATRIUM_TEAM_TABS = {"website-health", "watcher"}
+# Watcher tab archives every video transcript from watched YouTube channels; the Assistant tab is
+# retrieval-augmented chat over EVERY workspace source (watcher, intel, campaigns, metrics, ...).
+ATRIUM_TEAM_TABS = {"website-health", "watcher", "assistant"}
 
 
 @app.template_filter("atrium_dt")
@@ -1932,6 +1934,34 @@ def atrium_admin_communication(client):
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 
 
+def _intel_client_context(ws):
+    """A short plain-text digest of what the workspace already knows about a client, for the AI to
+    draft the Research-Brain settings from ('Write with AI'). Best-effort: every field is optional,
+    and the whole digest is capped so the call stays small."""
+    lines = []
+    url = ((ws.get("website_health") or {}).get("url") or "").strip()
+    if url:
+        lines.append("Their website: %s" % url)
+    for camp in (ws.get("campaigns") or []):
+        bits = [b for b in ((camp.get("name") or "").strip(), (camp.get("eyebrow") or "").strip()) if b]
+        strat = camp.get("strategy")
+        if isinstance(strat, dict):
+            bits.extend(str(v).strip() for v in strat.values() if str(v or "").strip())
+        summary = (camp.get("ai_summary") or "").strip()
+        if summary:
+            bits.append(summary)
+        if bits:
+            lines.append("Campaign (%s): %s" % (camp.get("channel") or "paid", " — ".join(bits)[:400]))
+    industries = sorted({(ch.get("industry") or "").strip()
+                         for ch in workspace.watcher_channels(ws)} - {""})
+    if industries:
+        lines.append("Industries of the creators/competitors the team watches: %s" % ", ".join(industries))
+    topics = workspace.get_intel_topics(ws)
+    if topics:
+        lines.append("Current research keywords (improve on these): %s" % ", ".join(topics))
+    return "\n".join(lines)[:4000]
+
+
 @app.route("/w/<client>/admin/intel", methods=["POST"])
 def atrium_admin_intel(client):
     """Add/edit/delete a Market Intelligence entry, OR configure the AI research brain (team-only).
@@ -1940,6 +1970,9 @@ def atrium_admin_intel(client):
       * 'add' | 'edit' | 'delete' -- a curated briefing entry (`section` = business_research|media_buying).
       * 'ai_settings'             -- save the selected model + the two tunable per-section prompts.
       * 'topics'                  -- save the client's Business-Research research keywords.
+      * 'suggest'                 -- AI-draft the keywords + both focus prompts from what the
+                                     workspace knows about this client (returned, NOT saved --
+                                     the panel fills the fields for the admin to review + Save).
       * 'refresh-now'             -- run the daily refresh for THIS client right now (test the brain).
     """
     gate = _atrium_admin_json_gate(client)
@@ -1979,6 +2012,24 @@ def atrium_admin_intel(client):
         topics = workspace.set_intel_topics(client, request.form.get("topics", ""))
         _audit(client, "set intel topics", ", ".join(topics))
         return jsonify(ok=True, topics=topics)
+
+    # --- AI-draft the keywords + both focus prompts from what we know about this client -----------
+    if op == "suggest":
+        ws = workspace.load_workspace(client) or {}
+        try:
+            fields, err = intel_ai.suggest_config(
+                ws.get("display_name") or client,
+                _intel_client_context(ws),
+                model=workspace.get_intel_ai(ws).get("model"),
+            )
+        except Exception as exc:  # never 500 the console; report it
+            return jsonify(ok=False, message="Drafting failed: %s" % str(exc)[:200]), 200
+        if fields is None:
+            return jsonify(ok=False, message="Couldn't draft the prompts: %s" % err), 200
+        _audit(client, "AI-drafted intel keywords/prompts")
+        return jsonify(ok=True, topics=fields.get("topics", ""),
+                       business_prompt=fields.get("business_prompt", ""),
+                       media_prompt=fields.get("media_prompt", ""))
 
     # --- Run the daily refresh now for this one client (so the team can test the brain) -----------
     if op == "refresh-now":
@@ -2323,6 +2374,76 @@ def atrium_admin_watcher(client):
         if removed:
             _audit(client, "removed watcher channel", removed.get("title", ""))
         return jsonify(ok=True)
+
+    return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
+
+
+# --- Assistant (team-only tab: RAG chat over EVERY workspace source) -----------------------------
+def _assistant_archives(ws, client):
+    """The Watcher registry entries paired with their loaded video lists (the index's input)."""
+    return [(ch, workspace.read_watcher_videos(client, ch.get("id", "")))
+            for ch in workspace.watcher_channels(ws)]
+
+
+def _assistant_index(ws, client, force=False):
+    """The client's knowledge index, rebuilt lazily whenever any source changed (or on `force`)."""
+    import assistant_ai
+    archives = _assistant_archives(ws, client)
+    fp = assistant_ai.fingerprint(ws, archives)
+    index = None if force else workspace.read_assistant_index(client)
+    if index is not None and index.get("fingerprint") == fp:
+        return index
+    chunks = assistant_ai.build_chunks(ws, archives,
+                                       dash_data=assistant_ai.read_client_dash_data(client))
+    index = assistant_ai.build_index(chunks, fp=fp)
+    workspace.write_assistant_index(client, index)
+    return index
+
+
+@app.route("/w/<client>/admin/assistant", methods=["POST"])
+def atrium_admin_assistant(client):
+    """The Atrium Assistant (team-only). `op` is:
+
+    * ask     -- answer `question` from the workspace knowledge index (question + optional
+                 `history` JSON of recent turns + optional `date_from`/`date_to` ISO dates that
+                 scope DATED sources like transcripts/intel to a range). The index rebuilds
+                 lazily when stale, so answers always reflect the latest fetched data.
+    * reindex -- force-rebuild the index now; returns its size (the pane's Rebuild button).
+    """
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    import assistant_ai
+    op = request.form.get("op", "ask")
+
+    if op == "reindex":
+        index = _assistant_index(ws, client, force=True)
+        _audit(client, "rebuilt assistant index", "%d chunks" % len(index.get("chunks") or []))
+        return jsonify(ok=True, chunks=len(index.get("chunks") or []),
+                       built_at=index.get("built_at", ""))
+
+    if op == "ask":
+        question = request.form.get("question", "").strip()
+        if not question:
+            return jsonify(ok=False, message="Ask a question first.")
+        try:
+            history = json.loads(request.form.get("history", "") or "[]")
+        except ValueError:
+            history = []
+        index = _assistant_index(ws, client)
+        answer, sources, err = assistant_ai.ask(
+            ws.get("display_name") or client, index, question,
+            history=history if isinstance(history, list) else [],
+            date_from=request.form.get("date_from", "").strip(),
+            date_to=request.form.get("date_to", "").strip(),
+            model=(ws.get("intel_ai") or {}).get("model", ""))
+        if err:
+            return jsonify(ok=False, message=err, sources=sources)
+        _audit(client, "asked the assistant", question[:80])
+        return jsonify(ok=True, answer=answer, sources=sources)
 
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 

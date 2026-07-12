@@ -300,6 +300,32 @@ def delete_watcher_channel(client, channel_id):
     return removed
 
 
+# --- Assistant (team-only tab: the workspace knowledge index) ------------------------------------
+# The Assistant's retrieval index (chunks + BM25 stats over every workspace source) is ONE private
+# object per client, rebuilt lazily when its fingerprint stops matching the live data. Like the
+# watcher archives it stays OUT of workspace/<c>.json (it can run to many MB).
+def assistant_index_name(client):
+    """Object name for a client's assistant index, e.g. 'workspace/assistant/riverdance/index.json'."""
+    return "%sassistant/%s/index.json" % (_prefix(), client)
+
+
+def read_assistant_index(client):
+    """The stored assistant index dict, or None when it hasn't been built yet (or is corrupt)."""
+    raw = _read_object(assistant_index_name(client))
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (ValueError, AttributeError):
+        return None
+
+
+def write_assistant_index(client, index):
+    """Persist the assistant index (its own object, NOT the workspace JSON)."""
+    _write_object(assistant_index_name(client),
+                  json.dumps(index, sort_keys=True).encode("utf-8"))
+
+
 # --- Uploaded creatives (binary objects in the SAME private bucket) -----------------------------
 # A creative the team uploads for a content piece is stored as its OWN object alongside the
 # workspace JSON (so a multi-KB image never bloats workspace/<c>.json, which is rewritten in full on

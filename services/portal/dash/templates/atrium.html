@@ -39,6 +39,7 @@
 {%- elif name == 'download' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20.5h14"/></svg>
 {%- elif name == 'health' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 12h4l1.6-3.5L12 16l1.8-4 1.2 0h4.5"/></svg>
 {%- elif name == 'watcher' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+{%- elif name == 'assistant' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 9 9 0 0 1-3.2-.6L3 21l1.9-5.1a8 8 0 0 1-1.4-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3z"/><path d="M12 8.6l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>
 {%- elif name == 'intel' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12.5a1 1 0 0 1 1 1v11a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17.5 8.5H20a1 1 0 0 1 1 1v8.5a2 2 0 0 1-2 2"/><line x1="7.5" y1="9.5" x2="14" y2="9.5"/><line x1="7.5" y1="13" x2="14" y2="13"/><line x1="7.5" y1="16.5" x2="11.5" y2="16.5"/></svg>
 {%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
 {%- endif -%}
@@ -107,7 +108,7 @@
 {%- set _sel = (current.split(' · ') if current else []) -%}
 {%- for x in _sel %}{%- if x %}<span class="ax-platone">{{ plat_ic(x) }}<span>{{ x }}</span></span>{%- endif %}{%- endfor %}
 {%- endmacro %}
-{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher'} %}
+{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher','assistant':'Assistant'} %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -1058,6 +1059,9 @@
     .ax-intel-ai select.ax-editbox { background: #fff; }
     .ax-linkbtn { border: 0; background: none; color: var(--ax-violet-d); font-size: 11.5px; font-weight: 700; cursor: pointer; padding: 0; }
     .ax-linkbtn:hover { text-decoration: underline; }
+    .ax-linkbtn .ax-ic { width: 13px; height: 13px; display: inline-block; vertical-align: -2px; }
+    .ax-linkbtn[disabled] { opacity: .45; cursor: default; }
+    .ax-linkbtn[disabled]:hover { text-decoration: none; }
     .ax-intel-ai-adv { margin-top: 16px; border-top: 1px solid var(--ax-line); }
     .ax-intel-ai-adv > summary { list-style: none; cursor: pointer; font-size: 12.5px; font-weight: 800; color: var(--ax-violet-d); padding: 11px 0 4px; user-select: none; }
     .ax-intel-ai-adv > summary::-webkit-details-marker { display: none; }
@@ -1334,7 +1338,31 @@
     .ax-wt-mmeta { margin-top: 4px; font-size: 12.5px; color: var(--ax-sub); }
     .ax-wt-mbody { margin-top: 12px; overflow-y: auto; font-size: 14px; line-height: 1.65; color: var(--ax-ink); white-space: pre-wrap; }
     @media (max-width: 560px) { .ax-wt-video { height: 165px; } }
-  </style>
+    .ax-wt-fdaterange { display: inline-flex; align-items: center; gap: 6px; }
+    .ax-wt-fdaterange[hidden] { display: none; }
+    .ax-wt-fdate-in { padding: 7px 9px; border-radius: 10px; border: 1px solid var(--ax-line); background: #fff; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ax-ink); }
+
+    /* ---- Assistant (team-only tab): grounded chat over the whole workspace ---- */
+    .ax-as-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .ax-as-src { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ax-sub); flex: 1 1 260px; }
+    .ax-as-src .ax-ic { width: 20px; height: 20px; color: var(--ax-purple, #9484FB); flex: 0 0 auto; }
+    .ax-as-range { display: inline-flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 600; color: var(--ax-sub); }
+    .ax-as-range label { display: inline-flex; align-items: center; gap: 5px; }
+    .ax-as-chat { display: flex; flex-direction: column; min-height: 420px; }
+    .ax-as-log { flex: 1 1 auto; overflow-y: auto; max-height: 56vh; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 14px; }
+    .ax-as-msg { display: flex; }
+    .ax-as-msg.user { justify-content: flex-end; }
+    .ax-as-bubble { max-width: 78%; padding: 11px 14px; border-radius: 14px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .ax-as-msg.bot .ax-as-bubble { background: var(--ax-canvas); border: 1px solid var(--ax-line); color: var(--ax-ink); border-bottom-left-radius: 4px; }
+    .ax-as-msg.user .ax-as-bubble { background: var(--ax-purple, #9484FB); color: #fff; border-bottom-right-radius: 4px; }
+    .ax-as-msg.bot .ax-as-bubble.is-err { background: rgba(229,65,62,.08); border-color: rgba(229,65,62,.34); color: #c0322f; }
+    .ax-as-bubble.is-thinking { color: var(--ax-sub); font-style: italic; }
+    .ax-as-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .ax-as-schip { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); text-decoration: none; }
+    a.ax-as-schip:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-as-inputrow { display: flex; gap: 10px; align-items: flex-end; border-top: 1px solid var(--ax-line); padding-top: 12px; }
+    .ax-as-input { flex: 1 1 auto; resize: vertical; min-height: 44px; }
+    .ax-as-send { flex: 0 0 auto; }
 </head>
 <body>
 <div class="atrium" data-base="/w/{{ view.client }}" data-tab="{{ view.active_tab }}"{% if is_superadmin %} data-admin="1" data-adminname="{{ admin_name }}"{% endif %}>
@@ -1374,6 +1402,9 @@
         </a>
         <a href="{{ '/w/' ~ view.client ~ '/watcher' }}" data-tab="watcher" title="Watcher" class="ax-nav-team {{ 'is-active' if view.active_tab == 'watcher' else '' }}">
           {{ ic('watcher') }}<span>Watcher</span>
+        </a>
+        <a href="{{ '/w/' ~ view.client ~ '/assistant' }}" data-tab="assistant" title="Assistant" class="ax-nav-team {{ 'is-active' if view.active_tab == 'assistant' else '' }}">
+          {{ ic('assistant') }}<span>Assistant</span>
         </a>
         {% endif %}
       </nav>
@@ -2390,7 +2421,7 @@
             </div>
 
             <div class="ax-fld">
-              <label class="ax-fld-label" for="ax-intel-topics">Research keywords <span class="ax-fld-hint">&mdash; this client's industry/topics; the AI expands these into live web searches</span></label>
+              <div class="ax-fld-labelrow"><label class="ax-fld-label" for="ax-intel-topics">Research keywords <span class="ax-fld-hint">&mdash; this client's industry/topics; the AI expands these into live web searches</span></label><button type="button" class="ax-linkbtn" id="ax-intel-suggest"{{ ' disabled' if not ai.any_available else '' }} title="AI drafts the keywords and both focus prompts from what we know about this client — review, tweak, then Save settings.">{{ ic('sparkle') }} Write these for me</button></div>
               <textarea id="ax-intel-topics" class="ax-editbox" rows="2" placeholder="e.g. contract templates, creative entrepreneurs, Etsy sellers, small business legal">{{ view.intel_topics }}</textarea>
             </div>
 
@@ -2703,6 +2734,19 @@
               <option value="added">Recently added</option>
               <option value="name">Name A&ndash;Z</option>
             </select>
+            <select class="ax-wt-fsel" id="ax-wt-fdate" title="Upload date range">
+              <option value="">All time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last 12 months</option>
+              <option value="custom">Custom range&hellip;</option>
+            </select>
+            <span class="ax-wt-fdaterange" id="ax-wt-fcustom" hidden>
+              <input class="ax-wt-fdate-in" type="date" id="ax-wt-ffrom" title="From">
+              <span>&ndash;</span>
+              <input class="ax-wt-fdate-in" type="date" id="ax-wt-fto" title="To">
+            </span>
             <span class="ax-wt-fcount" id="ax-wt-fcount"></span>
           </div>
 
@@ -2747,7 +2791,7 @@
 
               <div class="ax-wt-recent">
                 {% for v in ch.videos[:4] %}
-                <div class="ax-wt-vrow {{ 'is-ready' if v.has_transcript }}" data-wtvideo="{{ v.id }}" data-wtchan="{{ ch.id }}"
+                <div class="ax-wt-vrow {{ 'is-ready' if v.has_transcript }}" data-wtvideo="{{ v.id }}" data-wtchan="{{ ch.id }}" data-wtpub="{{ v.published }}"
                      {% if v.has_transcript %}role="button" tabindex="0" title="Read the full transcript"{% endif %}>
                   <div class="ax-wt-vrt">{{ v.title }}</div>
                   <div class="ax-wt-vrm">{% if v.published_text %}{{ v.published_text }} &middot; {% endif %}{% if v.has_transcript %}<span class="ok">{{ v.words }} words</span>{% elif v.error %}<span class="bad">no transcript</span>{% else %}pending{% endif %}</div>
@@ -2766,7 +2810,7 @@
                 <div class="ax-wt-grid">
                   {% for v in ch.videos %}
                   <div class="ax-wt-video {{ 'is-ready' if v.has_transcript else ('is-failed' if v.error else 'is-pending') }}"
-                       data-wtvideo="{{ v.id }}" data-wtchan="{{ ch.id }}" role="button" tabindex="0"
+                       data-wtvideo="{{ v.id }}" data-wtchan="{{ ch.id }}" data-wtpub="{{ v.published }}" role="button" tabindex="0"
                        title="{{ 'Click to read the full transcript' if v.has_transcript else v.error or 'Transcript not fetched yet' }}">
                     <div class="ax-wt-vtitle">{{ v.title }}</div>
                     {% if v.has_transcript %}
@@ -2813,6 +2857,31 @@
               </div>
               <div class="ax-wt-mmeta" id="ax-wt-mmeta"></div>
               <div class="ax-wt-mbody" id="ax-wt-mbody"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ ASSISTANT (team-only: RAG chat over the whole workspace) ============ -->
+        <section class="ax-pane {{ 'is-active' if view.active_tab=='assistant' else '' }}" data-pane="assistant">
+          <h1 class="ax-greet">Assistant</h1>
+          <p class="ax-lede">Ask anything about {{ ws.display_name }}'s world &mdash; it reads the whole workspace: campaigns and content, metrics and dashboard data, Market Intelligence, the content calendar, client conversations, and every Watcher transcript.</p>
+
+          <div class="ax-panel ax-as-bar">
+            <span class="ax-as-src">{{ ic('assistant') }} Answers are grounded in this workspace's data and cite their sources.</span>
+            <span class="ax-as-range" title="Limit dated sources (transcripts, intel, content) to a range">
+              <label>From <input class="ax-wt-fdate-in" type="date" id="ax-as-from"></label>
+              <label>To <input class="ax-wt-fdate-in" type="date" id="ax-as-to"></label>
+            </span>
+            <button class="ax-btn" id="ax-as-reindex" type="button" title="Re-read every source now (also happens automatically when data changes)">Rebuild knowledge</button>
+          </div>
+
+          <div class="ax-panel ax-as-chat">
+            <div class="ax-as-log" id="ax-as-log">
+              <div class="ax-as-msg bot"><div class="ax-as-bubble">Hi &mdash; I can answer from everything in this workspace. Try &ldquo;What do Carson Reed and Nick Saraev say about pricing AI services?&rdquo; or &ldquo;Which content pieces are still awaiting approval?&rdquo;</div></div>
+            </div>
+            <div class="ax-as-inputrow">
+              <textarea class="ax-editbox ax-as-input" id="ax-as-input" rows="2" placeholder="Ask about campaigns, metrics, market intel, or anything a watched creator has said&hellip;"></textarea>
+              <button class="ax-btn violet ax-as-send" id="ax-as-send" type="button">Ask</button>
             </div>
           </div>
         </section>
@@ -2972,7 +3041,8 @@
     overview: "Overview", dashboard: "Dashboard", leadgen: "Lead Generation",
     organic: "Organic Content", calendar: "Content Calendar",
     conversations: "Client Communications", intel: "Market Intelligence",
-    settings: "Notification settings", "website-health": "Website Health", watcher: "Watcher"
+    settings: "Notification settings", "website-health": "Website Health", watcher: "Watcher",
+    assistant: "Assistant"
   };
   // Looker Studio embed: scale the fixed-canvas report to fill the container width (runs for ALL
   // users, not just admins). The report has a fixed native canvas (data-native-w/h); a 100%-width
@@ -3386,21 +3456,59 @@
       });
     });
 
-    // Per-creator title search (inside the expanded archive).
+    // Video-level visibility = per-creator title search AND the Looker-style upload date range.
+    // curBounds is the active {from, to} (ISO dates, "" = open-ended); undated videos always pass.
+    var wtQuery = {};
+    var curBounds = null;
+    var fDate = document.getElementById("ax-wt-fdate");
+    var fCustom = document.getElementById("ax-wt-fcustom");
+    var fFrom = document.getElementById("ax-wt-ffrom");
+    var fTo = document.getElementById("ax-wt-fto");
+    function dateBounds() {
+      if (!fDate || !fDate.value) { return null; }
+      if (fDate.value === "custom") {
+        var from = fFrom && fFrom.value ? fFrom.value : "";
+        var to = fTo && fTo.value ? fTo.value : "";
+        return (from || to) ? { from: from, to: to } : null;
+      }
+      var d = new Date(Date.now() - parseInt(fDate.value, 10) * 86400000);
+      function pad(n) { return n < 10 ? "0" + n : "" + n; }
+      return { from: d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()), to: "" };
+    }
+    function inRange(pub) {
+      if (!curBounds || !pub) { return true; }
+      if (curBounds.from && pub < curBounds.from) { return false; }
+      if (curBounds.to && pub > curBounds.to) { return false; }
+      return true;
+    }
+    function refreshVideos(card) {
+      var chan = card.getAttribute("data-wtchannel");
+      var q = wtQuery[chan] || "";
+      var dateHits = 0;
+      qsa("[data-wtpub]", card).forEach(function (el) {
+        var dateHit = inRange(el.getAttribute("data-wtpub") || "");
+        var hit = dateHit;
+        if (el.classList.contains("ax-wt-video")) {
+          if (dateHit) { dateHits += 1; }
+          if (q) {
+            var t = el.querySelector(".ax-wt-vtitle");
+            hit = dateHit && t && t.textContent.toLowerCase().indexOf(q) !== -1;
+          }
+        }
+        el.style.display = hit ? "" : "none";
+      });
+      return dateHits;
+    }
     qsa("[data-wtsearch]").forEach(function (input) {
       input.addEventListener("input", function () {
-        var q = input.value.toLowerCase();
-        var panel = document.querySelector('[data-wtchannel="' + aq(input.getAttribute("data-wtsearch")) + '"]');
-        if (!panel) { return; }
-        qsa(".ax-wt-video", panel).forEach(function (card) {
-          var t = card.querySelector(".ax-wt-vtitle");
-          var hit = !q || (t && t.textContent.toLowerCase().indexOf(q) !== -1);
-          card.style.display = hit ? "" : "none";
-        });
+        var chan = input.getAttribute("data-wtsearch");
+        wtQuery[chan] = input.value.toLowerCase();
+        var panel = document.querySelector('[data-wtchannel="' + aq(chan) + '"]');
+        if (panel) { refreshVideos(panel); }
       });
     });
 
-    // The top filter bar: search + platform + industry + type, and the date/name sort.
+    // The top filter bar: search + platform + industry + type + date range, and the sort.
     var fSearch = document.getElementById("ax-wt-fsearch");
     var fPlatform = document.getElementById("ax-wt-fplatform");
     var fIndustry = document.getElementById("ax-wt-findustry");
@@ -3410,6 +3518,7 @@
     var cgrid = document.getElementById("ax-wt-cgrid");
     function applyFilters() {
       if (!cgrid) { return; }
+      curBounds = dateBounds();
       var q = fSearch ? fSearch.value.toLowerCase() : "";
       var plat = fPlatform ? fPlatform.value : "";
       var ind = fIndustry ? fIndustry.value : "";
@@ -3417,17 +3526,28 @@
       var shown = 0, total = 0;
       qsa(".ax-wt-creator", cgrid).forEach(function (card) {
         total += 1;
+        var dateHits = refreshVideos(card);
         var name = card.getAttribute("data-wtname") || "";
         var cind = card.getAttribute("data-wtindustry") || "";
         var hit = (!q || name.indexOf(q) !== -1 || cind.indexOf(q) !== -1)
           && (!plat || card.getAttribute("data-wtplatform") === plat)
           && (!ind || cind === ind)
-          && (!kind || card.getAttribute("data-wtkind") === kind);
+          && (!kind || card.getAttribute("data-wtkind") === kind)
+          && (!curBounds || dateHits > 0);
         card.style.display = hit ? "" : "none";
         if (hit) { shown += 1; }
       });
       if (fCount) { fCount.textContent = shown === total ? total + " watched" : shown + " of " + total; }
     }
+    if (fDate) {
+      fDate.addEventListener("change", function () {
+        if (fCustom) { fCustom.hidden = fDate.value !== "custom"; }
+        applyFilters();
+      });
+    }
+    [fFrom, fTo].forEach(function (el) {
+      if (el) { el.addEventListener("change", applyFilters); }
+    });
     function applySort() {
       if (!cgrid || !fSort) { return; }
       var mode = fSort.value;
@@ -3508,6 +3628,116 @@
         } else {
           fallbackCopy(text, copied);
         }
+      });
+    }
+  })();
+
+  // ---- Assistant (team-only tab): grounded chat over the whole workspace -----------------------
+  // Each question POSTs op=ask with the recent turns + the optional date range; the answer bubble
+  // carries citation chips (the retrieved sources). No page state persists -- the knowledge index
+  // lives server-side and rebuilds itself when workspace data changes.
+  (function () {
+    var log = document.getElementById("ax-as-log");
+    var input = document.getElementById("ax-as-input");
+    var send = document.getElementById("ax-as-send");
+    if (!log || !input || !send) { return; }
+    var history = [];
+    function addMsg(role, text, extraClass) {
+      var wrap = document.createElement("div");
+      wrap.className = "ax-as-msg " + (role === "user" ? "user" : "bot");
+      var bub = document.createElement("div");
+      bub.className = "ax-as-bubble" + (extraClass ? " " + extraClass : "");
+      bub.textContent = text;
+      wrap.appendChild(bub);
+      log.appendChild(wrap);
+      log.scrollTop = log.scrollHeight;
+      return bub;
+    }
+    function addSources(bub, sources) {
+      if (!sources || !sources.length) { return; }
+      var row = document.createElement("div");
+      row.className = "ax-as-sources";
+      var i;
+      for (i = 0; i < Math.min(sources.length, 8); i++) {
+        var s = sources[i];
+        var chip;
+        if (s.url) {
+          chip = document.createElement("a");
+          chip.href = s.url;
+          chip.target = "_blank";
+          chip.rel = "noopener noreferrer";
+        } else {
+          chip = document.createElement("span");
+        }
+        chip.className = "ax-as-schip";
+        var title = s.title || s.kind || "source";
+        chip.textContent = title.length > 60 ? title.slice(0, 57) + "…" : title;
+        row.appendChild(chip);
+      }
+      bub.appendChild(row);
+    }
+    var busy = false;
+    function askNow() {
+      var q = input.value.replace(/^\s+|\s+$/g, "");
+      if (!q || busy) { return; }
+      busy = true;
+      send.setAttribute("disabled", "disabled");
+      input.value = "";
+      addMsg("user", q);
+      history.push({ role: "user", text: q });
+      var bubble = addMsg("bot", "Reading the workspace…", "is-thinking");
+      var from = document.getElementById("ax-as-from");
+      var to = document.getElementById("ax-as-to");
+      post("/admin/assistant", {
+        op: "ask", question: q, history: JSON.stringify(history.slice(-8)),
+        date_from: from ? from.value : "", date_to: to ? to.value : ""
+      })
+        .then(function (data) {
+          busy = false;
+          send.removeAttribute("disabled");
+          bubble.classList.remove("is-thinking");
+          if (!data || data.ok === false) {
+            bubble.classList.add("is-err");
+            bubble.textContent = (data && data.message) || "Could not answer. Please try again.";
+            return;
+          }
+          bubble.textContent = data.answer;
+          addSources(bubble, data.sources);
+          history.push({ role: "bot", text: data.answer });
+          log.scrollTop = log.scrollHeight;
+        })
+        .catch(function () {
+          busy = false;
+          send.removeAttribute("disabled");
+          bubble.classList.remove("is-thinking");
+          bubble.classList.add("is-err");
+          bubble.textContent = "Could not answer (network error). Please try again.";
+        });
+    }
+    send.addEventListener("click", askNow);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askNow(); }
+    });
+    var reindex = document.getElementById("ax-as-reindex");
+    if (reindex) {
+      reindex.addEventListener("click", function () {
+        reindex.setAttribute("disabled", "disabled");
+        reindex.textContent = "Rebuilding…";
+        post("/admin/assistant", { op: "reindex" })
+          .then(function (data) {
+            reindex.removeAttribute("disabled");
+            reindex.textContent = "Rebuild knowledge";
+            if (data && data.ok) {
+              addMsg("bot", "Knowledge rebuilt — " + data.chunks + " excerpts indexed.");
+            } else {
+              addMsg("bot", "Could not rebuild the knowledge index.", "is-err");
+            }
+          })
+          .catch(function () {
+            reindex.removeAttribute("disabled");
+            reindex.textContent = "Rebuild knowledge";
+            addMsg("bot", "Could not rebuild the knowledge index.", "is-err");
+          });
       });
     }
   })();
@@ -4878,6 +5108,45 @@
               refreshBtn.removeAttribute("disabled");
               refreshBtn.innerHTML = refreshLabel;
             });
+        });
+      }
+      // "Write these for me": AI drafts the keywords + both focus prompts from what the workspace
+      // knows about this client. Fills the fields only -- the admin reviews, tweaks, then Saves.
+      var suggestBtn = document.getElementById("ax-intel-suggest");
+      if (suggestBtn) {
+        var suggestLabel = suggestBtn.innerHTML;
+        var suggestFail = function (msg) {
+          suggestBtn.removeAttribute("disabled");
+          suggestBtn.innerHTML = suggestLabel;
+          if (statusEl) { statusEl.classList.add("is-err"); statusEl.textContent = msg; }
+        };
+        suggestBtn.addEventListener("click", function () {
+          suggestBtn.setAttribute("disabled", "disabled");
+          suggestBtn.textContent = "Writing…";
+          if (statusEl) {
+            statusEl.classList.remove("is-err");
+            statusEl.textContent = "Studying this client and drafting the keywords + focus prompts — this can take a minute…";
+          }
+          post("/admin/intel", { op: "suggest" })
+            .then(function (data) {
+              if (!data || data.ok === false) {
+                suggestFail((data && data.message) || "Could not draft the prompts.");
+                return;
+              }
+              suggestBtn.removeAttribute("disabled");
+              suggestBtn.innerHTML = suggestLabel;
+              var fill = function (id, v) {
+                var el = document.getElementById(id);
+                if (el && v) { el.value = v; }
+              };
+              fill("ax-intel-topics", data.topics);
+              fill("ax-intel-bizprompt", data.business_prompt);
+              fill("ax-intel-mediaprompt", data.media_prompt);
+              var adv = document.querySelector(".ax-intel-ai-adv");
+              if (adv) { adv.open = true; }
+              if (statusEl) { statusEl.textContent = "Drafted — review the keywords and both focus prompts, tweak anything, then Save settings."; }
+            })
+            .catch(function () { suggestFail("Could not draft the prompts. Please try again."); });
         });
       }
     })();

@@ -143,6 +143,23 @@ auto-refresh (see those bullets below). Product name is one constant:
   egress proxy: create Secret `watcher-proxy-url` (full proxy URL, e.g. Webshare rotating
   residential) and redeploy — `deploy_dash_platform.ps1` mounts it as `WATCHER_PROXY_URL` only when
   it exists. Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube fetchers).
+- **Assistant is a TEAM-ONLY tab (RAG chat over the WHOLE workspace):** grounded Q&A across every
+  source the portal holds for a client — campaigns + content (incl. comments), workspace metrics,
+  Market Intelligence, the calendar, client conversations, website health, every Watcher
+  transcript, and (opt-in) the client's dashboard `<c>.json` KPI export. `dash/assistant_ai.py`:
+  `build_chunks` flattens the sources, `build_index` stores a pure-Python BM25 index as ONE private
+  object `workspace/assistant/<c>/index.json` (rebuilt lazily via `fingerprint` whenever data
+  moves; no vector DB, no new deps), `ask` retrieves top chunks (optionally date-ranged — dated
+  sources only) and answers with the intel brain's provider plumbing (`intel_ai._call`, the
+  client's configured model or the default; prompts for `{"answer": ...}` JSON, parsed leniently).
+  Answers cite sources; the UI shows them as chips. Routes: `POST /w/<c>/admin/assistant` (`op`
+  ask|reindex, gated `is_superadmin()`); tab gated like the other team tabs. The dashboard-data
+  source needs a one-time grant: `services/portal/dash/enable_assistant_dash_data.ps1` gives the
+  portal SA objectViewer on each client dash bucket (run 2026-07-12; re-run for new clients) —
+  without it that source is silently skipped. `VERTEX_ACCESS_TOKEN` env (dev-only) lets the same
+  Vertex code paths run off-cloud with a `gcloud auth print-access-token` token. Off-cloud test:
+  `dash/_assistant_localtest.py` (in CI). The Watcher tab also gained a Looker-style upload-date
+  range control (presets + custom from/to) that filters videos and creators client-side.
 - **Content with a date mirrors onto the Content Calendar (linked event):** when an admin gives a
   content piece a `date` (in the add/edit-content form), `workspace.add_content`/`update_content`
   mirror it into `calendar[]` as a linked event carrying `content_id` + `tab` (paid→`leadgen`,
@@ -245,7 +262,11 @@ auto-refresh (see those bullets below). Product name is one constant:
     only in the admin trace panel (client-facing display is a TODO). Each run is **ADDITIVE**:
     `workspace.add_auto_intel` de-dupes new stories and APPENDS them (list grows, never wiped;
     plain-auto capped 60/section, manual + favourited always kept). Team edits via `POST
-    /w/<c>/admin/intel` ops: `ai_settings` (model/prompts/window/count/show_thinking), `topics`, `refresh-now`,
+    /w/<c>/admin/intel` ops: `ai_settings` (model/prompts/window/count/show_thinking), `topics`,
+    `suggest` (the panel's "Write these for me" — `intel_ai.suggest_config` AI-drafts the keywords +
+    both focus prompts from what the workspace knows about the client — campaigns/website/watcher
+    industries via `main._intel_client_context` — grounded on a live Google lookup when the model is
+    Gemini; returns the drafts WITHOUT saving, the panel fills the fields for review + Save), `refresh-now`,
     `bulk` (mass delete / favourite — favourite stars + pins), plus add/edit/delete. **Gated:** the
     job no-ops unless `INTEL_AUTO_ENABLED=1`; it REUSES the platform-dash image + web SA. New infra:
     the scheduler job (impersonates the **web SA**, not the cloudscheduler service agent — owners

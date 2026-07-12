@@ -317,6 +317,11 @@ def _gcp_access_token(token_fetcher=None):
     Cloud Run / any GCE-family runtime the SA runs on)."""
     if token_fetcher is not None:
         return token_fetcher() or ""
+    # Local/dev override: a token minted outside Cloud Run (e.g. `gcloud auth print-access-token`)
+    # lets the SAME code paths run off-cloud without a metadata server.
+    env_token = os.environ.get("VERTEX_ACCESS_TOKEN", "").strip()
+    if env_token:
+        return env_token
     try:
         import requests  # lazy
         r = requests.get(_METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"}, timeout=10)
@@ -424,27 +429,33 @@ def _call(model, system, user, fetcher, max_tokens, token_fetcher=None, capture=
 
 
 # --- Parsing ------------------------------------------------------------------------------------
-def _parse_entries(raw):
-    """Best-effort parse of a model reply into a list of {n, heading, title, summary} dicts.
-
-    Tolerates a ```json fence or surrounding prose and both {"entries":[...]} and a bare [...]
-    array. Returns [] if nothing parseable is found (never raises)."""
+def _parse_json(raw):
+    """Lenient JSON parse of a model reply (dict OR list). Tolerates a ```json fence or surrounding
+    prose (grabs the first JSON-looking block). Returns the parsed object or None (never raises)."""
     if not raw:
-        return []
+        return None
     text = raw.strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
         text = re.sub(r"\n?```$", "", text).strip()
-    obj = None
     try:
-        obj = json.loads(text)
+        return json.loads(text)
     except Exception:
         m = re.search(r"[\[{].*[\]}]", text, re.DOTALL)  # grab the first JSON-looking block
         if m:
             try:
-                obj = json.loads(m.group(0))
+                return json.loads(m.group(0))
             except Exception:
-                obj = None
+                return None
+    return None
+
+
+def _parse_entries(raw):
+    """Best-effort parse of a model reply into a list of {n, heading, title, summary} dicts.
+
+    Accepts both {"entries":[...]} and a bare [...] array (fences/prose tolerated via _parse_json).
+    Returns [] if nothing parseable is found (never raises)."""
+    obj = _parse_json(raw)
     if obj is None:
         return []
     if isinstance(obj, dict):
@@ -728,4 +739,94 @@ def research(section, client_name, topics, prompt=None, model=None, limit=8, hea
             break
     if not out:
         return None, "the model found no relevant items"
+    return out, ""
+
+
+# ================================================================================================
+# CONFIG DRAFTING -- the panel's "Write with AI" button: draft a client's keywords + focus prompts.
+# ================================================================================================
+# Given whatever the workspace already knows about the client (campaign strategies, website,
+# watcher industries...), the model drafts the three admin-tunable settings: the research keywords
+# and the two per-section editorial prompts. Nothing is saved here -- the route returns the drafts
+# and the panel fills the fields for the admin to review and Save. On a grounding-capable model
+# (Gemini) the draft is grounded: the model first LOOKS THE CLIENT UP on live Google Search, so a
+# nearly-empty workspace still gets specific, informed suggestions instead of generic filler.
+
+_SUGGEST_FIELD_MAX = {"topics": 400, "business_prompt": 900, "media_prompt": 900}
+
+
+def _suggest_system_prompt(client_name, grounded):
+    """The drafting contract: what each of the three settings is for + the locked JSON shape."""
+    name = client_name or "the client"
+    search_step = (
+        "First, use Google Search to look the client up -- their website, what they sell, who "
+        "their customers and competitors are -- so the drafts are specific, never generic.\n\n"
+        if grounded else "")
+    return (
+        "You configure the \"AI Research Brain\" for AGORA, a marketing agency. The brain runs "
+        "daily web research that fills the Market Intelligence briefing shown to the client "
+        "\"%s\"; it is steered by three admin-written settings you must now draft for this "
+        "client:\n"
+        "  1. \"topics\" -- 4-8 comma-separated research keywords: their industry and product "
+        "category, who their customers are, and named competitors if known. Specific beats "
+        "generic (\"boutique RV rentals\", not \"travel\"). These are SEEDS the researcher "
+        "expands into real web searches.\n"
+        "  2. \"business_prompt\" -- 2-4 sentences of editorial guidance for the Business "
+        "Research section: which competitor, market, customer, and regulatory developments "
+        "genuinely matter to THIS client, and what to skip.\n"
+        "  3. \"media_prompt\" -- 2-4 sentences for the Media Buying News section: which ad "
+        "platforms this client most plausibly spends on, and which kinds of platform changes "
+        "(formats, targeting, policy, measurement, pricing) matter to them.\n\n"
+        "%s"
+        "Write the prompts as direct instructions to a researcher, in the same instructional "
+        "style as these defaults -- tailored to this client, never a copy:\n"
+        "  DEFAULT business_prompt: %s\n"
+        "  DEFAULT media_prompt: %s\n\n"
+        "Return STRICT JSON and nothing else (no markdown, no code fences, no commentary):\n"
+        "{\"topics\": \"kw1, kw2, ...\", \"business_prompt\": \"...\", \"media_prompt\": \"...\"}"
+        % (name, search_step, DEFAULT_BUSINESS_PROMPT, DEFAULT_MEDIA_PROMPT)
+    )
+
+
+def suggest_config(client_name, context="", model=None, fetcher=None, token_fetcher=None,
+                   max_tokens=2048):
+    """Draft the AI Research Brain settings for a client. Returns (fields, error).
+
+    `fields` = {"topics", "business_prompt", "media_prompt"} (strings; a field the model skipped
+    is ""), or None with a SHORT human reason on failure -- gated + graceful like every call here.
+    `context` is the plain-text digest of what the workspace already knows about the client. Uses
+    the client's selected `model` when it's available, else the first configured model; a Gemini
+    model grounds the draft on a live Google-Search lookup of the client first."""
+    mid = model if model_available(model) else default_model()
+    if not mid:
+        return None, "no AI model is configured on the server"
+    meta = model_meta(mid)
+    grounded = model_supports_grounding(mid)
+    system = _suggest_system_prompt(client_name, grounded)
+    user = (
+        "Client: %s.\nWhat the agency already knows about them:\n%s\n\n"
+        "Draft the three settings for this client now and return the JSON."
+        % (client_name or "the client",
+           (context or "").strip() or "(very little yet -- just the name; infer what you can)"))
+    if grounded:
+        raw, err, _thinking, _grounding = _call_vertex_grounded(
+            meta["id"], system, user, fetcher, token_fetcher, capture=False, max_tokens=max_tokens)
+    else:
+        raw, err, _thinking = _call(meta, system, user, fetcher, max_tokens, token_fetcher)
+    if err:
+        return None, err
+    obj = _parse_json(raw)
+    if not isinstance(obj, dict):
+        return None, "the model returned nothing usable"
+    out = {}
+    for field, cap in _SUGGEST_FIELD_MAX.items():
+        v = obj.get(field)
+        if isinstance(v, (list, tuple)):        # tolerate topics coming back as a JSON array
+            v = ", ".join(str(x).strip() for x in v if str(x).strip())
+        v = (str(v) if v is not None else "").strip()
+        if len(v) > cap:
+            v = v[:cap].rsplit(" ", 1)[0] + "…"
+        out[field] = v
+    if not any(out.values()):
+        return None, "the model returned nothing usable"
     return out, ""

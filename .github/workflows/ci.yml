@@ -80,6 +80,10 @@ jobs:
         working-directory: services/portal/dash
         run: python _watcher_localtest.py
 
+      - name: Assistant RAG test (chunking, BM25, route; LLM stubbed)
+        working-directory: services/portal/dash
+        run: python _assistant_localtest.py
+
       - name: Audit feed + Trash restore test (stubs GCS)
         working-directory: services/portal/dash
         run: python _audit_localtest.py

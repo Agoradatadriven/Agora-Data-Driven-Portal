@@ -474,6 +474,29 @@ def run():
     _check("intel topics saved",
            r.status_code == 200
            and workspace.get_intel_topics(workspace.load_workspace(CLIENT)) == ["RV rentals", "campgrounds"])
+    # "Write these for me" (op=suggest): no provider configured -> a friendly reason, never a 500.
+    _check("suggest button renders in the AI panel", 'id="ax-intel-suggest"' in intel_page)
+    r = c.post("/w/%s/admin/intel" % CLIENT, data={"op": "suggest"})
+    _check("suggest with no provider -> ok:false + reason",
+           r.status_code == 200 and r.get_json().get("ok") is False
+           and "model" in r.get_json().get("message", "").lower())
+    # With the AI stubbed, the route returns the three drafts (fields only -- nothing saved).
+    import intel_ai   # noqa: E402
+    _real_suggest = intel_ai.suggest_config
+    intel_ai.suggest_config = lambda name, context="", model=None: (
+        {"topics": "boutique RV rentals, roadtrip travellers", "business_prompt": "Watch RV demand.",
+         "media_prompt": "Watch travel-ad platforms."}, "")
+    try:
+        r = c.post("/w/%s/admin/intel" % CLIENT, data={"op": "suggest"})
+        j = r.get_json()
+        _check("suggest returns the three drafted fields",
+               r.status_code == 200 and j.get("ok") is True
+               and j.get("topics") == "boutique RV rentals, roadtrip travellers"
+               and j.get("business_prompt") and j.get("media_prompt"))
+        _check("suggest does NOT save (keywords unchanged until Save settings)",
+               workspace.get_intel_topics(workspace.load_workspace(CLIENT)) == ["RV rentals", "campgrounds"])
+    finally:
+        intel_ai.suggest_config = _real_suggest
     # Bulk favourite + delete on selected entries.
     bid = workspace.add_intel_entry(CLIENT, "media_buying", {"title": "Bulk fav me"})["id"]
     r = c.post("/w/%s/admin/intel" % CLIENT,
