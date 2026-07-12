@@ -31,21 +31,20 @@
 
 ## 2. Finish the redesign (immediate, this week)
 
-1. [ ] **Commit the admin redesign** on `redesign/console-home-hub`
-       (4 files: `admin_atrium.html`, both smoke tests, + decide whether to commit the plan doc or
-       gitignore it — recommendation: commit it, it documents the why).
-2. [ ] **Push + PR** via `tools/push-branch.ps1` → CI must be green (`.github/workflows/ci.yml`).
-3. [ ] **Deploy** after merge: `services/portal/dash/deploy_dash_platform.ps1` (manual build →
+1. [x] **Commit the admin redesign** — done: landed on `main` (`d43a9e7` → merge `fc934bf`).
+2. [x] **Push + PR** — done: `main` carries the redesign.
+3. [ ] **Deploy**: `services/portal/dash/deploy_dash_platform.ps1` (manual build →
        `gcloud run deploy platform-dash --no-invoker-iam-check`). Never Cloud Build from a laptop.
 4. [ ] **Click-through on production** after deploy: hub loads → Atrium Admin → each pane →
        an action redirect (e.g. reset password) lands on the right section — mirror the §8 checklist
        in the redesign plan.
-5. [ ] **Phase 4 (fast-follow, recommended):** "N awaiting approval" chips on the client cards in the
-       console — needs a small `main.py` addition (count `status=="awaiting"` per workspace).
-       Watch the perf note: it reads every workspace JSON on console load.
-6. [ ] **Phase 5 (optional):** align `brand.py` + `assets/brand.json` to the website palette so the
-       login/portal chrome matches the console (today the console is website-purple while the login
-       chrome is still app-blue — a visible seam between pages).
+5. [x] **Phase 4 — BUILT 2026-07-12:** "N awaiting approval" / "All caught up" chips on the client
+       cards, attention-first sort, total on the hub card. No perf cost — `admin_atrium()` already
+       loaded each workspace for the card logo, so the count is a free walk.
+6. [x] **Phase 5 — BUILT 2026-07-12:** `brand.py` + `assets/brand.json`/`brand.md` + the front-door
+       chrome (`login/signup/request_access/portal/profile` templates, impersonation banner) aligned
+       to the website palette (green `#4FA84A` + purple `#6A6AEA`). The client workspace keeps its
+       original palette by the 2026-07-10 decision. Ships with the same deploy as #3.
 
 ---
 
@@ -85,8 +84,9 @@ From `ATRIUM_ANALYSIS.md` §6–7 — unchanged by the redesign, still open, sti
        covers user actions but nothing catches server errors today.
 9. [ ] **Intel grounding ToS TODO** (flagged in CLAUDE.md): Google requires Search Suggestions to be
        shown to end-users; they currently render only in the admin trace panel.
-10. [ ] **Docs hygiene:** update `services/portal/dash/CLAUDE.md`'s console description after the
-        redesign ships (it still describes the old 8-pane console — Apps/Profile/Clients/… panes).
+10. [x] **Docs hygiene — DONE 2026-07-12:** `services/portal/dash/CLAUDE.md` + root `CLAUDE.md` now
+        describe the Home-hub console (grouped rail, merged Accounts, attention chips) and the
+        website palette; `assets/brand.md`/`brand.json` + READMEs updated to match.
 
 ## 6. Product roadmap (recommended order)
 

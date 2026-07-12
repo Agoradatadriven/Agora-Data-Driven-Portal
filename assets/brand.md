@@ -25,22 +25,26 @@ step — and update `AGORA_LOGO_LIGHT` in `dash/brand.py` so the portal/login ch
 
 ## Colours
 
+Standardized 2026-07 on the **website design system** (`website/src/styles/global.css`) so the whole
+customer-facing suite — site, login, portal, console — reads as one brand.
+
 | Token | Hex | Role |
 |-------|-----|------|
-| Data Green | `#4FAB4A` | primary / CTA / positive |
-| Green (dark) | `#347A30` | green text on light, hovers |
-| Green (tint) | `#EAF6E9` | soft green wash, chips |
-| Accent Purple | `#9484FB` | subtle accent, dots, light tints |
-| Purple (deep) | `#5C4BD0` | solid violet fills with white text, hovers |
-| Purple (tint) | `#F1EFFE` | soft violet wash |
+| Data Green | `#4FA84A` | primary / CTA / positive (website brand-500) |
+| Green (dark) | `#3F8B3B` | green text on light, hovers (website brand-600) |
+| Green (tint) | `#EEF6ED` | soft green wash, chips (website tint) |
+| Accent Purple | `#6A6AEA` | informational accent, dots, light tints (website accent-500) |
+| Purple (deep) | `#5A54DD` | solid violet fills with white text, hovers (website accent-600) |
+| Purple (tint) | `#ECECFB` | soft violet wash (website accent-100) |
 | Graphite Black | `#000000` | graphite black |
-| Ink | `#1A1B1E` | near-black bold type / the logo |
+| Ink | `#121212` | near-black bold type / the logo (website ink) |
 | Charcoal Text | `#353535` | body copy |
-| Soft Grey | `#EEEEEE` | hairlines / surfaces |
-| Canvas | `#F6F7F9` | app canvas (off-white) |
+| Soft Grey | `#E6E6E9` | hairlines / surfaces (website line) |
+| Canvas | `#F7F7F8` | app canvas (off-white, website canvas) |
 
-> Solid green and the deep purple carry white text; the pale **Accent Purple `#9484FB`** is for
-> dots, hairlines, and tints only — it is too light for white text on it.
+> **Green = primary action, purple = informational** (status chips, badges) — never mix the two.
+> Solid green and the deep purple carry white text; the mid **Accent Purple `#6A6AEA`** is for
+> dots, chips, and tints.
 
 ## Fonts
 

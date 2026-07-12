@@ -25,17 +25,20 @@ import os
 _FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 # --- Official brand palette (mirrors assets/brand.json) -------------------------------------
-GREEN = "#4CAC4C"          # Data Green -- primary CTA / positive
-GREEN_DARK = "#3E8C3B"     # deeper green -- text on light, hovers, accents
-GREEN_TINT = "#EAF6E9"     # soft green wash -- tints / chips
-PURPLE = "#2575FC"         # Accent Purple -- subtle accent, dots, light tints
-PURPLE_DEEP = "#1856C9"    # deeper violet -- solid fills with white text, hovers
-PURPLE_TINT = "#E7F0FE"    # soft violet wash
+# Standardized 2026-07 on the WEBSITE design system (website/src/styles/global.css) so the whole
+# customer-facing suite -- site, login, portal, console -- reads as one brand (see
+# ATRIUM_CONSOLE_REDESIGN_PLAN.md Phase 5).
+GREEN = "#4FA84A"          # Data Green -- primary CTA / positive (website brand-500)
+GREEN_DARK = "#3F8B3B"     # deeper green -- text on light, hovers, accents (website brand-600)
+GREEN_TINT = "#EEF6ED"     # soft green wash -- tints / chips (website tint)
+PURPLE = "#6A6AEA"         # Accent Purple -- informational accent, dots, light tints (website accent-500)
+PURPLE_DEEP = "#5A54DD"    # deeper violet -- solid fills with white text, hovers (website accent-600)
+PURPLE_TINT = "#ECECFB"    # soft violet wash (website accent-100)
 GRAPHITE = "#000000"       # Graphite Black
-INK = "#0C1022"            # near-black ink for bold type
+INK = "#121212"            # near-black ink for bold type (website ink)
 CHARCOAL = "#353535"       # Charcoal Text -- body copy
-SOFT_GREY = "#EEEEEE"      # Soft Grey -- hairlines / surfaces
-CANVAS = "#FFFFFF"         # app canvas (off-white)
+SOFT_GREY = "#E6E6E9"      # Soft Grey -- hairlines / surfaces (website line)
+CANVAS = "#F7F7F8"         # app canvas (off-white, website canvas)
 
 
 def _logo(ink, sub):
@@ -102,7 +105,7 @@ AGORA_LOGO_HORIZONTAL = (
 AGORA_ICON = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 38 40" '
     'role="img" aria-label="AGORA">'
-    '<g fill="none" stroke="#0C1022" stroke-linecap="round" stroke-linejoin="round">'
+    '<g fill="none" stroke="#121212" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M3 37 L19 4 L35 37" stroke-width="1.9"/>'
     '<path d="M12 37 L24 12" stroke-width="1.2" opacity="0.5"/>'
     '<path d="M11.5 24 L26.5 24" stroke-width="1.7"/>'
@@ -113,7 +116,7 @@ AGORA_ICON = (
 # Green line-art peak -- the FALLBACK favicon, used only when the real PNG below is absent.
 _FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 40">'
-    '<g fill="none" stroke="#4CAC4C" stroke-linecap="round" stroke-linejoin="round">'
+    '<g fill="none" stroke="#4FA84A" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M3 37 L19 4 L35 37" stroke-width="2.4"/>'
     '<path d="M12 37 L24 12" stroke-width="1.6" opacity="0.55"/>'
     '<path d="M11.5 24 L26.5 24" stroke-width="2.2"/>'

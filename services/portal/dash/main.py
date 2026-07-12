@@ -367,11 +367,11 @@ def _inject_head(resp):
         real = str(_esc(imp))
         banner = (
             '<div style="position:fixed;left:0;right:0;bottom:0;z-index:2147483646;display:flex;'
-            'gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;background:#1856C9;'
+            'gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;background:#5A54DD;'
             "color:#fff;padding:9px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',"
             'Roboto,Arial,sans-serif;font-size:13px;box-shadow:0 -4px 14px rgba(16,24,40,.18);">'
             '<span>Acting as <b>%s</b> &middot; signed in as <b>%s</b></span>'
-            '<a href="/admin/stop-impersonating" style="background:#fff;color:#1856C9;'
+            '<a href="/admin/stop-impersonating" style="background:#fff;color:#5A54DD;'
             'text-decoration:none;font-weight:800;border-radius:999px;padding:5px 13px;'
             'font-size:12px;">Stop acting as</a></div>'
         ) % (acting, real)
@@ -751,8 +751,8 @@ def _inject_portal_chrome(html, client_key):
         '<a href="/" style="%scolor:#353535;">All dashboards</a>'
         '<a href="/logout" style="%scolor:#E5413E;">Log out</a>'
         '<a href="/" title="Send feedback" style="padding:7px 13px;border-radius:999px;'
-        'background:#4FAB4A;color:#fff;text-decoration:none;font-size:12px;font-weight:700;'
-        'box-shadow:0 4px 14px rgba(79,171,74,.34);">Feedback</a>'
+        'background:#4FA84A;color:#fff;text-decoration:none;font-size:12px;font-weight:700;'
+        'box-shadow:0 4px 14px rgba(79,168,74,.34);">Feedback</a>'
         '</div>'
     ) % (_pill, _pill)
     marker = "</body>"
@@ -2240,8 +2240,18 @@ def admin_atrium():
         # Logo shown on the card: the client's own logo from its workspace, else an initials monogram
         # (so a brand-new / unseeded client still renders something on-brand rather than an empty box).
         logo = (ws.get("brand", {}).get("client_logo") if ws else None) or brand.monogram(name or key)
+        # Attention chip: content pieces still awaiting the client's approval (mirrors the
+        # status=="awaiting" filter in atrium.html). The workspace JSON is already in hand for the
+        # logo above, so this is a free walk -- no extra bucket read per client.
+        awaiting = 0
+        for camp in (ws or {}).get("campaigns", []):
+            for piece in camp.get("content", []) or []:
+                if piece.get("status") == "awaiting":
+                    awaiting += 1
         clients.append({"key": key, "name": name,
-                        "has_workspace": ws is not None, "logo": logo})
+                        "has_workspace": ws is not None, "logo": logo, "awaiting": awaiting})
+    # Clients needing attention come first; the sort is stable so ties keep their registry order.
+    clients.sort(key=lambda c: -c["awaiting"])
 
     all_accounts = store.list_accounts()
     pending = [a for a in all_accounts if a.get("status") == "pending"]
@@ -2280,6 +2290,7 @@ def admin_atrium():
 
     return render_template(
         "admin_atrium.html", clients=clients, pending=pending,
+        awaiting_total=sum(c["awaiting"] for c in clients),
         client_accounts=client_accounts, admin_accounts=admin_accounts,
         profile=profile, is_root_admin=is_root_admin(), super_admin_email=SUPER_ADMIN_EMAIL,
         activity=activity, trash=trash, trash_ttl_days=audit.TRASH_TTL_DAYS,

@@ -18,9 +18,9 @@
     /* Agora Data Driven brand: light, clean -- white space + bold black type + green CTA + purple
        accent (mirrors assets/brand.json). */
     :root {
-      --ag-green:#4CAC4C; --ag-green-d:#3E8C3B; --ag-green-bg:#EAF6E9;
-      --ag-purple:#2575FC; --ag-purple-d:#1856C9; --ag-purple-bg:#E7F0FE;
-      --ag-ink:#0C1022; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-green:#4FA84A; --ag-green-d:#3F8B3B; --ag-green-bg:#EEF6ED;
+      --ag-purple:#6A6AEA; --ag-purple-d:#5A54DD; --ag-purple-bg:#ECECFB;
+      --ag-ink:#121212; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
       --ag-canvas:#FFFFFF; --ag-link:#CC3366; --ag-white:#fff; --ag-danger:#E5413E;
       --ag-shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
     }
@@ -31,8 +31,8 @@
       text-rendering: optimizeLegibility;
       color: var(--ag-ink);
       background:
-        radial-gradient(900px 480px at 8% -12%, rgba(79,171,74,0.10), transparent 60%),
-        radial-gradient(820px 480px at 104% 6%, rgba(37,117,252,0.10), transparent 56%),
+        radial-gradient(900px 480px at 8% -12%, rgba(79,168,74,0.10), transparent 60%),
+        radial-gradient(820px 480px at 104% 6%, rgba(106,106,234,0.10), transparent 56%),
         var(--ag-canvas);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
@@ -137,7 +137,7 @@
       outline: none;
       transition: border-color .12s, box-shadow .12s;
     }
-    .feedback textarea:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,171,74,.14); }
+    .feedback textarea:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,168,74,.14); }
     .feedback .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
     .btn {
       padding: 10px 16px;
@@ -147,7 +147,7 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .btn.send { background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,171,74,.24); }
+    .btn.send { background: var(--ag-green); color: #fff; box-shadow: 0 6px 14px rgba(79,168,74,.24); }
     .btn.send:hover { background: var(--ag-green-d); }
     .btn.voice {
       background: var(--ag-white);

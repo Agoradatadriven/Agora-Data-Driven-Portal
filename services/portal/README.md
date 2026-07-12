@@ -133,14 +133,15 @@ save the opt-in Google-Doc summary feature (below). The product name lives in on
   unconfigured deploy can never break, and **no provider key is committed**. The team inbox is
   `ATRIUM_TEAM_EMAIL` (default `info@agoradatadriven.com`). Team→client emails respect each
   recipient's Notification-settings toggles (master switch wins).
-- **The theme follows the brand kit.** The whole front-door — login, the portal landing, and the team
-  console — uses the Agora **light** brand: a white canvas with bold black type, a green CTA, and a
-  subtle purple accent, fronted by the AGORA mark from `dash/brand.py` (`assets/brand.json` is the
-  brand board). The Atrium surface uses the same official palette (Data Green `#4FAB4A`, Accent Purple
-  `#9484FB`), every selector scoped under `.atrium` so it stays self-contained. The per-client
-  dashboards under `/d/<c>/` keep their own dark chrome (a small brand-coloured nav pill is injected
-  over them). Inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script
-  block), so the pre-deploy JS gate stays green.
+- **The theme follows the brand kit — the WEBSITE palette.** The whole front-door — login, the portal
+  landing, and the team console — uses the Agora **light** brand aligned to the website design system:
+  a white canvas with bold black type, green = primary/CTA (Data Green `#4FA84A`) and purple =
+  informational accent (`#6A6AEA`, deep `#5A54DD`), fronted by the AGORA mark from `dash/brand.py`
+  (`assets/brand.json` is the brand board). The Atrium **client workspace** (`atrium.html`) keeps its
+  original design by decision (2026-07-10), every selector scoped under `.atrium` so it stays
+  self-contained. The per-client dashboards under `/d/<c>/` keep their own dark chrome (a small
+  brand-coloured nav pill is injected over them). Inline JS is esprima-4.x-safe and reads state from
+  the DOM (no Jinja in any script block), so the pre-deploy JS gate stays green.
 
 **Seed the Riverdance demo (once).** `dash/seed_workspace.py` writes `workspace/riverdance.json`
 (idempotent — refuses to clobber an existing object) and registers `riverdance` in the registry so

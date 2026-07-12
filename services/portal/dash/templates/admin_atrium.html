@@ -102,6 +102,7 @@
     .app-desc { color: var(--muted); font-size: 13.5px; line-height: 1.55; }
     .app-meta { margin-top: auto; padding-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; font-weight: 700; }
     .app-stat { color: var(--brand-700); }
+    .app-flag { color: var(--accent-600); }
     .app-open { color: var(--brand-700); } .app.info .app-open, .app.plain .app-open { color: var(--muted); }
     .app-cta { position: absolute; top: 24px; right: 24px; color: var(--brand-600); opacity: 0; transform: translateX(-4px); transition: opacity .25s, transform .25s; }
     .app:hover .app-cta { opacity: 1; transform: none; }
@@ -178,6 +179,10 @@
     .card .card-main { flex: 1 1 auto; min-width: 0; text-decoration: none; color: var(--ink); padding-right: 18px; }
     .card .name { font-family: var(--font-display); font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .card .st { font-size: 12px; color: var(--muted); margin-top: 5px; }
+    /* Attention chip: purple = informational (work waiting), green = all caught up. */
+    .card .chip { display: inline-flex; align-items: center; margin-top: 9px; font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 3px 10px; }
+    .card .chip.await { background: var(--accent-100); color: var(--accent-600); }
+    .card .chip.ok { background: var(--tint); color: var(--brand-700); }
     .card .card-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 72px; }
     .card .card-logo { width: 72px; height: 54px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line);
       border-radius: 10px; background: var(--canvas); overflow: hidden; padding: 6px; }
@@ -308,7 +313,7 @@
             <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
             <div class="app-name">Atrium Admin</div>
             <div class="app-desc">Client workspaces, accounts, access requests and activity &mdash; your day-to-day console.</div>
-            <div class="app-meta"><span class="app-stat tnum">{{ clients|length }} client workspace{{ '' if clients|length == 1 else 's' }}</span></div>
+            <div class="app-meta"><span class="app-stat tnum">{{ clients|length }} client workspace{{ '' if clients|length == 1 else 's' }}</span>{% if awaiting_total %}<span class="app-flag tnum">{{ awaiting_total }} awaiting approval</span>{% endif %}</div>
           </a>
           <a class="app info" href="{{ skill_mastery_url }}" target="_blank" rel="noopener">
             <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
@@ -396,6 +401,10 @@
               <a class="card-main" href="/w/{{ c.key }}/">
                 <div class="name">{{ c.name|default(c.key, true) }}</div>
                 <div class="st">{{ 'Open workspace →' if c.has_workspace else 'No workspace yet' }}</div>
+                {% if c.has_workspace %}
+                  {% if c.awaiting %}<span class="chip await tnum">{{ c.awaiting }} awaiting approval</span>
+                  {% else %}<span class="chip ok">All caught up</span>{% endif %}
+                {% endif %}
               </a>
               <div class="card-side">
                 <div class="card-logo">{{ c.logo|safe }}</div>

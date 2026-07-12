@@ -46,8 +46,9 @@ if a client logo is missing, an initials monogram is generated from the client's
   (rendered ~120px wide).
 - **Client `clients/<c>.svg`:** a **square-ish mark/monogram** works best (rendered ~34px); a wide
   wordmark gets tiny.
-- **Official brand palette** (from `brand.json`): Data Green `#4FAB4A`, Accent Purple `#9484FB`,
-  Graphite Black `#000000`, Charcoal Text `#353535`, Soft Grey `#EEEEEE`. The portal, login, team
-  console, and Atrium **all now use this palette** — a light canvas with bold black type, a green CTA,
-  and a subtle purple accent. The deeper companion `#5C4BD0` carries white text where the pale Accent
-  Purple cannot (buttons, the avatar, the paid split bar).
+- **Official brand palette** (from `brand.json`, standardized 2026-07 on the website design system):
+  Data Green `#4FA84A`, Accent Purple `#6A6AEA`, Graphite Black `#000000`, Charcoal Text `#353535`,
+  Soft Grey `#E6E6E9`. The portal, login, and team console use this palette — a light canvas with
+  bold black type, green = primary/CTA, purple = informational accent; the deeper companion `#5A54DD`
+  carries white text where the mid Accent Purple cannot. The Atrium **client workspace** keeps its
+  original palette by decision (2026-07-10).

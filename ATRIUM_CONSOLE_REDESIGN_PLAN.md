@@ -1,10 +1,12 @@
 # Atrium Team Console — Redesign Implementation Plan (Concept B: Home Hub)
 
-> **STATUS (2026-07-10): Phases 1–3 BUILT** on branch `redesign/console-home-hub` (uncommitted).
-> Admin console redesign is done and validated (all 7 off-cloud tests + JS gate green).
+> **STATUS (2026-07-12): Phases 1–5 BUILT.** Phases 1–3 (hub + rail + merged Accounts) are merged to
+> `main` (`d43a9e7` → `fc934bf`). Phases 4 (awaiting-approval chips) and 5 (brand alignment to the
+> website palette across `brand.py`, `assets/brand.json`, and the login/portal/signup/request-access/
+> profile chrome + impersonation banner) were built 2026-07-12 in the working tree.
 > A client-page (`atrium.html`) chrome re-skin was prototyped and built, then **reverted by
-> decision** — the client page stays on its original design. Remaining: commit → PR → CI → deploy,
-> then optional Phases 4–5. See `SYSTEM_STATUS_AND_RECOMMENDATIONS.md` for the full punch list.
+> decision** — the client page (and its family: dashboard_view, recap, docview) stays on its original
+> design. Remaining: commit → PR → CI → deploy. See `SYSTEM_STATUS_AND_RECOMMENDATIONS.md`.
 
 > Turning the flat 8-item admin console into a **Home hub + focused console**, styled to the
 > Agora **website** design system. Prepared 2026-07-10. Target file:
@@ -139,20 +141,28 @@ This preserves every existing deep-link and redirect while making the hub the de
       `profile → Profile pane`, `trash → Bin`, `clients → Clients`.
 - [ ] Keep `is_root_admin` gating exactly as-is (admin-account management + role grants + impersonation).
 
-### Phase 4 — (Optional) attention chips on client cards
-- [ ] In `main.py` `admin_atrium()`: for each client with a workspace, compute the count of content
+### Phase 4 — attention chips on client cards — ✅ BUILT 2026-07-12
+- [x] In `main.py` `admin_atrium()`: for each client with a workspace, compute the count of content
       pieces with `status == "awaiting"` (mirror the `selectattr('status','equalto','awaiting')` logic
-      already in `atrium.html`) and pass it on each `client` dict.
-- [ ] Render an amber/purple **"N awaiting approval"** chip (purple = informational) or a green
-      **"All caught up"** chip on each card; sort clients so those needing attention come first.
-- [ ] ⚠️ **Perf note (no DB):** this loads each client's `workspace/<c>.json`. Fine at current client
-      counts; if it grows, memoize per request or defer to a small async fetch. Ship Phase 1–3 first;
-      treat this as a fast-follow.
+      already in `atrium.html`) and pass it on each `client` dict. The route ALREADY loads each
+      workspace for the card logo, so the count is a free walk — the perf note below is moot.
+- [x] Render a purple **"N awaiting approval"** chip (purple = informational) or a green
+      **"All caught up"** chip on each card; sort clients so those needing attention come first
+      (stable sort — ties keep registry order). The hub's Atrium Admin card shows the total as an
+      `.app-flag` next to the workspace count.
+- [x] ⚠️ **Perf note (no DB):** resolved — no extra reads; the workspace JSON was already loaded per
+      client for the logo.
 
-### Phase 5 — (Optional) brand alignment + polish
-- [ ] If we standardize on the website accent, optionally update `brand.py` palette + `assets/brand.json`
-      so portal/login chrome matches (keeps `AGORA_LOGO_*` untouched).
-- [ ] Empty states ("No clients yet", "No pending requests"), keyboard focus states, alt text.
+### Phase 5 — brand alignment + polish — ✅ BUILT 2026-07-12
+- [x] Standardized on the website accent: `brand.py` palette + `assets/brand.json` (+ `assets/brand.md`)
+      now carry the website tokens (green `#4FA84A`/`#3F8B3B`/`#EEF6ED`, purple `#6A6AEA`/`#5A54DD`/
+      `#ECECFB`, ink `#121212`), keeping `AGORA_LOGO_*` artwork untouched. Because the login/portal
+      chrome hardcodes its palette per template, the swap was applied to `login.html`, `signup.html`,
+      `request_access.html`, `portal.html`, `profile.html` and the impersonation banner + injected
+      chrome in `main.py` (hex AND rgba() forms). The client workspace family (`atrium.html`,
+      `dashboard_view.html`, `recap.html`, `atrium_docview.py`) keeps its original palette by decision.
+- [x] Empty states ("No clients yet", "No pending requests"), keyboard focus states (`:focus-visible`)
+      — already present in the built console.
 
 ---
 

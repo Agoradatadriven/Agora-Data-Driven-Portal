@@ -26,11 +26,20 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   button; routes fall back to password). An **unknown** email is routed to `request_access.html` -> `POST
   /auth/request-access` files a **passwordless pending** account that lands in the console's Access
   requests tab. Redirect URI: `${PORTAL_BASE_URL}/auth/google/callback` (or `GOOGLE_OAUTH_REDIRECT_URI`).
-- **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a left **side panel** with panes:
-  **Apps** (launcher: Atrium Admin · Skill Mastery · Website Editor deep-links) · Clients (cards + add)
-  · Access requests · Accounts · Create account · **Activity** (audit feed) · **Trash** (restorable
-  soft-deletes) · Profile. It IS the admin landing: `/` redirects a super-admin here and the legacy
-  `/admin` + `/superadmin` routes now just redirect here too (their client-add / password-reveal
+- **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a **Home hub + focused console**
+  (Concept B, see `ATRIUM_CONSOLE_REDESIGN_PLAN.md`), styled to the website design system (green
+  `#4FA84A` primary + purple `#6A6AEA` informational). A fresh visit lands on the branded **Home hub**
+  (Agora logo + greeting + the suite as cards: Atrium Admin · Skill Mastery · Website Editor ·
+  Sentinel); **Atrium Admin** enters the console, **← All apps** returns. The switch is client-side
+  view state only (`data-view` divs; a `?section=`/flash redirect opens the console directly, so every
+  deep-link and POST redirect still lands on its pane). Inside: grouped rail **Workspaces** (Clients ·
+  Activity · **Bin**, restorable soft-deletes) / **People & access** (**Accounts** — one pane with
+  inner subtabs Requests · People · Add new), and the operator account block at the bottom (opens
+  Profile; themed sign-out confirm). Client cards carry an attention chip — purple **"N awaiting
+  approval"** (count computed in `admin_atrium()` from each already-loaded workspace, cards needing
+  attention sorted first; total shown on the hub's Atrium Admin card) or green **"All caught up"**.
+  It IS the admin landing: `/` redirects a super-admin here and the legacy `/admin` + `/superadmin`
+  routes now just redirect here too (their client-add / password-reveal
   functions live in the console). Account routes
   (`/admin/accounts/{create-client,create-admin,grant-google,set-password,reset-password,delete}` +
   `/admin/profile/password`) are gated `is_superadmin()`; **admin-account** creation/management +

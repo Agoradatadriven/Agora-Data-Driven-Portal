@@ -18,8 +18,8 @@
     /* Agora Data Driven brand: light, clean -- white space + bold black type + green CTA + purple
        accent (mirrors login.html / assets/brand.json). */
     :root {
-      --ag-green:#4CAC4C; --ag-green-d:#3E8C3B; --ag-purple:#2575FC; --ag-purple-d:#1856C9;
-      --ag-ink:#0C1022; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
+      --ag-green:#4FA84A; --ag-green-d:#3F8B3B; --ag-purple:#6A6AEA; --ag-purple-d:#5A54DD;
+      --ag-ink:#121212; --ag-charcoal:#353535; --ag-muted:#6B7280; --ag-line:#E7E8EE;
       --ag-canvas:#FFFFFF; --ag-link:#CC3366; --ag-white:#fff; --ag-danger:#E5413E;
     }
     * { box-sizing: border-box; }
@@ -29,9 +29,9 @@
       font-family: "Roboto", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
       color: var(--ag-ink);
       background:
-        radial-gradient(760px 460px at 8% -10%, rgba(79,171,74,0.18), transparent 60%),
-        radial-gradient(720px 480px at 112% 116%, rgba(37,117,252,0.20), transparent 58%),
-        radial-gradient(900px 620px at 50% 122%, rgba(126,108,246,0.06), transparent 60%),
+        radial-gradient(760px 460px at 8% -10%, rgba(79,168,74,0.18), transparent 60%),
+        radial-gradient(720px 480px at 112% 116%, rgba(106,106,234,0.20), transparent 58%),
+        radial-gradient(900px 620px at 50% 122%, rgba(106,106,234,0.06), transparent 60%),
         var(--ag-canvas);
       display: flex;
       align-items: center;
@@ -52,14 +52,14 @@
     }
     /* Green->purple brand ribbon across the top of the card. */
     .card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-      background: linear-gradient(90deg, #4CAC4C 0%, #4CAC4C 45%, #2575FC 100%); }
+      background: linear-gradient(90deg, #4FA84A 0%, #4FA84A 45%, #6A6AEA 100%); }
     .brand { margin-bottom: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
     .brand svg { display: block; height: 38px; width: auto; }
     /* "Agora Atrium" product lockup -- the green->purple gradient pill from the brand kit. */
     .brand-atrium { display: inline-block; font-size: 12px; font-weight: 800; color: #fff;
-      background: linear-gradient(120deg, #4CAC4C 0%, #4CAC4C 40%, #2575FC 100%);
+      background: linear-gradient(120deg, #4FA84A 0%, #4FA84A 40%, #6A6AEA 100%);
       padding: 4px 13px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1.2px;
-      box-shadow: 0 6px 16px rgba(24,86,201,.28); }
+      box-shadow: 0 6px 16px rgba(90,84,221,.28); }
     h1 { font-size: 21px; margin: 0 0 6px; font-weight: 800; letter-spacing: -.4px; }
     .sub { color: var(--ag-muted); font-size: 13.5px; margin: 0 0 24px; }
     label {
@@ -78,7 +78,7 @@
       outline: none;
       transition: border-color .12s, box-shadow .12s;
     }
-    input:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,171,74,.14); }
+    input:focus { border-color: var(--ag-green); box-shadow: 0 0 0 3px rgba(79,168,74,.14); }
     /* Password field + an inline "Show" toggle (the design guidance: prefer show-password over a
        second confirm field). */
     .pw-wrap { position: relative; }
@@ -87,7 +87,7 @@
       position: absolute; top: 11px; right: 10px; border: 0; background: transparent; cursor: pointer;
       color: var(--ag-purple-d); font-size: 12px; font-weight: 700; padding: 4px 6px; border-radius: 8px;
     }
-    .pw-toggle:hover { background: var(--ag-purple-bg, #E7F0FE); }
+    .pw-toggle:hover { background: var(--ag-purple-bg, #ECECFB); }
     .hint { color: var(--ag-muted); font-size: 11.5px; margin: -8px 0 18px; }
     button.primary {
       width: 100%;
@@ -99,7 +99,7 @@
       font-weight: 700;
       font-size: 14px;
       cursor: pointer;
-      box-shadow: 0 8px 18px rgba(79,171,74,.28);
+      box-shadow: 0 8px 18px rgba(79,168,74,.28);
       transition: background .12s, box-shadow .12s;
     }
     button.primary:hover { background: var(--ag-green-d); }
@@ -114,7 +114,7 @@
     }
     /* "Request received" success panel. */
     .ok {
-      background: #EAF6E9; border: 1px solid #CDE9CC; color: var(--ag-green-d);
+      background: #EEF6ED; border: 1px solid #BEE0BC; color: var(--ag-green-d);
       padding: 16px 16px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; margin-bottom: 18px;
     }
     .ok strong { color: var(--ag-ink); }

@@ -228,16 +228,22 @@ auto-refresh (see those bullets below). Product name is one constant:
 - **Routes (all behind existing session auth):** client `GET /w/<c>/` + `/w/<c>/<tab>` (overview,
   dashboard, leadgen, organic, calendar, conversations, intel, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify,logo}` +
-  creative GET above; team-only POSTs `/w/<c>/resolve-comment` + `/w/<c>/admin/*` gated `is_superadmin()`. The team console is the
-  **landing page only** (`GET /admin/atrium`, gated `is_superadmin()`): a welcome banner + one card
-  per client (the worked-example `template` client is filtered out). **Clicking a card opens that
+  creative GET above; team-only POSTs `/w/<c>/resolve-comment` + `/w/<c>/admin/*` gated `is_superadmin()`. The team console
+  (`GET /admin/atrium`, gated `is_superadmin()`) is a **Home hub + focused console** (Concept B —
+  `ATRIUM_CONSOLE_REDESIGN_PLAN.md`): a fresh visit lands on the branded hub (suite cards: Atrium
+  Admin · Skill Mastery · Website Editor · Sentinel); **Atrium Admin** opens the console — grouped
+  rail *Workspaces* (Clients · Activity · Bin) / *People & access* (Accounts with subtabs Requests ·
+  People · Add new) — all client-side view state, so `?section=`/flash redirects still land on the
+  right pane. The Clients pane shows one card per client (the worked-example `template` client is
+  filtered out) with an attention chip (purple **"N awaiting approval"**, attention-first sort, or
+  green **"All caught up"**). **Clicking a card opens that
   client's workspace `/w/<c>/` directly** (where all editing happens in place). Each card also carries
   an **Upload logo** control (POST `/admin/atrium/<c>/logo` — embeds the image inline as a
   `brand.client_logo` `<img>` data-URI, ≤512 KB; same posture as seeded logos) and a confirmed
   **Delete** control (POST `/admin/atrium/<c>/delete` — `store.remove_client` +
   `workspace.delete_workspace`). **Add a new client** (`POST /admin/atrium/new`) asks ONLY for a
   display name (key auto-derives, password auto-generates) and on success redirects STRAIGHT to the
-  new client's blank `/w/<c>/`. The console nav is just **Log out** (no Portal/Admin links). The
+  new client's blank `/w/<c>/`. The
   portal landing (`/`) shows **Open dashboard** per client; the workspace `/w/<c>/` stays reachable
   directly and from the console.
 - **Auth foundation (central Google sign-in + impersonation):** the portal is the ONE app that runs
@@ -277,10 +283,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   older than **30 days** are purged automatically whenever the trash is read/written (lazy purge —
   the no-infra equivalent of a scheduled job, since the app is request-driven). Both lists are
   best-effort (swallow storage errors) so logging/trashing can never break the action.
-- **Theme/JS:** the official brand **light** theme — Data Green `#4FAB4A` + Accent Purple `#9484FB`
-  (deep companion `#5C4BD0` for white-text fills), on a white canvas with bold black type. The whole
-  front-door (login, portal, team console) shares it; Atrium scopes every selector under `.atrium` so
-  it stays self-contained. The logo is `ws.brand.agora_logo` (seeded) in Atrium and `dash/brand.py`
+- **Theme/JS:** the official brand **light** theme, standardized 2026-07 on the WEBSITE design system —
+  Data Green `#4FA84A` + Accent Purple `#6A6AEA` (deep companion `#5A54DD` for white-text fills), on a
+  white canvas with bold black type; green = primary action, purple = informational. The whole
+  front-door (login, portal, team console) shares it (`dash/brand.py` + `assets/brand.json` are the
+  palette source); the Atrium **client workspace** keeps its original design by decision (2026-07-10),
+  scoping every selector under `.atrium` so it stays self-contained. The logo is `ws.brand.agora_logo`
+  (seeded) in Atrium and `dash/brand.py`
   elsewhere. Inline JS is esprima-4.x-safe and reads state from the DOM (no Jinja in any script block).
 - **Ships via the SAME deploy as the portal:** `services/portal/dash/deploy_dash_platform.ps1` (build
   as yourself → `gcloud run deploy platform-dash --no-invoker-iam-check`). Validate templates with

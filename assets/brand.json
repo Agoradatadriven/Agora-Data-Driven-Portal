@@ -5,17 +5,17 @@
   "positioning": "Performance marketing agency that turns data into action.",
   "design_formula": "white space + bold black type + green CTA + subtle purple accent",
   "colors": {
-    "data_green":    { "hex": "#4FAB4A", "role": "primary / CTA / positive" },
-    "green_dark":    { "hex": "#347A30", "role": "deeper green: text on light, hovers" },
-    "green_tint":    { "hex": "#EAF6E9", "role": "soft green wash: tints, chips" },
-    "accent_purple": { "hex": "#9484FB", "role": "subtle accent, dots, light tints" },
-    "purple_deep":   { "hex": "#5C4BD0", "role": "solid violet fills with white text, hovers" },
-    "purple_tint":   { "hex": "#F1EFFE", "role": "soft violet wash" },
+    "data_green":    { "hex": "#4FA84A", "role": "primary / CTA / positive (website brand-500)" },
+    "green_dark":    { "hex": "#3F8B3B", "role": "deeper green: text on light, hovers (website brand-600)" },
+    "green_tint":    { "hex": "#EEF6ED", "role": "soft green wash: tints, chips (website tint)" },
+    "accent_purple": { "hex": "#6A6AEA", "role": "informational accent, dots, light tints (website accent-500)" },
+    "purple_deep":   { "hex": "#5A54DD", "role": "solid violet fills with white text, hovers (website accent-600)" },
+    "purple_tint":   { "hex": "#ECECFB", "role": "soft violet wash (website accent-100)" },
     "graphite_black":{ "hex": "#000000", "role": "graphite black" },
-    "ink":           { "hex": "#1A1B1E", "role": "near-black ink for bold type / the logo" },
+    "ink":           { "hex": "#121212", "role": "near-black ink for bold type / the logo (website ink)" },
     "charcoal_text": { "hex": "#353535", "role": "body copy" },
-    "soft_grey":     { "hex": "#EEEEEE", "role": "hairlines / surfaces" },
-    "canvas":        { "hex": "#F6F7F9", "role": "app canvas (off-white)" }
+    "soft_grey":     { "hex": "#E6E6E9", "role": "hairlines / surfaces (website line)" },
+    "canvas":        { "hex": "#F7F7F8", "role": "app canvas (off-white, website canvas)" }
   },
   "fonts": {
     "display": { "name": "After Display Bold", "use": "headlines, section titles, case-study titles" },
