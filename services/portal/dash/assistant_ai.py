@@ -19,7 +19,12 @@ How it works (deliberately no new infra -- mirrors the workspace-JSON posture):
      into a grounded prompt, and answers with the SAME provider plumbing as the intel brain
      (`intel_ai._call`, default model -- Vertex Gemini when configured). The model is told to
      answer ONLY from the provided excerpts and name its sources; we also return the source list
-     so the UI can show citation chips.
+     so the UI can show citation chips. The admin's DEPTH control ('quick'|'standard'|'deep')
+     shapes the whole pipeline: deep first asks the model to PLAN extra search queries (so a
+     comparative question retrieves each entity's actual positions, not just chunks containing the
+     question's words), retrieves wider, turns provider thinking ON, and asks for a structured
+     analysis; quick keeps it to a few sentences. Every depth is allowed to SYNTHESIZE across
+     excerpts -- differing recommendations count as disagreement even when nobody names the other.
 
 Pure + testable: chunking/indexing/search are dependency-free; `ask` accepts a `caller` injection
 so tests run with no network. Every failure degrades to (\"\", sources, reason) -- never a raise.
@@ -209,16 +214,74 @@ def search(index, query, k=TOP_K, date_from="", date_to=""):
 
 
 # --- 3. Grounded answer ---------------------------------------------------------------------------
-def _system_prompt(client_name):
+# The admin's detail control. Depth shapes retrieval width, provider thinking, and answer style;
+# "deep" additionally query-plans (one extra model call) so comparative questions retrieve each
+# entity's actual positions instead of just chunks containing the question's words.
+DEPTHS = ("quick", "standard", "deep")
+DEFAULT_DEPTH = "standard"
+
+# Per-depth retrieval shape: (top-k per search query, overall excerpt cap).
+_DEPTH_K = {"quick": (10, 10), "standard": (TOP_K, TOP_K), "deep": (12, 30)}
+
+_DEPTH_STYLE = {
+    "quick": ("Answer in 2-4 tight sentences: the direct answer and the headline numbers or names, "
+              "nothing else."),
+    "standard": ("Be direct and specific; a focused paragraph or two, with a short list when "
+                 "comparing items."),
+    "deep": ("Give a thorough, structured analysis. Synthesize ACROSS excerpts: compare positions, "
+             "surface patterns and tensions, quote the key lines, and close with what it means for "
+             "this client. Prefer short headed sections or bullet lists over one long wall of text."),
+}
+
+
+def _system_prompt(client_name, depth=DEFAULT_DEPTH):
     return (
         "You are the AGORA team's Atrium assistant for the client \"%s\". You answer questions "
         "using ONLY the numbered context excerpts provided — the client's campaigns, metrics, "
         "market intelligence, watched-creator video transcripts, and dashboard data. "
-        "Be direct and specific; quote numbers and names from the excerpts. When you use an "
-        "excerpt, mention its source naturally (e.g. 'in Carson Reed's video ...', 'per the "
-        "dashboard KPIs'). If the excerpts don't contain the answer, say so plainly — never "
-        "invent facts. Answer with JSON only: {\"answer\": \"<your answer>\"}" % client_name
+        "Quote numbers and names from the excerpts. When you use an excerpt, mention its source "
+        "naturally (e.g. 'in Carson Reed's video ...', 'per the dashboard KPIs'). "
+        "Comparative or analytical questions deserve real synthesis: when asked about "
+        "disagreements, differences, or comparisons, contrast what each source emphasizes or "
+        "recommends — two creators pushing different strategies (say, cold email vs paid ads) IS "
+        "a disagreement worth reporting even if neither ever mentions the other. Make clear which "
+        "part is stated in the excerpts and which part is your inference from them. If the "
+        "excerpts truly contain nothing relevant, say so plainly — never invent facts. "
+        % client_name
+        + _DEPTH_STYLE.get(depth, _DEPTH_STYLE[DEFAULT_DEPTH])
+        + " Answer with JSON only: {\"answer\": \"<your answer>\"}"
     )
+
+
+_PLAN_SYSTEM = (
+    "You write search queries for a keyword (BM25) index over a marketing client's workspace: "
+    "watched-creator video transcripts, market intelligence, campaigns and content, metrics, and "
+    "client conversations. Given the team's question, return JSON only: {\"queries\": [\"...\"]} "
+    "— 2 to 5 short keyword queries that together cover every entity, topic, and angle the "
+    "question needs. For comparative questions write one query per entity/stance (e.g. 'Nick "
+    "Saraev lead generation advice' and 'Carson Reed client acquisition ads') plus one for the "
+    "shared topic. Plain words only, no boolean syntax.")
+
+
+def plan_queries(question, history, caller):
+    """Deep mode's retrieval plan: extra search queries from the model. Never raises — any failure
+    (model error, non-JSON, wrong shape) returns [] so deep degrades to single-query retrieval."""
+    ctx = ""
+    recent = [(t.get("text") or "")[:200] for t in (history or [])[-4:] if t.get("role") == "user"]
+    if recent:
+        ctx = "Earlier questions, for context: %s\n\n" % "; ".join(recent)
+    try:
+        raw, err = caller(_PLAN_SYSTEM, ctx + "Question: %s" % question)
+        if err:
+            return []
+        raw = (raw or "").strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\s*|\s*```$", "", raw, flags=re.I)
+        parsed = json.loads(raw)
+        qs = parsed.get("queries") if isinstance(parsed, dict) else None
+        return [str(q).strip() for q in (qs or []) if str(q).strip()][:5]
+    except Exception:
+        return []
 
 
 def _user_prompt(question, hits, history):
@@ -257,14 +320,54 @@ def _parse_answer(raw):
 
 
 def ask(client_name, index, question, history=None, date_from="", date_to="", model=None,
-        caller=None, usage_out=None):
+        caller=None, usage_out=None, depth=DEFAULT_DEPTH):
     """Answer `question` from the workspace index. Returns (answer, sources, error).
 
-    `sources` is the de-duplicated list of {title, kind, date, url} actually retrieved (shown as
-    citation chips). `caller(system, user)` -> (text, error) is the LLM seam; the default uses the
-    intel brain's provider plumbing with its default model. A `usage_out` dict is filled by the
-    default caller with the call's token counts + the model id (the spend tally)."""
-    hits = search(index, question, date_from=date_from, date_to=date_to)
+    `depth` ('quick'|'standard'|'deep') is the admin's detail control: deep query-plans first (an
+    extra model call), retrieves wider, turns provider thinking ON, and asks for a structured
+    analysis; quick trims retrieval and asks for a few sentences. `sources` is the de-duplicated
+    list of {title, kind, date, url} actually retrieved (shown as citation chips).
+    `caller(system, user)` -> (text, error) is the LLM seam (used for BOTH the plan and the answer
+    call in deep mode); the default uses the intel brain's provider plumbing with its default
+    model. A `usage_out` dict is filled by the default caller with the SUMMED token counts of
+    every call + the model id (the spend tally)."""
+    depth = depth if depth in DEPTHS else DEFAULT_DEPTH
+    if caller is None:
+        import intel_ai
+        mid = model or intel_ai.default_model()
+
+        def _model_call(system, user, think):
+            if not mid or not intel_ai.model_available(mid):
+                return "", "no AI provider configured"
+            u = {}
+            text, err, _think = intel_ai._call(intel_ai.model_meta(mid), system, user,
+                                               None, 8192, usage_out=u, think=think)
+            if usage_out is not None:
+                usage_out["model"] = mid
+                for k in ("input_tokens", "output_tokens"):
+                    usage_out[k] = usage_out.get(k, 0) + u.get(k, 0)
+            return text, err
+
+        def plan_call(system, user):
+            return _model_call(system, user, False)   # planning is extraction — keep it fast
+
+        def answer_call(system, user):
+            return _model_call(system, user, depth == "deep")
+    else:
+        plan_call = answer_call = caller
+
+    queries = [question]
+    if depth == "deep":
+        queries += [q for q in plan_queries(question, history or [], plan_call)
+                    if q.lower() != question.lower()]
+    k_each, cap = _DEPTH_K[depth]
+    hits, seen_ids = [], set()
+    for q in queries:
+        for c in search(index, q, k=k_each, date_from=date_from, date_to=date_to):
+            if c["id"] not in seen_ids:
+                seen_ids.add(c["id"])
+                hits.append(c)
+    hits = hits[:cap]
     if not hits:
         return ("", [], "Nothing in this workspace matches that question — try rephrasing, or "
                         "fetch more data first.")
@@ -275,19 +378,8 @@ def ask(client_name, index, question, history=None, date_from="", date_to="", mo
             seen.add(key)
             sources.append({"title": c["title"], "kind": c["kind"],
                             "date": c.get("date", ""), "url": c.get("url", "")})
-    if caller is None:
-        import intel_ai
-
-        def caller(system, user):
-            mid = model or intel_ai.default_model()
-            if not mid or not intel_ai.model_available(mid):
-                return "", "no AI provider configured"
-            if usage_out is not None:
-                usage_out["model"] = mid
-            text, err, _think = intel_ai._call(intel_ai.model_meta(mid), system, user,
-                                               None, 8192, usage_out=usage_out)
-            return text, err
-    raw, err = caller(_system_prompt(client_name), _user_prompt(question, hits, history or []))
+    raw, err = answer_call(_system_prompt(client_name, depth),
+                           _user_prompt(question, hits, history or []))
     if err:
         return "", sources, err
     answer = _parse_answer(raw)

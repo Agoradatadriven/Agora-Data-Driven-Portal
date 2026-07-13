@@ -2952,6 +2952,13 @@
           <option value="{{ m.id }}"{{ ' selected' if m.id == assistant_model else '' }}{{ ' disabled' if not m.available else '' }}>{{ m.label }}{{ '' if m.available else ' — not set up' }}</option>
           {%- endfor -%}
         {%- endmacro %}
+        {#- The Assistant's detail control, shared the same way. Deep analysis = model thinking ON
+           + multi-angle retrieval + a structured answer; Quick = a few sentences. -#}
+        {% macro as_depth_options() -%}
+          {%- for d, label in [('quick', 'Quick'), ('standard', 'Standard'), ('deep', 'Deep analysis')] -%}
+          <option value="{{ d }}"{{ ' selected' if d == assistant_depth else '' }}>{{ label }}</option>
+          {%- endfor -%}
+        {%- endmacro %}
         <section class="ax-pane {{ 'is-active' if view.active_tab=='assistant' else '' }}" data-pane="assistant">
           <h1 class="ax-greet">Assistant</h1>
           <p class="ax-lede">Ask anything about {{ ws.display_name }}'s world &mdash; it reads the whole workspace: campaigns and content, metrics and dashboard data, Market Intelligence, the content calendar, client conversations, and every Watcher transcript.</p>
@@ -2961,6 +2968,10 @@
             <span class="ax-as-model" title="The AI model the Assistant answers with — Automatic follows the research brain's model">
               <label for="ax-as-model">Model</label>
               <select class="ax-editbox ax-as-modelsel" id="ax-as-model">{{ as_model_options() }}</select>
+            </span>
+            <span class="ax-as-model" title="How hard the Assistant works per answer — Deep analysis thinks before answering, searches the workspace from several angles, and writes a structured comparison; Quick keeps it to a few sentences">
+              <label for="ax-as-depth">Detail</label>
+              <select class="ax-editbox ax-as-depthsel" id="ax-as-depth">{{ as_depth_options() }}</select>
               <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span>
             </span>
             <span class="ax-as-range" title="Limit dated sources (transcripts, intel, content) to a range">
@@ -3059,7 +3070,10 @@
       <label class="ax-aspanel-setlabel" for="ax-asfab-model">AI model
         <select class="ax-editbox ax-as-modelsel" id="ax-asfab-model">{{ as_model_options() }}</select>
       </label>
-      <p class="ax-aspanel-setnote">Applies to the Assistant everywhere in this workspace &mdash; this bubble and the Assistant tab. Automatic follows the research brain's model. <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span></p>
+      <label class="ax-aspanel-setlabel" for="ax-asfab-depth" style="margin-top:8px">Detail
+        <select class="ax-editbox ax-as-depthsel" id="ax-asfab-depth">{{ as_depth_options() }}</select>
+      </label>
+      <p class="ax-aspanel-setnote">Both apply to the Assistant everywhere in this workspace &mdash; this bubble and the Assistant tab. Automatic follows the research brain's model; Deep analysis thinks before answering and digs for comparisons (slower, costs a little more). <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span></p>
     </div>
     <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab. The full Assistant tab has date-range and reindex controls."></div>
     <div class="ax-as-inputrow">
@@ -3907,7 +3921,11 @@
       input.value = "";
       addMsg("user", q);
       history.push({ role: "user", text: q });
-      var bubble = addMsg("bot", "Reading the workspace…", "is-thinking");
+      var depthSel = document.querySelector(".ax-as-depthsel");
+      var waitText = (depthSel && depthSel.value === "deep")
+        ? "Analyzing deeply — planning searches and thinking it through (takes a little longer)…"
+        : "Reading the workspace…";
+      var bubble = addMsg("bot", waitText, "is-thinking");
       var from = ids.from ? document.getElementById(ids.from) : null;
       var to = ids.to ? document.getElementById(ids.to) : null;
       post("/admin/assistant", {
@@ -4019,9 +4037,11 @@
     });
   })();
 
-  // ---- Assistant model choice: ONE saved setting, two dropdowns (tab bar + the bubble's gear) ---
-  (function () {
-    var sels = qsa(".ax-as-modelsel");
+  // ---- Assistant settings: model + detail, each ONE saved setting with two synced dropdowns
+  //      (tab bar + the bubble's gear). Each dropdown posts just its own field, so saving one
+  //      never resets the other. ----
+  function wireAssistantSetting(selector, field) {
+    var sels = qsa(selector);
     if (!sels.length) { return; }
     var saving = false;
     sels.forEach(function (sel) {
@@ -4029,7 +4049,9 @@
         if (saving) { return; }
         saving = true;
         var val = sel.value;
-        post("/admin/assistant", { op: "settings", model: val })
+        var body = { op: "settings" };
+        body[field] = val;
+        post("/admin/assistant", body)
           .then(function (data) {
             saving = false;
             if (!data || data.ok === false) { return; }
@@ -4042,6 +4064,10 @@
           .catch(function () { saving = false; });
       });
     });
+  }
+  (function () {
+    wireAssistantSetting(".ax-as-modelsel", "model");
+    wireAssistantSetting(".ax-as-depthsel", "depth");
     var gear = document.getElementById("ax-asfab-gear");
     var strip = document.getElementById("ax-asfab-set");
     if (gear && strip) {

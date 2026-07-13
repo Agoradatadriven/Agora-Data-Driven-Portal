@@ -152,6 +152,14 @@ auto-refresh (see those bullets below). Product name is one constant:
   moves; no vector DB, no new deps), `ask` retrieves top chunks (optionally date-ranged — dated
   sources only) and answers with the intel brain's provider plumbing (`intel_ai._call`, the
   client's configured model or the default; prompts for `{"answer": ...}` JSON, parsed leniently).
+  The admin's **Detail control** (`assistant_ai.DEPTHS` quick|standard|deep, saved via
+  `op=settings` → `ws["assistant"]["depth"]`, dropdown beside the model picker in both surfaces)
+  shapes the pipeline: deep first has the model PLAN extra BM25 queries (`plan_queries`, so a
+  comparative question retrieves each entity's actual positions), retrieves wider (30 excerpts),
+  turns provider thinking ON (`intel_ai._call(..., think=True)` — Gemini gets a 4096 thinking
+  budget, DeepSeek gets `thinking:{type:enabled}`; quick/standard pin the fast no-thinking path),
+  and asks for a structured analysis; quick trims to a few sentences. Every depth's prompt allows
+  cross-source synthesis (differing recommendations count as disagreement).
   Answers cite sources; the UI shows them as chips. Routes: `POST /w/<c>/admin/assistant` (`op`
   ask|reindex, gated `is_superadmin()`); tab gated like the other team tabs. The dashboard-data
   source needs a one-time grant: `services/portal/dash/enable_assistant_dash_data.ps1` gives the

@@ -87,7 +87,15 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   hides on the Assistant tab via `.atrium[data-tab="assistant"]`. **Model choice:** `op=settings`
   saves `ws["assistant"]["model"]` ("" = automatic → intel model → deploy default; resolved by
   `main._assistant_model`); the dropdown renders via the shared `as_model_options()` macro (tab
-  bar + the bubble's gear strip). **Spend tally:** `intel_ai` provider calls fill an optional
+  bar + the bubble's gear strip). **Detail (depth) control:** `op=settings` also saves
+  `ws["assistant"]["depth"]` (quick|standard|deep, `assistant_ai.DEPTHS`, resolved by
+  `main._assistant_depth`; `as_depth_options()` macro, same two surfaces — each dropdown posts
+  only its own field so saving one never resets the other). Deep = the model plans extra BM25
+  queries first (`plan_queries`), retrieval widens to 30 excerpts, provider thinking turns ON
+  (`intel_ai._call(..., think=True)`: Gemini thinkingBudget 4096, DeepSeek
+  `thinking:{type:enabled}`; quick/standard send the explicit fast path since DeepSeek V4 thinks
+  by default server-side), and the prompt asks for a structured analysis. All depths may
+  synthesize across excerpts (implicit disagreements count). **Spend tally:** `intel_ai` provider calls fill an optional
   `usage_out` dict (DeepSeek `usage`, Vertex `usageMetadata` incl. thinking tokens);
   `intel_ai.PRICING`/`cost_of` price it, `workspace.add_assistant_usage` accumulates
   `ws["assistant"]["usage"]`, and the cost pill (`ax-ascost`, seeded from data-* attrs, updated

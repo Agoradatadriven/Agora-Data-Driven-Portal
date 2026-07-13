@@ -1466,6 +1466,16 @@ def set_assistant_model(client, model_id):
     return _mutate(client, fn)
 
 
+def set_assistant_depth(client, depth):
+    """Persist the Assistant's answer depth ('quick'|'standard'|'deep'). Stored verbatim -- the
+    route validates against assistant_ai.DEPTHS first. Returns the config."""
+    def fn(ws):
+        cfg = ws.setdefault("assistant", {})
+        cfg["depth"] = (depth or "").strip()
+        return cfg
+    return _mutate(client, fn)
+
+
 def _blank_usage():
     return {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "calls": 0, "by_model": {}}
 

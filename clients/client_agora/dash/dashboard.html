@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upwork Job Demand — Agora</title>
+<style>
+  /* Agora Data Driven theme (assets/brand.json): white space + bold black
+     type + Data Green CTA. Series hues stay the validated dataviz palette;
+     the brand green carries UI accents and the single "All jobs" series. */
+  :root {
+    --surface-1: #ffffff;
+    --page: #f7f7f8;            /* brand canvas */
+    --ink-1: #121212;           /* brand ink */
+    --ink-2: #353535;           /* brand charcoal */
+    --muted: #85847f;
+    --grid: #e6e6e9;            /* brand soft grey */
+    --baseline: #cfcfd4;
+    --border: rgba(18,18,18,0.10);
+    --brand: #4fa84a;           /* Data Green (bars, washes) */
+    --brand-deep: #3f8b3b;      /* deeper green: 2px lines, hovers, deltas */
+    --brand-tint: #eef6ed;      /* soft green wash */
+    --good: #3f8b3b;
+    --bad: #d03b3b;
+    --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300;
+    --s5: #4a3aa7; --s6: #e34948; --s7: #e87ba4; --s8: #eb6834;
+    --chip-on: #eef6ed;
+    --hover-wash: rgba(18,18,18,0.045);
+  }
+  /* deliberately ONE look — the brand's white + green — in light AND dark
+     browsers, so the embed reads the same everywhere it is iframed */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page);
+    color: var(--ink-1);
+    font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px; line-height: 1.45;
+  }
+  :focus-visible { outline: 2px solid var(--brand-deep); outline-offset: 2px; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 20px 48px; }
+  header.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  header.top .logo { color: var(--ink-1); display: inline-flex; align-items: center; }
+  header.top .logo svg { display: block; }
+  header.top .logodiv { width: 1px; height: 24px; background: var(--baseline); }
+  header.top h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: .01em; }
+  header.top .sub { color: var(--ink-2); font-size: 13px; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 0 0 10px; letter-spacing: .01em; }
+
+  /* ---- filter block (one block above everything it scopes) ---- */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .filters input[type=search], .filters select, .filters input[type=date] {
+    background: var(--surface-1); color: var(--ink-1);
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 9px; font: inherit; font-size: 13px;
+  }
+  .filters input[type=search] { width: 220px; }
+  .filters label.chk { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 16px; }
+  .chip {
+    border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface-1); color: var(--ink-2);
+    padding: 4px 11px; font-size: 12.5px; cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip:hover { background: var(--hover-wash); }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; display: none; }
+  .chip.on { background: var(--chip-on); color: var(--ink-1); border-color: transparent; font-weight: 600; }
+  .chip.on .dot { display: inline-block; }
+  .chip .n { color: var(--muted); font-size: 11.5px; }
+
+  /* ---- KPI tiles ---- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .tile .lbl { font-size: 12.5px; color: var(--ink-2); }
+  .tile .val { font-size: 26px; font-weight: 600; margin-top: 2px; }
+  .tile .delta { font-size: 12.5px; margin-top: 2px; font-weight: 600; }
+  .tile .delta.up { color: var(--good); }
+  .tile .delta.down { color: var(--bad); }
+  .tile .delta .vs { color: var(--muted); font-weight: 400; }
+
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  @media (max-width: 980px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+  /* ---- demand chart ---- */
+  .chart-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .chart-head h2 { margin: 0; flex: 1; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .seg button {
+    background: var(--surface-1); color: var(--ink-2); border: 0;
+    padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .seg button.on { background: var(--chip-on); color: var(--ink-1); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 2px; font-size: 12.5px; color: var(--ink-2); }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .key i { width: 16px; height: 0; border-top: 3px solid; border-radius: 2px; }
+  #demandWrap { position: relative; }
+  #demandWrap.loading, .barpanel.loading, #tableCard.loading { opacity: .55; transition: opacity .15s; }
+  #demandSvg { display: block; width: 100%; }
+  #demandSvg .grid-line { stroke: var(--grid); stroke-width: 1; }
+  #demandSvg .base { stroke: var(--baseline); stroke-width: 1; }
+  #demandSvg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  #demandSvg text.endlbl { fill: var(--ink-2); font-size: 11.5px; font-weight: 600; font-variant-numeric: normal; }
+  #crosshair { stroke: var(--baseline); stroke-width: 1; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+    min-width: 150px;
+  }
+  .tip .when { color: var(--muted); margin-bottom: 4px; }
+  .tip .row { display: flex; align-items: center; gap: 7px; margin-top: 2px; }
+  .tip .row i { width: 12px; height: 0; border-top: 3px solid; border-radius: 2px; flex: none; }
+  .tip .row .v { font-weight: 650; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .tip .row .s { color: var(--ink-2); }
+  #demandTable { max-height: 300px; overflow: auto; }
+  #demandTable table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  #demandTable th, #demandTable td { text-align: right; padding: 3px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  #demandTable th:first-child, #demandTable td:first-child { text-align: left; }
+  #demandTable th { color: var(--ink-2); position: sticky; top: 0; background: var(--surface-1); }
+
+  /* ---- horizontal bar panels ---- */
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 52px; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+  .bar-row:hover { background: var(--hover-wash); }
+  .bar-row .bl { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .track { height: 18px; position: relative; }
+  .bar-row .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--brand); min-width: 2px; }
+  .bar-row .bv { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: left; }
+  .panel-note { color: var(--muted); font-size: 11.5px; margin-top: 8px; }
+
+  /* ---- momentum ---- */
+  .mom { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 22px; }
+  @media (max-width: 700px) { .mom { grid-template-columns: 1fr; } }
+  .mom .mrow { display: flex; align-items: center; gap: 8px; padding: 4px 4px; border-bottom: 1px solid var(--grid); font-size: 13px; }
+  .mom .mrow:last-child { border-bottom: 0; }
+  .mom .tag { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mom .cnt { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mom .pct { font-weight: 650; font-size: 12.5px; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .mom .pct.up { color: var(--good); }
+  .mom .pct.down { color: var(--bad); }
+
+  /* ---- jobs table ---- */
+  .tbl-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .tbl-toolbar .count { color: var(--ink-2); font-size: 13px; flex: 1; }
+  .tbl-toolbar select { background: var(--surface-1); color: var(--ink-1); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 12.5px; }
+  .jobs { width: 100%; border-collapse: collapse; }
+  .jobs th { text-align: left; font-size: 12px; color: var(--ink-2); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--baseline); }
+  .jobs td { padding: 8px; border-bottom: 1px solid var(--grid); vertical-align: top; font-size: 13px; }
+  .jobs tr.main { cursor: pointer; }
+  .jobs tr.main:hover { background: var(--hover-wash); }
+  .jobs .dt { white-space: nowrap; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .jobs .ttl { font-weight: 600; max-width: 380px; }
+  .jobs .sk { color: var(--ink-2); font-size: 12px; max-width: 300px; }
+  .jobs .rate { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .jobs .cl { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+  .mini { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; background: var(--chip-on); color: var(--ink-1); margin: 1px 3px 1px 0; }
+  .jobs tr.detail td { background: var(--hover-wash); }
+  .jobs .desc { white-space: pre-wrap; color: var(--ink-1); font-size: 13px; max-width: 900px; }
+  .jobs .meta { color: var(--ink-2); font-size: 12.5px; margin-bottom: 8px; }
+  .openjob {
+    display: inline-block; margin-top: 10px; text-decoration: none;
+    background: var(--brand-deep); color: #fff; border-radius: 7px; padding: 7px 15px; font-size: 13.5px; font-weight: 700;
+  }
+  .openjob:hover { background: var(--brand); }
+  .pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .pager button { background: var(--surface-1); border: 1px solid var(--border); color: var(--ink-1); border-radius: 7px; padding: 5px 12px; font: inherit; cursor: pointer; }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  footer.ft { margin-top: 14px; color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); padding: 18px 4px; font-size: 13px; }
+  a.joblink { color: inherit; text-decoration: none; }
+  a.joblink:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="logo">
+      <!-- the real brand logo (website/public/agora-logo.png), inlined -->
+      <img src="__LOGO_DATA_URI__" alt="Agora Data Driven" height="34" style="display:block;height:34px;width:auto">
+    </span>
+    <span class="logodiv" aria-hidden="true"></span>
+    <h1>Upwork Job Demand</h1>
+    <span class="sub" id="metaSub">loading…</span>
+  </header>
+
+  <!-- one filter block; everything below re-renders against the same slice -->
+  <div class="filters" id="filterRow">
+    <select id="fDate" aria-label="Date range">
+      <option value="era">Since Nov 2025 · comparable data</option>
+      <option value="all">All time · incl. outage artifact</option>
+      <option value="30">Last 30 days</option>
+      <option value="90">Last 90 days</option>
+      <option value="180">Last 180 days</option>
+      <option value="365">Last 12 months</option>
+      <option value="custom">Custom…</option>
+    </select>
+    <input type="date" id="fFrom" style="display:none" aria-label="From date">
+    <input type="date" id="fTo" style="display:none" aria-label="To date">
+    <input type="search" id="fQ" placeholder="Search title, skills, description…" aria-label="Search">
+    <select id="fCategory" aria-label="Category"><option value="">All categories</option></select>
+    <select id="fCountry" aria-label="Client country"><option value="">All countries</option></select>
+    <select id="fBudget" aria-label="Budget type">
+      <option value="">Hourly + fixed</option>
+      <option value="Hourly">Hourly</option>
+      <option value="Fixed Budget">Fixed budget</option>
+    </select>
+    <select id="fLevel" aria-label="Experience level">
+      <option value="">Any level</option>
+      <option>Entry</option>
+      <option>Intermediate</option>
+      <option>Expert</option>
+    </select>
+    <select id="fSpent" aria-label="Client spend">
+      <option value="">Any client spend</option>
+      <option value="1000">Spent $1k+</option>
+      <option value="10000">Spent $10k+</option>
+      <option value="100000">Spent $100k+</option>
+    </select>
+    <label class="chk"><input type="checkbox" id="fVerified"> Payment verified</label>
+    <button type="button" id="fClear" class="clearbtn">✕ Clear filters</button>
+  </div>
+  <div class="chips" id="tagChips" aria-label="Demand tags — pick up to 6 to compare"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card" style="margin-bottom:10px">
+    <div class="chart-head">
+      <h2 id="demandTitle">Demand over time</h2>
+      <div class="seg" id="valSeg" title="% of jobs compares tags as a share of all captured jobs — comparable across the feed's coverage changes">
+        <button data-vm="count" class="on">Count</button>
+        <button data-vm="share">% of jobs</button>
+      </div>
+      <div class="seg" id="granSeg">
+        <button data-g="day">Daily</button>
+        <button data-g="week" class="on">Weekly</button>
+        <button data-g="month">Monthly</button>
+      </div>
+      <div class="seg" id="viewSeg">
+        <button data-v="chart" class="on">Chart</button>
+        <button data-v="table">Data</button>
+      </div>
+    </div>
+    <div class="legend" id="demandLegend"></div>
+    <div id="demandWrap">
+      <svg id="demandSvg" height="320" role="img" aria-label="Job demand over time"></svg>
+      <div class="tip" id="demandTip"></div>
+      <div id="demandTable" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="card barpanel"><h2>Top skills</h2><div id="skillBars"></div>
+      <div class="panel-note">Click a skill to search it.</div></div>
+    <div class="card barpanel"><h2>Categories</h2><div id="catBars"></div>
+      <div class="panel-note">Click to filter.</div></div>
+    <div class="card barpanel"><h2>Client countries</h2><div id="countryBars"></div>
+      <div class="panel-note">Click to filter.</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:10px">
+    <h2>Momentum — last 4 weeks vs the 4 before (within current filters)</h2>
+    <div class="mom" id="momentum"></div>
+  </div>
+
+  <div class="card" id="tableCard">
+    <div class="tbl-toolbar">
+      <span class="count" id="jobsCount"></span>
+      <select id="fSort" aria-label="Sort">
+        <option value="date">Newest first</option>
+        <option value="date_asc">Oldest first</option>
+        <option value="rate">Highest hourly rate</option>
+        <option value="spent">Biggest client spend</option>
+      </select>
+    </div>
+    <table class="jobs" id="jobsTable">
+      <thead><tr>
+        <th>Date</th><th>Job</th><th>Skills</th><th>Rate / budget</th><th>Client</th>
+      </tr></thead>
+      <tbody id="jobsBody"></tbody>
+    </table>
+    <div class="pager">
+      <span id="pageInfo"></span>
+      <button id="prevBtn">‹ Prev</button>
+      <button id="nextBtn">Next ›</button>
+    </div>
+  </div>
+
+  <footer class="ft" id="footNote"></footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- palette (series colors follow the entity, never its rank) ----
+  var css = getComputedStyle(document.documentElement);
+  function slotColor(i) { return css.getPropertyValue("--s" + (i + 1)).trim(); }
+  var SLOT_COUNT = 8;
+  var CONTEXT_GRAY = css.getPropertyValue("--muted").trim();
+  var SURFACE = css.getPropertyValue("--surface-1").trim();
+
+  var BRAND_LINE = css.getPropertyValue("--brand-deep").trim();
+
+  var state = {
+    q: "", tags: [], category: "", country: "", budget: "", level: "",
+    verified: false, min_spent: "", datePreset: "era", from: "", to: "",
+    sort: "date", page: 1, gran: "week", view: "chart"
+  };
+  var agg = null;           // /api/aggregates payload
+  var lastStats = null;
+  var tagSlots = {};        // tag -> reserved color slot while selected
+  var expanded = {};        // job id -> bool
+
+  // ---- URL state (shareable pre-filtered links) ----
+  function readUrl() {
+    var p = new URLSearchParams(location.search);
+    ["q","category","country","budget","level","min_spent","from","to","sort"].forEach(function (k) {
+      if (p.get(k)) state[k] = p.get(k);
+    });
+    if (p.get("tags")) state.tags = p.get("tags").split(",").filter(Boolean).slice(0, 6);
+    if (p.get("verified") === "1") state.verified = true;
+    if (p.get("range")) state.datePreset = p.get("range");
+    state.tags.forEach(reserveSlot);
+  }
+  function writeUrl() {
+    var p = new URLSearchParams();
+    if (state.q) p.set("q", state.q);
+    if (state.tags.length) p.set("tags", state.tags.join(","));
+    ["category","country","budget","level","min_spent"].forEach(function (k) {
+      if (state[k]) p.set(k, state[k]);
+    });
+    if (state.verified) p.set("verified", "1");
+    if (state.datePreset !== "era") p.set("range", state.datePreset);
+    if (state.datePreset === "custom") { if (state.from) p.set("from", state.from); if (state.to) p.set("to", state.to); }
+    if (state.sort !== "date") p.set("sort", state.sort);
+    var qs = p.toString();
+    history.replaceState(null, "", qs ? "?" + qs : location.pathname);
+  }
+
+  // ---- slot reservation: a selected tag keeps its hue until deselected ----
+  function reserveSlot(tag) {
+    if (tagSlots[tag] !== undefined) return;
+    var used = {};
+    Object.keys(tagSlots).forEach(function (t) { used[tagSlots[t]] = true; });
+    for (var i = 0; i < SLOT_COUNT; i++) {
+      if (!used[i]) { tagSlots[tag] = i; return; }
+    }
+    tagSlots[tag] = Object.keys(tagSlots).length % SLOT_COUNT;
+  }
+  function releaseSlot(tag) { delete tagSlots[tag]; }
+  function tagColor(tag) { reserveSlot(tag); return slotColor(tagSlots[tag]); }
+
+  // ---- fetch plumbing (hold previous render at reduced opacity) ----
+  var statsCtl = null, jobsCtl = null, debounceTimer = null;
+
+  function filterParams() {
+    var p = new URLSearchParams();
+    if (state.q) p.set("q", state.q);
+    if (state.tags.length) p.set("tags", state.tags.join(","));
+    if (state.category) p.set("category", state.category);
+    if (state.country) p.set("country", state.country);
+    if (state.budget) p.set("budget", state.budget);
+    if (state.level) p.set("level", state.level);
+    if (state.verified) p.set("verified", "1");
+    if (state.min_spent) p.set("min_spent", state.min_spent);
+    var r = dateRange();
+    if (r.from) p.set("from", r.from);
+    if (r.to) p.set("to", r.to);
+    return p;
+  }
+  function dateRange() {
+    if (state.datePreset === "all") return { from: "", to: "" };
+    if (state.datePreset === "era") {
+      return { from: (agg && agg.era_from) || "2025-11-03", to: "" };
+    }
+    if (state.datePreset === "custom") return { from: state.from, to: state.to };
+    if (!agg) return { from: "", to: "" };
+    var end = new Date(agg.date_max.slice(0, 10) + "T00:00:00");
+    var start = new Date(end.getTime() - parseInt(state.datePreset, 10) * 86400000);
+    return { from: isoLocal(start), to: agg.date_max.slice(0, 10) };
+  }
+
+  function isDefaultSlice() {
+    return !state.q && !state.tags.length && !state.category && !state.country &&
+      !state.budget && !state.level && !state.verified && !state.min_spent &&
+      (state.datePreset === "era" ? !!(agg && agg.era) : state.datePreset === "all");
+  }
+  function statsFromAggregates(a) {
+    // both default views (post-outage era + all time) are pre-baked at
+    // process time — no full-table scan
+    var b = (state.datePreset === "era" && a.era) ? a.era : a;
+    return {
+      total: b.total_jobs, weekly: b.weekly, weekly_by_tag: {},
+      top_skills: b.top_skills.slice(0, 15),
+      categories: b.categories.slice(0, 10),
+      countries: b.countries.slice(0, 10),
+      median_hourly: b.median_hourly_min, median_fixed: b.median_fixed,
+      momentum: b.momentum || []
+    };
+  }
+  function refreshStats() {
+    if (statsCtl) statsCtl.abort();
+    if (agg && isDefaultSlice()) {
+      lastStats = statsFromAggregates(agg);
+      setLoading(false);
+      renderAll(lastStats);
+      return;
+    }
+    statsCtl = new AbortController();
+    setLoading(true);
+    fetch("api/stats?" + filterParams().toString(), { signal: statsCtl.signal })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { lastStats = d; setLoading(false); renderAll(d); })
+      .catch(function (e) { if (e.name !== "AbortError") setLoading(false); });
+  }
+  function refreshJobs() {
+    if (jobsCtl) jobsCtl.abort();
+    jobsCtl = new AbortController();
+    var card = document.getElementById("tableCard");
+    card.classList.add("loading");
+    var p = filterParams();
+    p.set("sort", state.sort);
+    p.set("page", String(state.page));
+    fetch("api/jobs?" + p.toString(), { signal: jobsCtl.signal })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { card.classList.remove("loading"); renderJobs(d); })
+      .catch(function (e) { if (e.name !== "AbortError") card.classList.remove("loading"); });
+  }
+  function refreshAll() {
+    state.page = 1;
+    expanded = {};
+    writeUrl();
+    refreshStats();
+    refreshJobs();
+  }
+  function setLoading(on) {
+    ["demandWrap"].forEach(function (id) {
+      document.getElementById(id).classList.toggle("loading", on);
+    });
+    document.querySelectorAll(".barpanel").forEach(function (el) { el.classList.toggle("loading", on); });
+  }
+
+  // ---- number helpers ----
+  function fmt(n) { return n === null || n === undefined ? "—" : Number(n).toLocaleString("en-US"); }
+  function compact(n) {
+    if (n === null || n === undefined) return "—";
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+    return fmt(Math.round(n));
+  }
+  function money(n) { return n === null || n === undefined ? "—" : "$" + fmt(Math.round(n)); }
+  function niceTicks(max, count) {
+    if (max <= 0) return [0, 1];
+    var raw = max / count;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var step = mag;
+    [1, 2, 2.5, 5, 10].some(function (m) { if (mag * m >= raw) { step = mag * m; return true; } return false; });
+    var ticks = [];
+    for (var v = 0; v <= max + step * 0.999; v += step) ticks.push(Math.round(v * 100) / 100);
+    return ticks;
+  }
+
+  // ---- KPI tiles ----
+  function renderKpis(d) {
+    var el = document.getElementById("kpis");
+    el.textContent = "";
+    var weekly = d.weekly;
+    var recent = weekly.slice(-5, -1);            // last 4 full weeks
+    var prior = weekly.slice(-9, -5);
+    var avg = function (arr) {
+      if (!arr.length) return null;
+      var s = 0; arr.forEach(function (w) { s += w.n; });
+      return s / arr.length;
+    };
+    var rAvg = avg(recent), pAvg = avg(prior);
+    var delta = (rAvg !== null && pAvg) ? Math.round(100 * (rAvg - pAvg) / pAvg) : null;
+
+    tile(el, "Jobs in view", compact(d.total), null, null);
+    tile(el, "Jobs per week (last 4 wks)", rAvg === null ? "—" : compact(rAvg), delta, "vs prior 4 wks");
+    tile(el, "Median hourly (posted min)", d.median_hourly === null ? "—" : "$" + d.median_hourly, null, null);
+    tile(el, "Median fixed budget", d.median_fixed === null ? "—" : money(d.median_fixed), null, null);
+  }
+  function tile(parent, label, value, deltaPct, vsText) {
+    var t = document.createElement("div"); t.className = "card tile";
+    var l = document.createElement("div"); l.className = "lbl"; l.textContent = label;
+    var v = document.createElement("div"); v.className = "val"; v.textContent = value;
+    t.appendChild(l); t.appendChild(v);
+    if (deltaPct !== null && deltaPct !== undefined && isFinite(deltaPct)) {
+      var dd = document.createElement("div");
+      dd.className = "delta " + (deltaPct >= 0 ? "up" : "down");
+      dd.textContent = (deltaPct >= 0 ? "▲ +" : "▼ ") + deltaPct + "% ";
+      var vs = document.createElement("span"); vs.className = "vs"; vs.textContent = vsText;
+      dd.appendChild(vs);
+      t.appendChild(dd);
+    }
+    parent.appendChild(t);
+  }
+
+  // ---- demand chart ----
+  function isoLocal(d) {
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+  }
+  function continuousWeeks(weekly) {
+    // zero-fill the domain so feed gaps read as gaps, not compressed time
+    if (!weekly.length) return [];
+    var out = [];
+    var cur = new Date(weekly[0].week + "T00:00:00");
+    var end = new Date(weekly[weekly.length - 1].week + "T00:00:00");
+    while (cur <= end && out.length < 600) {
+      out.push(isoLocal(cur));
+      cur = new Date(cur.getTime() + 7 * 86400000);
+    }
+    return out;
+  }
+  function seriesFromStats(d) {
+    // selected tags -> one series each (entity-stable hue); plus gray "All jobs"
+    // context when tags are selected; blue total when none are.
+    var weekly = d.weekly;
+    // the current week is partial — charting it reads as a collapse, so trim it
+    if (agg && weekly.length > 1) {
+      var lastStart = new Date(weekly[weekly.length - 1].week + "T00:00:00");
+      var dmax = new Date(agg.date_max.slice(0, 10) + "T00:00:00");
+      if (lastStart.getTime() + 6 * 86400000 > dmax.getTime()) weekly = weekly.slice(0, -1);
+    }
+    var byWeek = {};
+    weekly.forEach(function (w) { byWeek[w.week] = w.n; });
+    var weeks = continuousWeeks(weekly);
+    var series = [];
+    if (state.tags.length) {
+      series.push({ name: "All jobs (context)", color: CONTEXT_GRAY, context: true, map: byWeek });
+      state.tags.forEach(function (t) {
+        var m = {};
+        (d.weekly_by_tag[t] || []).forEach(function (p) { m[p[0]] = p[1]; });
+        series.push({ name: t, color: tagColor(t), context: false, map: m });
+      });
+    } else {
+      series.push({ name: "All jobs", color: BRAND_LINE, context: false, map: byWeek, area: true });
+    }
+    return { weeks: weeks, series: series };
+  }
+  function toGranularity(weeks, series) {
+    if (state.gran === "week") return { keys: weeks, label: weekLabel, series: series };
+    var monthsSeen = {}, keys = [];
+    weeks.forEach(function (w) {
+      var m = w.slice(0, 7);
+      if (!monthsSeen[m]) { monthsSeen[m] = true; keys.push(m); }
+    });
+    var out = series.map(function (s) {
+      var mm = {};
+      weeks.forEach(function (w) {
+        var m = w.slice(0, 7);
+        mm[m] = (mm[m] || 0) + (s.map[w] || 0);
+      });
+      return { name: s.name, color: s.color, context: s.context, area: s.area, map: mm };
+    });
+    return { keys: keys, label: monthLabel, series: out };
+  }
+  function weekLabel(k) {
+    var d = new Date(k + "T00:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+  }
+  function monthLabel(k) {
+    var d = new Date(k + "-01T00:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  }
+
+  var demandGeom = null; // for crosshair: {xs[], keys[], series, y(), label()}
+
+  function renderDemand(d) {
+    var svg = document.getElementById("demandSvg");
+    var wrap = document.getElementById("demandWrap");
+    var base = seriesFromStats(d);
+    var g = toGranularity(base.weeks, base.series);
+    renderLegend(g.series);
+    renderDemandTable(g);
+
+    var W = wrap.clientWidth || 900, H = 320;
+    var padL = 46, padR = 120, padT = 14, padB = 30;
+    if (g.series.length === 1) padR = 20;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("width", W);
+    svg.textContent = "";
+
+    var keys = g.keys;
+    if (!keys.length) { demandGeom = null; return; }
+    var maxV = 1;
+    g.series.forEach(function (s) {
+      keys.forEach(function (k) { var v = s.map[k] || 0; if (v > maxV) maxV = v; });
+    });
+    var ticks = niceTicks(maxV, 4);
+    var yMax = ticks[ticks.length - 1];
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var x = function (i) { return padL + (keys.length === 1 ? plotW / 2 : i * plotW / (keys.length - 1)); };
+    var y = function (v) { return padT + plotH - (v / yMax) * plotH; };
+    var NS = "http://www.w3.org/2000/svg";
+
+    // gridlines: solid hairlines, recessive
+    ticks.forEach(function (t) {
+      var ln = document.createElementNS(NS, "line");
+      ln.setAttribute("x1", padL); ln.setAttribute("x2", W - padR);
+      ln.setAttribute("y1", y(t)); ln.setAttribute("y2", y(t));
+      ln.setAttribute("class", t === 0 ? "base" : "grid-line");
+      svg.appendChild(ln);
+      var tx = document.createElementNS(NS, "text");
+      tx.setAttribute("x", padL - 7); tx.setAttribute("y", y(t) + 3.5);
+      tx.setAttribute("text-anchor", "end");
+      tx.textContent = fmt(t);
+      svg.appendChild(tx);
+    });
+    // x labels: ~6, evenly picked
+    var stepX = Math.max(1, Math.ceil(keys.length / 6));
+    for (var i = 0; i < keys.length; i += stepX) {
+      var tx2 = document.createElementNS(NS, "text");
+      tx2.setAttribute("x", x(i)); tx2.setAttribute("y", H - 8);
+      tx2.setAttribute("text-anchor", "middle");
+      tx2.textContent = g.label(keys[i]);
+      svg.appendChild(tx2);
+    }
+
+    // outage annotation: the weeks where Zenfl was down / coverage reset —
+    // drawn as recessive chrome UNDER the series, so the cliff reads as a
+    // data-source artifact, not a market collapse
+    if (agg && agg.outage) {
+      var bandF = state.gran === "week" ? agg.outage.from : agg.outage.from.slice(0, 7);
+      var bandT = state.gran === "week" ? agg.outage.to : agg.outage.to.slice(0, 7);
+      var bi0 = -1, bi1 = -1;
+      keys.forEach(function (k, bi) {
+        if (k >= bandF && k < bandT) { if (bi0 < 0) bi0 = bi; bi1 = bi; }
+      });
+      if (bi0 >= 0) {
+        var half = keys.length > 1 ? plotW / (keys.length - 1) / 2 : plotW / 2;
+        var bx0 = Math.max(padL, x(bi0) - half);
+        var bx1 = Math.min(W - padR, x(bi1) + half);
+        var band = document.createElementNS(NS, "rect");
+        band.setAttribute("x", bx0); band.setAttribute("y", padT);
+        band.setAttribute("width", Math.max(2, bx1 - bx0));
+        band.setAttribute("height", plotH);
+        band.setAttribute("fill", css.getPropertyValue("--grid").trim());
+        band.setAttribute("opacity", "0.55");
+        svg.appendChild(band);
+        var bl = document.createElementNS(NS, "text");
+        bl.setAttribute("y", padT + 12);
+        bl.setAttribute("text-anchor", "middle");
+        if (bx1 - bx0 > 130) {
+          bl.setAttribute("x", (bx0 + bx1) / 2);
+          bl.textContent = agg.outage.label;
+        } else if (bx1 - bx0 > 24) {
+          bl.setAttribute("x", (bx0 + bx1) / 2);
+          bl.textContent = "outage";
+        }
+        if (bl.textContent) svg.appendChild(bl);
+      }
+    }
+
+    // series: context gray first (under), then colored lines
+    var ordered = g.series.slice().sort(function (a, b) { return (b.context ? 1 : 0) - (a.context ? 1 : 0); });
+    ordered.forEach(function (s) {
+      var pts = keys.map(function (k, idx) { return [x(idx), y(s.map[k] || 0)]; });
+      if (s.area) {
+        var ap = "M" + pts.map(function (p) { return p[0] + "," + p[1]; }).join("L") +
+          "L" + pts[pts.length - 1][0] + "," + y(0) + "L" + pts[0][0] + "," + y(0) + "Z";
+        var area = document.createElementNS(NS, "path");
+        area.setAttribute("d", ap);
+        area.setAttribute("fill", s.color);
+        area.setAttribute("opacity", "0.1");
+        svg.appendChild(area);
+      }
+      var path = document.createElementNS(NS, "path");
+      path.setAttribute("d", "M" + pts.map(function (p) { return p[0] + "," + p[1]; }).join("L"));
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", s.color);
+      path.setAttribute("stroke-width", "2");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("stroke-linecap", "round");
+      if (s.context) path.setAttribute("opacity", "0.75");
+      svg.appendChild(path);
+      // end marker: >=8px dot with 2px surface ring
+      var last = pts[pts.length - 1];
+      var ring = document.createElementNS(NS, "circle");
+      ring.setAttribute("cx", last[0]); ring.setAttribute("cy", last[1]);
+      ring.setAttribute("r", "6"); ring.setAttribute("fill", SURFACE);
+      svg.appendChild(ring);
+      var dot = document.createElementNS(NS, "circle");
+      dot.setAttribute("cx", last[0]); dot.setAttribute("cy", last[1]);
+      dot.setAttribute("r", "4"); dot.setAttribute("fill", s.color);
+      svg.appendChild(dot);
+    });
+
+    // direct end labels (selective): <=4 non-context series, skip on collision
+    var labelable = ordered.filter(function (s) { return !s.context; });
+    if (labelable.length >= 2 && labelable.length <= 4 && padR > 40) {
+      var placed = [];
+      labelable.forEach(function (s) {
+        var vy = y(s.map[keys[keys.length - 1]] || 0);
+        var collide = placed.some(function (py) { return Math.abs(py - vy) < 14; });
+        if (!collide) {
+          placed.push(vy);
+          var tl = document.createElementNS(NS, "text");
+          tl.setAttribute("x", W - padR + 12); tl.setAttribute("y", vy + 4);
+          tl.setAttribute("class", "endlbl");
+          tl.textContent = s.name.length > 16 ? s.name.slice(0, 15) + "…" : s.name;
+          svg.appendChild(tl);
+        }
+      });
+    }
+
+    // crosshair + hover overlay
+    var cross = document.createElementNS(NS, "line");
+    cross.setAttribute("id", "crosshair");
+    cross.setAttribute("y1", padT); cross.setAttribute("y2", padT + plotH);
+    cross.style.display = "none";
+    svg.appendChild(cross);
+    var overlay = document.createElementNS(NS, "rect");
+    overlay.setAttribute("x", padL); overlay.setAttribute("y", padT);
+    overlay.setAttribute("width", plotW); overlay.setAttribute("height", plotH);
+    overlay.setAttribute("fill", "transparent");
+    overlay.setAttribute("tabindex", "0");
+    overlay.setAttribute("aria-label", "Chart values; use arrow keys");
+    svg.appendChild(overlay);
+
+    demandGeom = { keys: keys, x: x, series: g.series, label: g.label, cross: cross, padT: padT, plotH: plotH, W: W, focusIdx: keys.length - 1 };
+
+    overlay.addEventListener("pointermove", function (ev) {
+      var rect = svg.getBoundingClientRect();
+      var px = (ev.clientX - rect.left) * (W / rect.width);
+      var idx = 0, best = 1e9;
+      keys.forEach(function (k, i2) { var dd = Math.abs(x(i2) - px); if (dd < best) { best = dd; idx = i2; } });
+      showDemandTip(idx, ev.clientY - rect.top);
+    });
+    overlay.addEventListener("pointerleave", hideDemandTip);
+    overlay.addEventListener("keydown", function (ev) {
+      if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+        ev.preventDefault();
+        demandGeom.focusIdx = Math.max(0, Math.min(keys.length - 1,
+          demandGeom.focusIdx + (ev.key === "ArrowRight" ? 1 : -1)));
+        showDemandTip(demandGeom.focusIdx, 60);
+      }
+      if (ev.key === "Escape") hideDemandTip();
+    });
+    overlay.addEventListener("blur", hideDemandTip);
+  }
+
+  function showDemandTip(idx, yPx) {
+    var gm = demandGeom;
+    if (!gm) return;
+    gm.focusIdx = idx;
+    var tip = document.getElementById("demandTip");
+    var wrap = document.getElementById("demandWrap");
+    gm.cross.style.display = "";
+    gm.cross.setAttribute("x1", gm.x(idx)); gm.cross.setAttribute("x2", gm.x(idx));
+    tip.textContent = "";
+    var when = document.createElement("div"); when.className = "when";
+    when.textContent = (state.gran === "week" ? "Week of " : "") + gm.label(gm.keys[idx]);
+    tip.appendChild(when);
+    gm.series.forEach(function (s) {
+      var row = document.createElement("div"); row.className = "row";
+      var key = document.createElement("i"); key.style.borderTopColor = s.color;
+      var nm = document.createElement("span"); nm.className = "s"; nm.textContent = s.name;
+      var v = document.createElement("span"); v.className = "v"; v.textContent = fmt(s.map[gm.keys[idx]] || 0);
+      row.appendChild(key); row.appendChild(nm); row.appendChild(v);
+      tip.appendChild(row);
+    });
+    tip.style.display = "block";
+    var xr = gm.x(idx) / gm.W * wrap.clientWidth;
+    var left = xr + 14;
+    if (left + 190 > wrap.clientWidth) left = xr - 190;
+    tip.style.left = Math.max(0, left) + "px";
+    tip.style.top = Math.max(0, Math.min(yPx, 240)) + "px";
+  }
+  function hideDemandTip() {
+    document.getElementById("demandTip").style.display = "none";
+    if (demandGeom) demandGeom.cross.style.display = "none";
+  }
+
+  function renderLegend(series) {
+    var el = document.getElementById("demandLegend");
+    el.textContent = "";
+    if (series.length < 2) return; // single series: the title names it
+    series.forEach(function (s) {
+      var k = document.createElement("span"); k.className = "key";
+      var i = document.createElement("i"); i.style.borderTopColor = s.color;
+      var t = document.createElement("span"); t.textContent = s.name;
+      k.appendChild(i); k.appendChild(t);
+      el.appendChild(k);
+    });
+  }
+
+  function renderDemandTable(g) {
+    var host = document.getElementById("demandTable");
+    host.textContent = "";
+    var tbl = document.createElement("table");
+    var thead = document.createElement("thead");
+    var hr = document.createElement("tr");
+    var th0 = document.createElement("th"); th0.textContent = state.gran === "week" ? "Week" : "Month";
+    hr.appendChild(th0);
+    g.series.forEach(function (s) {
+      var th = document.createElement("th"); th.textContent = s.name; hr.appendChild(th);
+    });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tb = document.createElement("tbody");
+    g.keys.slice().reverse().forEach(function (k) {
+      var tr = document.createElement("tr");
+      var td0 = document.createElement("td"); td0.textContent = g.label(k); tr.appendChild(td0);
+      g.series.forEach(function (s) {
+        var td = document.createElement("td"); td.textContent = fmt(s.map[k] || 0); tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    host.appendChild(tbl);
+  }
+
+  // ---- bar panels (single series -> one hue, never a ramp) ----
+  function renderBars(hostId, rows, labelKey, onClick) {
+    var host = document.getElementById(hostId);
+    host.textContent = "";
+    if (!rows.length) {
+      var e = document.createElement("div"); e.className = "empty"; e.textContent = "No data in this slice.";
+      host.appendChild(e); return;
+    }
+    var max = rows[0].n;
+    rows.forEach(function (r) {
+      var row = document.createElement("div"); row.className = "bar-row";
+      row.setAttribute("role", "button"); row.setAttribute("tabindex", "0");
+      var lbl = document.createElement("span"); lbl.className = "bl";
+      lbl.textContent = r[labelKey]; lbl.title = r[labelKey];
+      var track = document.createElement("span"); track.className = "track";
+      var fill = document.createElement("span"); fill.className = "fill";
+      fill.style.width = Math.max(1, 100 * r.n / max) + "%";
+      track.appendChild(fill);
+      var val = document.createElement("span"); val.className = "bv"; val.textContent = compact(r.n);
+      row.appendChild(lbl); row.appendChild(track); row.appendChild(val);
+      var act = function () { onClick(r[labelKey]); };
+      row.addEventListener("click", act);
+      row.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); act(); } });
+      host.appendChild(row);
+    });
+  }
+
+  // ---- momentum ----
+  function renderMomentum(d) {
+    var host = document.getElementById("momentum");
+    host.textContent = "";
+    var rows = d.momentum.filter(function (m) { return m.pct !== null; });
+    if (rows.length < 2) {
+      var e = document.createElement("div"); e.className = "empty";
+      e.textContent = "Not enough recent data in this slice for momentum.";
+      host.appendChild(e); return;
+    }
+    rows.sort(function (a, b) { return b.pct - a.pct; });
+    rows.slice(0, 14).forEach(function (m) {
+      var row = document.createElement("div"); row.className = "mrow";
+      var t = document.createElement("span"); t.className = "tag"; t.textContent = m.tag;
+      var c = document.createElement("span"); c.className = "cnt";
+      c.textContent = fmt(m.prior) + " → " + fmt(m.recent);
+      var p = document.createElement("span");
+      p.className = "pct " + (m.pct >= 0 ? "up" : "down");
+      p.textContent = (m.pct >= 0 ? "▲ +" : "▼ ") + m.pct + "%";
+      row.appendChild(t); row.appendChild(c); row.appendChild(p);
+      host.appendChild(row);
+    });
+  }
+
+  // ---- jobs table ----
+  function renderJobs(d) {
+    var body = document.getElementById("jobsBody");
+    body.textContent = "";
+    document.getElementById("jobsCount").textContent =
+      fmt(d.total) + " jobs match" + (state.q ? " “" + state.q + "”" : "");
+    var start = (d.page - 1) * d.per;
+    document.getElementById("pageInfo").textContent =
+      d.total ? (start + 1) + "–" + Math.min(start + d.per, d.total) + " of " + fmt(d.total) : "0 of 0";
+    document.getElementById("prevBtn").disabled = d.page <= 1;
+    document.getElementById("nextBtn").disabled = start + d.per >= d.total;
+
+    if (!d.rows.length) {
+      var tr0 = document.createElement("tr");
+      var td0 = document.createElement("td"); td0.colSpan = 5; td0.className = "empty";
+      td0.textContent = "Nothing matches this slice — loosen a filter.";
+      tr0.appendChild(td0); body.appendChild(tr0);
+      return;
+    }
+    d.rows.forEach(function (r) {
+      var tr = document.createElement("tr"); tr.className = "main";
+      var dt = document.createElement("td"); dt.className = "dt";
+      dt.textContent = r.date.slice(0, 10);
+      var ttl = document.createElement("td"); ttl.className = "ttl";
+      var link = document.createElement("a");
+      link.className = "joblink"; link.href = r.url; link.target = "_blank"; link.rel = "noopener";
+      link.textContent = r.title;
+      link.addEventListener("click", function (ev) { ev.stopPropagation(); });
+      ttl.appendChild(link);
+      if (r.tags) {
+        var tagsWrap = document.createElement("div");
+        r.tags.split("|").slice(0, 4).forEach(function (t) {
+          var m = document.createElement("span"); m.className = "mini"; m.textContent = t;
+          tagsWrap.appendChild(m);
+        });
+        ttl.appendChild(tagsWrap);
+      }
+      var sk = document.createElement("td"); sk.className = "sk";
+      sk.textContent = r.skills || "—";
+      var rate = document.createElement("td"); rate.className = "rate";
+      rate.textContent = rateText(r);
+      var cl = document.createElement("td"); cl.className = "cl";
+      cl.textContent = clientText(r);
+      tr.appendChild(dt); tr.appendChild(ttl); tr.appendChild(sk); tr.appendChild(rate); tr.appendChild(cl);
+      tr.addEventListener("click", function () { toggleDetail(tr, r); });
+      body.appendChild(tr);
+      if (expanded[r.id]) toggleDetail(tr, r);
+    });
+  }
+  function rateText(r) {
+    if (r.budget_type === "Hourly") {
+      if (r.rate_min === null) return "Hourly";
+      if (r.rate_min === r.rate_max) return "$" + r.rate_min + "/hr";
+      return "$" + r.rate_min + "–$" + r.rate_max + "/hr";
+    }
+    if (r.fixed_budget !== null) return money(r.fixed_budget) + " fixed";
+    return r.budget_type || "—";
+  }
+  function clientText(r) {
+    var bits = [];
+    if (r.country) bits.push(r.country);
+    if (r.rating !== null) bits.push("⭐ " + r.rating);
+    if (r.spent !== null) bits.push(compact(r.spent) === "—" ? "" : "$" + compact(r.spent) + " spent");
+    return bits.filter(Boolean).join(" · ") || "—";
+  }
+  function toggleDetail(tr, r) {
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains("detail")) {
+      next.remove(); delete expanded[r.id]; return;
+    }
+    expanded[r.id] = true;
+    var dtr = document.createElement("tr"); dtr.className = "detail";
+    var td = document.createElement("td"); td.colSpan = 5;
+    var meta = document.createElement("div"); meta.className = "meta";
+    var metaBits = [];
+    if (r.category) metaBits.push(r.category);
+    if (r.level) metaBits.push(r.level + " level");
+    if (r.contract_to_hire) metaBits.push("Contract to hire");
+    if (r.feed) metaBits.push("Feed: " + r.feed);
+    if (r.hire_rate !== null) metaBits.push("Hire rate " + r.hire_rate + "%");
+    if (r.client_jobs !== null) metaBits.push(fmt(r.client_jobs) + " client jobs");
+    if (r.avg_rate !== null) metaBits.push("Client avg $" + r.avg_rate + "/hr");
+    if (r.verified) metaBits.push("✅ Payment verified");
+    if (r.dup_count > 1) metaBits.push("Seen " + r.dup_count + "×");
+    meta.textContent = metaBits.join("  ·  ");
+    var desc = document.createElement("div"); desc.className = "desc";
+    desc.textContent = r.description || "(no description captured)";
+    var open = document.createElement("a");
+    open.className = "openjob"; open.href = r.url; open.target = "_blank"; open.rel = "noopener";
+    open.textContent = "Open job on Upwork ↗";
+    td.appendChild(meta); td.appendChild(desc); td.appendChild(open);
+    dtr.appendChild(td);
+    tr.parentNode.insertBefore(dtr, tr.nextSibling);
+  }
+
+  // ---- render everything from a stats payload ----
+  function renderAll(d) {
+    renderKpis(d);
+    renderDemand(d);
+    renderBars("skillBars", d.top_skills, "skill", function (v) {
+      state.q = v; document.getElementById("fQ").value = v; refreshAll();
+    });
+    renderBars("catBars", d.categories, "category", function (v) {
+      state.category = state.category === v ? "" : v;
+      document.getElementById("fCategory").value = state.category;
+      refreshAll();
+    });
+    renderBars("countryBars", d.countries, "country", function (v) {
+      state.country = state.country === v ? "" : v;
+      document.getElementById("fCountry").value = state.country;
+      refreshAll();
+    });
+    renderMomentum(d);
+  }
+
+  // ---- filter wiring ----
+  function fillSelect(id, rows, key) {
+    var sel = document.getElementById(id);
+    rows.forEach(function (r) {
+      var o = document.createElement("option");
+      o.value = r[key]; o.textContent = r[key] + " (" + compact(r.n) + ")";
+      sel.appendChild(o);
+    });
+  }
+  function renderChips() {
+    var host = document.getElementById("tagChips");
+    host.textContent = "";
+    var tagRows = (agg.era && agg.era.tags && agg.era.tags.length) ? agg.era.tags : agg.tags;
+    host.title = (agg.era && agg.era.tags) ? "Counts since " + ((agg.era_from || "").slice(0, 10)) : "";
+    tagRows.forEach(function (t) {
+      var chip = document.createElement("button"); chip.type = "button";
+      chip.className = "chip" + (state.tags.indexOf(t.tag) >= 0 ? " on" : "");
+      var dot = document.createElement("span"); dot.className = "dot";
+      if (state.tags.indexOf(t.tag) >= 0) dot.style.background = tagColor(t.tag);
+      var nm = document.createElement("span"); nm.textContent = t.tag;
+      var n = document.createElement("span"); n.className = "n"; n.textContent = compact(t.n);
+      chip.appendChild(dot); chip.appendChild(nm); chip.appendChild(n);
+      chip.addEventListener("click", function () {
+        var i = state.tags.indexOf(t.tag);
+        if (i >= 0) { state.tags.splice(i, 1); releaseSlot(t.tag); }
+        else {
+          if (state.tags.length >= 6) return; // series soft cap
+          state.tags.push(t.tag); reserveSlot(t.tag);
+        }
+        renderChips(); refreshAll();
+      });
+      host.appendChild(chip);
+    });
+  }
+
+  function wireFilters() {
+    var q = document.getElementById("fQ");
+    q.value = state.q;
+    q.addEventListener("input", function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        state.q = q.value.trim(); refreshAll();
+      }, 350);
+    });
+    [["fCategory", "category"], ["fCountry", "country"], ["fBudget", "budget"],
+     ["fLevel", "level"], ["fSpent", "min_spent"]].forEach(function (pair) {
+      var el = document.getElementById(pair[0]);
+      el.value = state[pair[1]];
+      el.addEventListener("change", function () { state[pair[1]] = el.value; refreshAll(); });
+    });
+    var ver = document.getElementById("fVerified");
+    ver.checked = state.verified;
+    ver.addEventListener("change", function () { state.verified = ver.checked; refreshAll(); });
+
+    var fd = document.getElementById("fDate");
+    var ff = document.getElementById("fFrom"), ft = document.getElementById("fTo");
+    fd.value = state.datePreset;
+    var syncCustom = function () {
+      var isC = state.datePreset === "custom";
+      ff.style.display = ft.style.display = isC ? "" : "none";
+    };
+    syncCustom();
+    ff.value = state.from; ft.value = state.to;
+    fd.addEventListener("change", function () {
+      state.datePreset = fd.value; syncCustom();
+      if (state.datePreset !== "custom") refreshAll();
+    });
+    ff.addEventListener("change", function () { state.from = ff.value; refreshAll(); });
+    ft.addEventListener("change", function () { state.to = ft.value; refreshAll(); });
+
+    var srt = document.getElementById("fSort");
+    srt.value = state.sort;
+    srt.addEventListener("change", function () { state.sort = srt.value; state.page = 1; writeUrl(); refreshJobs(); });
+    document.getElementById("prevBtn").addEventListener("click", function () {
+      if (state.page > 1) { state.page--; refreshJobs(); }
+    });
+    document.getElementById("nextBtn").addEventListener("click", function () {
+      state.page++; refreshJobs();
+    });
+
+    document.getElementById("granSeg").addEventListener("click", function (ev) {
+      var b = ev.target.closest("button"); if (!b) return;
+      state.gran = b.getAttribute("data-g");
+      document.querySelectorAll("#granSeg button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      if (lastStats) renderDemand(lastStats);
+    });
+    document.getElementById("viewSeg").addEventListener("click", function (ev) {
+      var b = ev.target.closest("button"); if (!b) return;
+      state.view = b.getAttribute("data-v");
+      document.querySelectorAll("#viewSeg button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      document.getElementById("demandSvg").style.display = state.view === "chart" ? "" : "none";
+      document.getElementById("demandTable").style.display = state.view === "table" ? "" : "none";
+    });
+
+    var rst = null;
+    window.addEventListener("resize", function () {
+      clearTimeout(rst);
+      rst = setTimeout(function () { if (lastStats) renderDemand(lastStats); }, 150);
+    });
+  }
+
+  // ---- boot ----
+  readUrl();
+  fetch("api/aggregates").then(function (r) { return r.json(); }).then(function (a) {
+    agg = a;
+    document.getElementById("metaSub").textContent =
+      fmt(a.total_jobs) + " jobs · " + a.date_min.slice(0, 10) + " → " + a.date_max.slice(0, 10) +
+      " · from the Upwork feed archive";
+    document.getElementById("footNote").textContent =
+      "Processed " + a.generated_at.slice(0, 10) + " · demand tags are keyword-classified from title, skills and description · a job can carry several tags. " +
+      "Heads-up: the feed bot (Zenfl) was down Oct 17–28, 2025 and came back delivering ~4× fewer jobs (and none without a posted rate) — that cliff is a data-source artifact, not market demand. The default view starts Nov 3, 2025 so trends stay comparable.";
+    fillSelect("fCategory", a.categories, "category");
+    fillSelect("fCountry", a.countries, "country");
+    // restore select values that only exist after options are filled
+    document.getElementById("fCategory").value = state.category;
+    document.getElementById("fCountry").value = state.country;
+    renderChips();
+    wireFilters();
+    refreshStats();
+    refreshJobs();
+  });
+})();
+</script>
+</body>
+</html>

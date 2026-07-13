@@ -17,6 +17,9 @@ id_ed25519
 chunks/
 *.log
 clients/*/data/
+# Raw source exports (e.g. the client_agora Telegram dump — 900+ MB, far over GitHub's
+# 100 MB push limit; the pipeline derives its sqlite from it, so it lives on disk only)
+clients/client_agora/raw_files/*.json
 # Python
 __pycache__/
 *.pyc

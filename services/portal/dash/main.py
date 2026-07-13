@@ -1007,10 +1007,11 @@ def atrium(client, tab):
         # Watcher (team-only tab): per-channel video cards with transcript PREVIEWS only -- the
         # full transcripts stay in each channel's own archive object, fetched on click.
         watcher=(_watcher_view(ws, client) if (is_superadmin() and not admin_preview) else []),
-        # Assistant (team-only): the model dropdown options + the saved choice ("" = automatic)
-        # + the all-time spend tally that seeds the cost pill.
+        # Assistant (team-only): the model dropdown options + the saved choices ("" = automatic
+        # model; depth quick|standard|deep) + the all-time spend tally that seeds the cost pill.
         assistant_models=intel_ai.available_models(),
         assistant_model=((ws.get("assistant") or {}).get("model", "")),
+        assistant_depth=_assistant_depth(ws),
         assistant_usage=workspace.assistant_usage(ws),
         admin_preview=admin_preview,
         admin_name=_admin_sender_name(user),
@@ -2416,6 +2417,13 @@ def _assistant_model(ws):
     return ((ws.get("intel_ai") or {}).get("model") or "").strip()
 
 
+def _assistant_depth(ws):
+    """The Assistant's saved answer depth, validated ('standard' when unset/unknown)."""
+    import assistant_ai
+    d = ((ws.get("assistant") or {}).get("depth") or "").strip()
+    return d if d in assistant_ai.DEPTHS else assistant_ai.DEFAULT_DEPTH
+
+
 @app.route("/w/<client>/admin/assistant", methods=["POST"])
 def atrium_admin_assistant(client):
     """The Atrium Assistant (team-only). `op` is:
@@ -2426,7 +2434,8 @@ def atrium_admin_assistant(client):
                   lazily when stale, so answers always reflect the latest fetched data. The
                   response carries the call's token `usage` + the updated all-time `totals`
                   (the cost pill).
-    * settings -- save the Assistant's model choice (`model`; "" = automatic).
+    * settings -- save whichever Assistant settings the form carries: `model` ("" = automatic)
+                  and/or `depth` (quick|standard|deep -- the detail control; deep also thinks).
     * reindex  -- force-rebuild the index now; returns its size (the pane's Rebuild button).
     """
     gate = _atrium_admin_json_gate(client)
@@ -2445,13 +2454,27 @@ def atrium_admin_assistant(client):
                        built_at=index.get("built_at", ""))
 
     if op == "settings":
-        model = request.form.get("model", "").strip()
-        if model and intel_ai.model_meta(model) is None:
-            return jsonify(ok=False, message="Unknown model.")
-        workspace.set_assistant_model(client, model)
-        meta = intel_ai.model_meta(model)
-        _audit(client, "set assistant model", (meta or {}).get("label") or "automatic")
-        return jsonify(ok=True, model=model)
+        # Save whichever settings the form carries (the two dropdowns each post just their own
+        # field, so an absent field must never reset the other setting).
+        saved = {}
+        if "model" in request.form:
+            model = request.form.get("model", "").strip()
+            if model and intel_ai.model_meta(model) is None:
+                return jsonify(ok=False, message="Unknown model.")
+            workspace.set_assistant_model(client, model)
+            meta = intel_ai.model_meta(model)
+            _audit(client, "set assistant model", (meta or {}).get("label") or "automatic")
+            saved["model"] = model
+        if "depth" in request.form:
+            depth = request.form.get("depth", "").strip() or assistant_ai.DEFAULT_DEPTH
+            if depth not in assistant_ai.DEPTHS:
+                return jsonify(ok=False, message="Unknown depth.")
+            workspace.set_assistant_depth(client, depth)
+            _audit(client, "set assistant depth", depth)
+            saved["depth"] = depth
+        if not saved:
+            return jsonify(ok=False, message="Nothing to save.")
+        return jsonify(ok=True, **saved)
 
     if op == "ask":
         question = request.form.get("question", "").strip()
@@ -2468,7 +2491,7 @@ def atrium_admin_assistant(client):
             history=history if isinstance(history, list) else [],
             date_from=request.form.get("date_from", "").strip(),
             date_to=request.form.get("date_to", "").strip(),
-            model=_assistant_model(ws), usage_out=usage)
+            model=_assistant_model(ws), usage_out=usage, depth=_assistant_depth(ws))
         if err:
             return jsonify(ok=False, message=err, sources=sources)
         # Spend accounting: price this call and fold it into the client's all-time tally so the

@@ -356,13 +356,17 @@ def _gcp_access_token(token_fetcher=None):
         return ""
 
 
-def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False, usage_out=None):
+def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False, usage_out=None,
+                   think=None):
     """DeepSeek chat/completions (OpenAI-compatible). Returns (text, error, thinking).
 
     When `capture` is set we surface the model's `reasoning_content` (only the reasoner-class models
     emit it; the V4 chat models may return none, in which case thinking is "" -- the candidate list
     and raw output still make the run transparent). A `usage_out` dict is filled with the call's
-    `input_tokens`/`output_tokens` (the Assistant's spend tally); missing usage leaves it at 0."""
+    `input_tokens`/`output_tokens` (the Assistant's spend tally); missing usage leaves it at 0.
+    `think` (tri-state) controls server-side reasoning: V4 models default it ON, so False sends the
+    explicit disabled flag (the fast path), True enables it deliberately, None leaves the payload
+    untouched (legacy callers keep their current behaviour)."""
     key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if not key:
         return "", "DeepSeek not configured", ""
@@ -376,6 +380,8 @@ def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False, u
         "response_format": {"type": "json_object"},
         "stream": False,
     }
+    if think is not None:
+        payload["thinking"] = {"type": "enabled" if think else "disabled"}
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
     fn = fetcher or _requests_post
     try:
@@ -398,7 +404,7 @@ def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False, u
 
 
 def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetcher=None, capture=False,
-                        usage_out=None):
+                        usage_out=None, think=None):
     """Vertex AI Gemini :generateContent (GCP-billed, SA-token auth). Returns (text, error, thinking).
 
     Gemini 2.5 "thinks" by default and that thinking is billed against maxOutputTokens -- on a big
@@ -406,7 +412,9 @@ def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetch
     extraction, not reasoning, so we minimise thinking (0 for Flash, the 128 floor for Pro) and the
     JSON answer always has room. When `capture` is set (the admin's "show reasoning" toggle) we give
     thinking its OWN budget, ask for the thought parts (`includeThoughts`), and RAISE the output cap
-    so the answer still fits -- and separate the thought parts from the answer parts on the way out."""
+    so the answer still fits -- and separate the thought parts from the answer parts on the way out.
+    `think=True` (the Assistant's deep mode) also buys a real thinking budget -- reasoning stays
+    internal (no thought parts) but the model gets room to actually analyse before answering."""
     token = _gcp_access_token(token_fetcher)
     if not token:
         return "", "could not get GCP credentials for Vertex", ""
@@ -418,6 +426,10 @@ def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetch
         think_budget = 2048
         thinking_cfg = {"thinkingBudget": think_budget, "includeThoughts": True}
         out_cap = max(max_tokens, 4096) + think_budget   # leave room for the JSON on top of thinking
+    elif think:
+        think_budget = 4096
+        thinking_cfg = {"thinkingBudget": think_budget}
+        out_cap = max(max_tokens, 4096) + think_budget   # thinking bills against the cap too
     else:
         thinking_cfg = {"thinkingBudget": 0 if "flash" in model_id else 128}
         out_cap = max_tokens
@@ -455,13 +467,19 @@ def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetch
         return "", "Vertex returned an unexpected response", ""
 
 
-def _call(model, system, user, fetcher, max_tokens, token_fetcher=None, capture=False, usage_out=None):
-    """Dispatch to the right provider for `model` (a MODELS dict). Returns (text, error, thinking)."""
+def _call(model, system, user, fetcher, max_tokens, token_fetcher=None, capture=False, usage_out=None,
+          think=None):
+    """Dispatch to the right provider for `model` (a MODELS dict). Returns (text, error, thinking).
+
+    `think` (tri-state, default None = today's behaviour) is the caller's reasoning switch: True buys
+    the model a real thinking budget before it answers (the Assistant's deep mode), False pins the
+    fast no-thinking path on BOTH providers (DeepSeek V4 otherwise thinks by default server-side)."""
     if model["provider"] == "deepseek":
-        return _call_deepseek(model["id"], system, user, fetcher, max_tokens, capture, usage_out)
+        return _call_deepseek(model["id"], system, user, fetcher, max_tokens, capture, usage_out,
+                              think)
     if model["provider"] == "gemini":
         return _call_vertex_gemini(model["id"], system, user, fetcher, max_tokens, token_fetcher,
-                                   capture, usage_out)
+                                   capture, usage_out, think)
     return "", "unknown provider", ""
 
 

@@ -1,0 +1,6 @@
+# keep the build context tiny — data ships via GCS, never in the image
+data/
+__pycache__/
+*.pyc
+.gcloudignore
+deploy_dash_agora.ps1

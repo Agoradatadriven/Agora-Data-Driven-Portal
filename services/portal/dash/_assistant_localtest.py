@@ -119,6 +119,35 @@ def run():
     answer, sources, err = assistant_ai.ask("Riverdance", index, "zzqx unmatchable gibberish qqq")
     _check("no matching chunks -> friendly error", err != "" and "match" in err)
 
+    # --- Depth: the detail control shapes prompts, and deep query-plans before answering ---------
+    _check("depth styles the system prompt",
+           "2-4 tight sentences" in assistant_ai._system_prompt("X", "quick")
+           and "structured analysis" in assistant_ai._system_prompt("X", "deep")
+           and "disagreement worth reporting" in assistant_ai._system_prompt("X"))
+    _check("plan_queries parses the model's queries",
+           assistant_ai.plan_queries("nick vs carson", [], lambda s, u: (
+               '{"queries": ["nick saraev cold email", "carson reed paid ads"]}', ""))
+           == ["nick saraev cold email", "carson reed paid ads"])
+    _check("plan_queries degrades to [] on any failure",
+           assistant_ai.plan_queries("q", [], lambda s, u: ("not json", "")) == []
+           and assistant_ai.plan_queries("q", [], lambda s, u: ("", "model down")) == [])
+    calls = []
+
+    def deep_caller(system, user):
+        calls.append(system)
+        if "search queries" in system:
+            return ('{"queries": ["pricing AI retainers", "cold outreach emails"]}', "")
+        return ('{"answer": "Deep dive."}', "")
+
+    answer, sources, err = assistant_ai.ask(
+        "Riverdance", index, "how should I price AI retainers",
+        depth="deep", caller=deep_caller)
+    _check("deep ask plans queries, then answers with the deep prompt",
+           answer == "Deep dive." and err == "" and len(calls) == 2
+           and "structured analysis" in calls[1])
+    _check("deep retrieval unions the planned queries' hits",
+           any("cold outreach" in s["title"].lower() or s["kind"] == "video" for s in sources))
+
     # --- The route: lazy rebuild, reindex, ask (stubbed), gating ---------------------------------
     main.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False, SESSION_COOKIE_SAMESITE="Lax")
     c = main.app.test_client()
@@ -132,6 +161,17 @@ def run():
 
     r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "ask", "question": ""})
     _check("empty question refused", r.get_json()["ok"] is False)
+
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "settings", "depth": "deep"})
+    _check("op=settings saves the depth",
+           r.get_json()["ok"] is True
+           and (workspace.load_workspace(CLIENT).get("assistant") or {}).get("depth") == "deep")
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "settings", "depth": "bogus"})
+    _check("unknown depth refused", r.get_json()["ok"] is False)
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "settings", "model": ""})
+    _check("saving the model alone leaves the depth untouched",
+           r.get_json()["ok"] is True
+           and (workspace.load_workspace(CLIENT).get("assistant") or {}).get("depth") == "deep")
 
     real_ask = assistant_ai.ask
     assistant_ai.ask = lambda name, idx, q, **kw: ("Answer from the stub.", [
@@ -148,6 +188,9 @@ def run():
     body = c.get("/w/%s/assistant" % CLIENT).get_data(as_text=True)
     _check("assistant pane renders for the team",
            'data-pane="assistant"' in body and 'id="ax-as-send"' in body)
+    _check("detail (depth) selectors render in both surfaces, with the saved choice",
+           'id="ax-as-depth"' in body and 'id="ax-asfab-depth"' in body
+           and 'value="deep" selected' in body)
 
     with c.session_transaction() as s:
         s.clear()
