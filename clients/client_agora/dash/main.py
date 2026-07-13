@@ -161,20 +161,6 @@ def aggregates():
         return app.response_class(fh.read(), mimetype="application/json")
 
 
-_excl_cache = None
-
-
-def excluded_weeks():
-    """Banded weeks (outages, holidays) — never enter momentum baselines.
-    Authored by the processor; shipped inside aggregates.json."""
-    global _excl_cache
-    if _excl_cache is None:
-        try:
-            with open(os.path.join(data_dir(), "aggregates.json"), encoding="utf-8") as fh:
-                _excl_cache = set(json.load(fh).get("excluded_weeks") or [])
-        except Exception:
-            _excl_cache = set()
-    return _excl_cache
 
 
 _stats_cache = {}  # normalized filter querystring -> response json (data is immutable per deploy)
@@ -243,13 +229,12 @@ def stats():
     fixed = [r["fixed_budget"] for r in conn.execute(
         "SELECT j.fixed_budget FROM jobs j WHERE %s AND j.fixed_budget IS NOT NULL" % where, params)]
 
-    # momentum: last 4 CLEAN full weeks vs the historical average of clean
-    # weeks, on coverage-adjusted counts — banded weeks (outages, holidays)
-    # and the partial current week never enter the computation
+    # momentum: last 4 full weeks vs the historical 4-week average, on
+    # coverage-adjusted counts; ALL full weeks count (banded ones included,
+    # by request) — only the partial current week is dropped
     momentum = []
     wk_all = [r["week"] for r in weekly]
-    excl = excluded_weeks()
-    clean = [w for w in wk_all[:-1] if w not in excl]
+    clean = wk_all[:-1]
     if len(clean) >= 10:
         recent, hist = set(clean[-4:]), set(clean[:-4])
         per_tag = {}

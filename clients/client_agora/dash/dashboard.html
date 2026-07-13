@@ -554,12 +554,11 @@
   function renderKpis(d) {
     var el = document.getElementById("kpis");
     el.textContent = "";
-    // KPIs use coverage-adjusted counts and skip banded weeks (outages,
-    // holidays) so baselines only contain normal, fully-covered weeks
-    var excl = {};
-    ((agg && agg.excluded_weeks) || []).forEach(function (w) { excl[w] = true; });
-    var wk = fullWeeks(d.weekly).filter(function (w) { return !excl[w.week]; })
-      .map(function (w) { return (w.a !== null && w.a !== undefined) ? w.a : w.n; });
+    // KPIs use coverage-adjusted counts; ALL full weeks count toward the
+    // baselines — banded weeks (outages/holidays) included, by request
+    var wk = fullWeeks(d.weekly).map(function (w) {
+      return (w.a !== null && w.a !== undefined) ? w.a : w.n;
+    });
     var avg = function (arr) {
       if (!arr.length) return null;
       var s = 0; arr.forEach(function (n) { s += n; });
