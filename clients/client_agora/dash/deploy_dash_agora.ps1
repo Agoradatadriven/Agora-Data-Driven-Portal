@@ -48,9 +48,12 @@ if (-not $SkipData) {
         gcloud storage buckets create "gs://$BUCKET" --project $PROJECT --location $REGION --uniform-bucket-level-access
         if ($LASTEXITCODE -ne 0) { throw "bucket create failed" }
     }
-    # 2) upload processed data
+    # 2) upload processed data (+ AI fit scores when present — optional file)
     Write-Host "-- uploading processed data to gs://$BUCKET/upwork/"
-    gcloud storage cp (Join-Path $DATA "jobs.sqlite") (Join-Path $DATA "aggregates.json") "gs://$BUCKET/upwork/" --project $PROJECT
+    $files = @((Join-Path $DATA "jobs.sqlite"), (Join-Path $DATA "aggregates.json"))
+    $scores = Join-Path $DATA "job_scores.sqlite"
+    if (Test-Path $scores) { $files += $scores }
+    gcloud storage cp @files "gs://$BUCKET/upwork/" --project $PROJECT
     if ($LASTEXITCODE -ne 0) { throw "data upload failed" }
 }
 if ($DataOnly) {

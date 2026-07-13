@@ -300,6 +300,35 @@ def delete_watcher_channel(client, channel_id):
     return removed
 
 
+def watcher_safe_pull_queue(ws):
+    """Channel ids queued for the local safe scraper (never None).
+
+    The Safe-pull button can't fetch from Cloud Run (YouTube blocks datacenter IPs regardless of
+    pacing), so it queues the channel here and the operator's machine works through the queue with
+    slow, polite pacing (safe_scrape_local.py --queue, run by a scheduled task)."""
+    return list(((ws or {}).get("watcher") or {}).get("safe_pull") or [])
+
+
+def queue_watcher_safe_pull(client, channel_id):
+    """Add a channel to the safe-pull queue (idempotent). Returns the queue."""
+    def fn(ws):
+        w = ws.setdefault("watcher", {})
+        queue = w.setdefault("safe_pull", [])
+        if channel_id not in queue:
+            queue.append(channel_id)
+        return list(queue)
+    return _mutate(client, fn)
+
+
+def clear_watcher_safe_pull(client, channel_id):
+    """Drop a channel from the safe-pull queue (the scraper finished it, or the channel is gone)."""
+    def fn(ws):
+        w = ws.setdefault("watcher", {})
+        w["safe_pull"] = [c for c in (w.get("safe_pull") or []) if c != channel_id]
+        return list(w["safe_pull"])
+    return _mutate(client, fn)
+
+
 # --- Assistant (team-only tab: the workspace knowledge index) ------------------------------------
 # The Assistant's retrieval index (chunks + BM25 stats over every workspace source) is ONE private
 # object per client, rebuilt lazily when its fingerprint stops matching the live data. Like the

@@ -69,12 +69,18 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   Channels are classified: `platform` / `industry` (auto-labeled via `intel_ai.classify_text`,
   hand-editable) / `kind` creator|competitor. Registry in `ws["watcher"]`; each channel's
   transcripts in its own `workspace/watcher/<c>/<id>.json` object. `POST /w/<c>/admin/watcher`
-  (op add|fetch|refresh|meta|label|delete; fetch = MISSING-only batches of 8, page JS loops it; a
-  rate-limit reports `blocked` and never marks videos failed) + `GET /w/<c>/watcher/video/<id>/<vid>`
-  (full transcript behind the click-to-expand cards). UI: 3-across creator grid, collapsed to the 4
-  newest videos, filter bar (search/platform/industry/type) + date sort. YouTube blocks datacenter
-  IPs — for Cloud Run fetching create Secret `watcher-proxy-url` (mounted as `WATCHER_PROXY_URL`
-  when present). Test: `python _watcher_localtest.py`.
+  (op add|fetch|safe_pull|refresh|meta|label|delete; fetch = MISSING-only batches of 8, page JS
+  loops it; a rate-limit reports `blocked` and never marks videos failed) +
+  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards). UI:
+  3-across creator grid, collapsed to the 4 newest videos, filter bar
+  (search/platform/industry/type) + date sort. YouTube blocks datacenter IPs — for Cloud Run
+  fetching create Secret `watcher-proxy-url` (mounted as `WATCHER_PROXY_URL` when present).
+  **Safe pull** = the no-proxy path: `op=safe_pull` queues the channel in
+  `ws["watcher"]["safe_pull"]` (helpers `workspace.queue/clear_watcher_safe_pull`); the operator
+  machine's scheduled task (`install_safe_pull_task.ps1` → `safe_pull_agent.vbs`, 5-min tick,
+  hidden) runs `safe_scrape_local.py --queue` — slow residential-IP scrape (12–20s pacing,
+  5→60 min ladder, %TEMP% PID lock, syncs to the bucket every 5 transcripts, clears the queue
+  entry per finished channel; no args = full sweep). Test: `python _watcher_localtest.py`.
 - **`assistant_ai.py`** — the team-only Assistant tab: RAG chat over EVERY workspace source
   (watcher transcripts, intel, campaigns/content, metrics, calendar, conversations, health, plus
   the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Pure-Python

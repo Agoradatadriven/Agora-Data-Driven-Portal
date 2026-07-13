@@ -177,6 +177,26 @@
   .jobs tr.detail td { background: var(--hover-wash); }
   .jobs .desc { white-space: pre-wrap; color: var(--ink-1); font-size: 13px; max-width: 900px; }
   .jobs .meta { color: var(--ink-2); font-size: 12.5px; margin-bottom: 8px; }
+  /* spreadsheet mode: sortable headers + per-column filter row + fit badges */
+  .jobs th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  .jobs th.sortable:hover { color: var(--ink-1); }
+  .jobs th.sortable .arr { opacity: .5; font-size: 10px; margin-left: 3px; }
+  .jobs tr.colfilters th { padding: 3px 8px 8px; border-bottom: 1px solid var(--baseline); }
+  .jobs tr.colfilters input, .jobs tr.colfilters select {
+    width: 100%; box-sizing: border-box; background: var(--surface-1); color: var(--ink-1);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; }
+  .fit { display: inline-block; min-width: 30px; text-align: center; border-radius: 6px;
+    padding: 2px 7px; font-size: 12px; font-weight: 700; }
+  .fit-hi  { background: rgba(79,168,74,.16);  color: #2e7d32; }
+  .fit-mid { background: rgba(240,160,20,.18); color: #9a6b00; }
+  .fit-lo  { background: rgba(200,60,60,.13);  color: #b03030; }
+  .fit-none { color: var(--ink-2); font-weight: 400; }
+  .jobs .rsn { color: var(--ink-2); font-size: 12px; max-width: 240px; line-height: 1.45; }
+  .fitline { font-size: 12.5px; margin-bottom: 8px; padding: 6px 10px; border-left: 3px solid #4FA84A;
+    background: var(--hover-wash); border-radius: 0 6px 6px 0; max-width: 900px; }
+  .exportbtn { background: var(--surface-1); color: var(--ink-1); border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .exportbtn:hover { background: var(--hover-wash); }
   .openjob {
     display: inline-block; margin-top: 10px; text-decoration: none;
     background: var(--brand-deep); color: #fff; border-radius: 7px; padding: 7px 15px; font-size: 13.5px; font-weight: 700;
@@ -293,17 +313,44 @@
   <div class="card" id="tableCard">
     <div class="tbl-toolbar">
       <span class="count" id="jobsCount"></span>
+      <button type="button" id="exportBtn" class="exportbtn" title="Download the current filtered slice as CSV (up to 20k rows)">⬇ Export CSV</button>
       <select id="fSort" aria-label="Sort">
         <option value="date">Newest first</option>
         <option value="date_asc">Oldest first</option>
+        <option value="fit">Best Agora fit</option>
+        <option value="fit_asc">Lowest Agora fit</option>
         <option value="rate">Highest hourly rate</option>
         <option value="spent">Biggest client spend</option>
       </select>
     </div>
     <table class="jobs" id="jobsTable">
-      <thead><tr>
-        <th>Date</th><th>Job</th><th>Skills</th><th>Rate / budget</th><th>Client</th>
-      </tr></thead>
+      <thead>
+        <tr>
+          <th class="sortable" data-desc="date" data-asc="date_asc">Date<span class="arr"></span></th>
+          <th class="sortable" data-desc="fit" data-asc="fit_asc" title="Agora fit score (0–100, AI-judged against the company brief)">Fit<span class="arr"></span></th>
+          <th class="sortable" data-desc="title_desc" data-asc="title">Job<span class="arr"></span></th>
+          <th>Fit reason</th>
+          <th>Skills</th>
+          <th class="sortable" data-desc="rate" data-asc="rate_asc">Rate / budget<span class="arr"></span></th>
+          <th class="sortable" data-desc="spent" data-asc="spent_asc">Client<span class="arr"></span></th>
+        </tr>
+        <tr class="colfilters">
+          <th></th>
+          <th><select id="cfFit" aria-label="Fit filter">
+            <option value="">Any</option>
+            <option value="90">90+</option>
+            <option value="75">75+</option>
+            <option value="50">50+</option>
+            <option value="25">25+</option>
+            <option value="unscored">Unscored</option>
+          </select></th>
+          <th><input id="cfTitle" type="search" placeholder="Title contains…" aria-label="Title filter"></th>
+          <th></th>
+          <th><input id="cfSkill" type="search" placeholder="Skill contains…" aria-label="Skill filter"></th>
+          <th><input id="cfRate" type="number" min="0" placeholder="Min $/hr" aria-label="Minimum hourly rate"></th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody id="jobsBody"></tbody>
     </table>
     <div class="pager">
@@ -333,7 +380,8 @@
     q: "", tags: [], category: "", country: "", budget: "", level: "",
     verified: false, min_spent: "", datePreset: "mar31", from: "", to: "",
     sort: "date", page: 1, gran: "week", view: "chart", valmode: "adj",
-    showCtx: true, ctxAxis: false
+    showCtx: true, ctxAxis: false,
+    fit: "", title: "", skill: "", min_rate: ""
   };
   var agg = null;           // /api/aggregates payload
   var lastStats = null;
@@ -343,7 +391,8 @@
   // ---- URL state (shareable pre-filtered links) ----
   function readUrl() {
     var p = new URLSearchParams(location.search);
-    ["q","category","country","budget","level","min_spent","from","to","sort"].forEach(function (k) {
+    ["q","category","country","budget","level","min_spent","from","to","sort",
+     "fit","title","skill","min_rate"].forEach(function (k) {
       if (p.get(k)) state[k] = p.get(k);
     });
     if (p.get("tags")) state.tags = p.get("tags").split(",").filter(Boolean).slice(0, 6);
@@ -359,7 +408,7 @@
     var p = new URLSearchParams();
     if (state.q) p.set("q", state.q);
     if (state.tags.length) p.set("tags", state.tags.join(","));
-    ["category","country","budget","level","min_spent"].forEach(function (k) {
+    ["category","country","budget","level","min_spent","fit","title","skill","min_rate"].forEach(function (k) {
       if (state[k]) p.set(k, state[k]);
     });
     if (state.verified) p.set("verified", "1");
@@ -400,6 +449,10 @@
     if (state.level) p.set("level", state.level);
     if (state.verified) p.set("verified", "1");
     if (state.min_spent) p.set("min_spent", state.min_spent);
+    if (state.fit) p.set("fit", state.fit);
+    if (state.title) p.set("title", state.title);
+    if (state.skill) p.set("skill", state.skill);
+    if (state.min_rate) p.set("min_rate", state.min_rate);
     var r = dateRange();
     if (r.from) p.set("from", r.from);
     if (r.to) p.set("to", r.to);
@@ -420,7 +473,8 @@
 
   function isDefaultSlice() {
     if (state.q || state.tags.length || state.category || state.country ||
-        state.budget || state.level || state.verified || state.min_spent) return false;
+        state.budget || state.level || state.verified || state.min_spent ||
+        state.fit || state.title || state.skill || state.min_rate) return false;
     if (state.datePreset === "all") return true;
     if (state.datePreset === "era") return !!(agg && agg.era);
     if (state.datePreset === "mar31") return !!(agg && agg.mar31);
@@ -490,6 +544,10 @@
     if (state.level) bits.push(state.level + " level");
     if (state.min_spent) bits.push("client spent $" + compact(parseFloat(state.min_spent)) + "+");
     if (state.verified) bits.push("payment verified");
+    if (state.fit) bits.push(state.fit === "unscored" ? "unscored jobs" : "Agora fit " + state.fit + "+");
+    if (state.title) bits.push("title has “" + state.title + "”");
+    if (state.skill) bits.push("skill has “" + state.skill + "”");
+    if (state.min_rate) bits.push("$" + state.min_rate + "/hr+");
     if (state.datePreset === "custom") bits.push("custom dates");
     var el = document.getElementById("filterBanner");
     el.textContent = "";
@@ -529,11 +587,13 @@
     state.q = ""; state.category = ""; state.country = ""; state.budget = "";
     state.level = ""; state.min_spent = ""; state.verified = false;
     state.from = ""; state.to = ""; state.datePreset = "mar31";
+    state.fit = ""; state.title = ""; state.skill = ""; state.min_rate = "";
     state.tags.slice().forEach(releaseSlot);
     state.tags = [];
     state.valmode = "adj";
     document.getElementById("fQ").value = "";
-    ["fCategory", "fCountry", "fBudget", "fLevel", "fSpent"].forEach(function (id) {
+    ["fCategory", "fCountry", "fBudget", "fLevel", "fSpent",
+     "cfFit", "cfTitle", "cfSkill", "cfRate"].forEach(function (id) {
       document.getElementById(id).value = "";
     });
     document.getElementById("fVerified").checked = false;
@@ -1099,6 +1159,16 @@
   }
 
   // ---- jobs table ----
+  function updateSortHeads() {
+    document.querySelectorAll("#jobsTable th.sortable").forEach(function (th) {
+      var arr = th.querySelector(".arr");
+      if (!arr) return;
+      if (state.sort === th.getAttribute("data-desc")) arr.textContent = " ▼";
+      else if (state.sort === th.getAttribute("data-asc")) arr.textContent = " ▲";
+      else arr.textContent = "";
+    });
+  }
+
   function renderJobs(d) {
     var body = document.getElementById("jobsBody");
     body.textContent = "";
@@ -1110,9 +1180,10 @@
     document.getElementById("prevBtn").disabled = d.page <= 1;
     document.getElementById("nextBtn").disabled = start + d.per >= d.total;
 
+    updateSortHeads();
     if (!d.rows.length) {
       var tr0 = document.createElement("tr");
-      var td0 = document.createElement("td"); td0.colSpan = 5; td0.className = "empty";
+      var td0 = document.createElement("td"); td0.colSpan = 7; td0.className = "empty";
       td0.textContent = "Nothing matches this slice — loosen a filter.";
       tr0.appendChild(td0); body.appendChild(tr0);
       return;
@@ -1121,6 +1192,17 @@
       var tr = document.createElement("tr"); tr.className = "main";
       var dt = document.createElement("td"); dt.className = "dt";
       dt.textContent = r.date.slice(0, 10);
+      var fit = document.createElement("td");
+      var badge = document.createElement("span");
+      if (r.fit_score === null || r.fit_score === undefined) {
+        badge.className = "fit fit-none"; badge.textContent = "—";
+        badge.title = "Not scored yet";
+      } else {
+        badge.className = "fit " + (r.fit_score >= 85 ? "fit-hi" : r.fit_score >= 50 ? "fit-mid" : "fit-lo");
+        badge.textContent = r.fit_score;
+        badge.title = r.fit_reason || "";
+      }
+      fit.appendChild(badge);
       var ttl = document.createElement("td"); ttl.className = "ttl";
       var link = document.createElement("a");
       link.className = "joblink"; link.href = r.url; link.target = "_blank"; link.rel = "noopener";
@@ -1135,13 +1217,16 @@
         });
         ttl.appendChild(tagsWrap);
       }
+      var rsn = document.createElement("td"); rsn.className = "rsn";
+      rsn.textContent = (r.fit_score === null || r.fit_score === undefined)
+        ? "—" : (r.fit_reason || "—");
       var sk = document.createElement("td"); sk.className = "sk";
       sk.textContent = r.skills || "—";
       var rate = document.createElement("td"); rate.className = "rate";
       rate.textContent = rateText(r);
       var cl = document.createElement("td"); cl.className = "cl";
       cl.textContent = clientText(r);
-      tr.appendChild(dt); tr.appendChild(ttl); tr.appendChild(sk); tr.appendChild(rate); tr.appendChild(cl);
+      tr.appendChild(dt); tr.appendChild(fit); tr.appendChild(ttl); tr.appendChild(rsn); tr.appendChild(sk); tr.appendChild(rate); tr.appendChild(cl);
       tr.addEventListener("click", function () { toggleDetail(tr, r); });
       body.appendChild(tr);
       if (expanded[r.id]) toggleDetail(tr, r);
@@ -1170,7 +1255,15 @@
     }
     expanded[r.id] = true;
     var dtr = document.createElement("tr"); dtr.className = "detail";
-    var td = document.createElement("td"); td.colSpan = 5;
+    var td = document.createElement("td"); td.colSpan = 7;
+    if (r.fit_score !== null && r.fit_score !== undefined) {
+      var fl = document.createElement("div"); fl.className = "fitline";
+      var b = document.createElement("b");
+      b.textContent = "Agora fit " + r.fit_score + "/100";
+      fl.appendChild(b);
+      fl.appendChild(document.createTextNode(" — " + (r.fit_reason || "no reason recorded")));
+      td.appendChild(fl);
+    }
     var meta = document.createElement("div"); meta.className = "meta";
     var metaBits = [];
     if (r.category) metaBits.push(r.category);
@@ -1291,6 +1384,37 @@
     });
     document.getElementById("nextBtn").addEventListener("click", function () {
       state.page++; refreshJobs();
+    });
+
+    // spreadsheet mode: per-column filters + click-to-sort headers + CSV export
+    var cfFit = document.getElementById("cfFit");
+    cfFit.value = state.fit;
+    cfFit.addEventListener("change", function () { state.fit = cfFit.value; refreshAll(); });
+    [["cfTitle", "title"], ["cfSkill", "skill"], ["cfRate", "min_rate"]].forEach(function (pair) {
+      var el = document.getElementById(pair[0]);
+      el.value = state[pair[1]];
+      el.addEventListener("input", function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          state[pair[1]] = el.value.trim(); refreshAll();
+        }, 350);
+      });
+    });
+    document.querySelectorAll("#jobsTable th.sortable").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var desc = th.getAttribute("data-desc"), asc = th.getAttribute("data-asc");
+        state.sort = (state.sort === desc) ? asc : desc;
+        state.page = 1;
+        var dd = document.getElementById("fSort");
+        dd.value = state.sort;
+        if (dd.value !== state.sort) dd.value = "";  // sort not in the dropdown — blank it
+        writeUrl(); refreshJobs();
+      });
+    });
+    document.getElementById("exportBtn").addEventListener("click", function () {
+      var p = filterParams();
+      p.set("sort", state.sort);
+      window.location.href = "api/export.csv?" + p.toString();
     });
 
     document.querySelectorAll("#granSeg button").forEach(function (x) {

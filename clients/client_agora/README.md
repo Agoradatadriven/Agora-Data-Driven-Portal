@@ -12,11 +12,33 @@ raw_files/result.json          Telegram Desktop export of the bot chat (~1 GB, g
    ▼
 dash/data/jobs.sqlite          one row per unique job URL + job_skills/job_tags + FTS5 index
 dash/data/aggregates.json      pre-baked unfiltered payload (weekly series, momentum, top lists)
+dash/data/job_scores.sqlite    AI "Agora fit" scores (processing/score_jobs.py — SEPARATE file,
+   │                           keyed by URL, so it survives jobs.sqlite rebuilds)
    │  dash/deploy_dash_agora.ps1
    ▼
 gs://agora-data-driven-agora-dash/upwork/    (private; service downloads at startup)
 Cloud Run service `agora-dash`               (asia-southeast1, SA agora-dash-web@)
 ```
+
+## Agora-fit scoring (processing/score_jobs.py)
+
+Every job gets an LLM score 0–100 for "is this a good fit for Agora" + a 1–2 sentence
+reason, using **gemini-2.5-flash-lite on Vertex** (project agora-data-driven, thinking
+off, JSON schema output). The system prompt = `processing/agora_job_fit_brief.md`
+(company profile, edit to change judging) + the rubric inside the script. Run:
+
+```
+python processing/score_jobs.py --smoke        # 3 jobs, verbose
+python processing/score_jobs.py --limit 500    # seeded random sample
+python processing/score_jobs.py --all          # every unscored job (~$43 sync @ 16 workers)
+python processing/score_jobs.py --report       # distribution + samples
+```
+
+Resumable (scored URLs are skipped); auth = VERTEX_ACCESS_TOKEN env or `gcloud auth
+print-access-token`. Scores land in `dash/data/job_scores.sqlite`; the dash attaches it
+read-only and exposes a **Fit** column (sortable, filterable, reason on row-expand),
+`fit`/`title`/`skill`/`min_rate` URL params, and `GET /api/export.csv` (filtered slice,
+20k-row cap). The whole dashboard (charts/KPIs) follows the fit filter like any other.
 
 - **Processor** parses each bot message's `text_entities` (title, category,
   budget/rate, level, skills, client stats, description, feed name, job URL),

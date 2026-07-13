@@ -142,7 +142,15 @@ auto-refresh (see those bullets below). Product name is one constant:
   and skipped. ⚠️ YouTube blocks datacenter IPs, so Cloud Run fetches usually need the OPT-IN
   egress proxy: create Secret `watcher-proxy-url` (full proxy URL, e.g. Webshare rotating
   residential) and redeploy — `deploy_dash_platform.ps1` mounts it as `WATCHER_PROXY_URL` only when
-  it exists. Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube fetchers).
+  it exists. **Safe pull (the no-proxy path):** each card's "Safe pull" button (`op=safe_pull`)
+  queues the channel in `ws["watcher"]["safe_pull"]`; the operator machine's scheduled task
+  ("Agora Watcher Safe Pull", installed by `dash/install_safe_pull_task.ps1` →
+  `dash/safe_pull_agent.vbs`, every 5 min, hidden, single-instance) runs
+  `dash/safe_scrape_local.py --queue` from a residential IP with 12–20s pacing + a 5→60 min
+  rate-limit ladder, syncing transcripts back to the bucket as it goes and clearing each queue
+  entry on completion (no args = full sweep of every client; a %TEMP% PID lock keeps every mode
+  single-instance). Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube
+  fetchers).
 - **Assistant is a TEAM-ONLY tab (RAG chat over the WHOLE workspace):** grounded Q&A across every
   source the portal holds for a client — campaigns + content (incl. comments), workspace metrics,
   Market Intelligence, the calendar, client conversations, website health, every Watcher

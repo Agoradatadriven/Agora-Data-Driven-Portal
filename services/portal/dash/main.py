@@ -2189,11 +2189,13 @@ def _watcher_view(ws, client):
     channels added before those fields existed) and `latest` -- the newest video's estimated
     publish date (fallback: the day the channel was added) -- which drives the date sort."""
     out = []
+    safe_queue = set(workspace.watcher_safe_pull_queue(ws))
     for ch in workspace.watcher_channels(ws):
         entry = dict(ch)
         entry.setdefault("platform", "youtube")
         entry.setdefault("industry", "")
         entry.setdefault("kind", "creator")
+        entry["safe_queued"] = ch.get("id") in safe_queue
         cards = []
         latest = ""
         for v in workspace.read_watcher_videos(client, ch.get("id", "")):
@@ -2280,6 +2282,10 @@ def atrium_admin_watcher(client):
                  `remaining` hits 0, so each request stays short). A YouTube rate-limit stops the
                  batch and reports `blocked` WITHOUT marking any video failed, so the next fetch
                  resumes exactly where it stopped. `retry=1` first clears non-permanent errors.
+    * safe_pull - queue the channel for the LOCAL safe scraper instead of fetching here (Cloud Run
+                 IPs get blocked regardless of pacing). The operator machine's scheduled task
+                 (safe_scrape_local.py --queue) picks the queue up within minutes and works through
+                 it slowly; transcripts appear as they sync back.
     * refresh -- re-list the channel: add newly uploaded videos, refresh upload dates (existing
                  transcripts kept).
     * meta    -- hand-edit the classification (industry text and/or kind creator|competitor).
@@ -2335,6 +2341,12 @@ def atrium_admin_watcher(client):
         return jsonify(ok=True, fetched=fetched, blocked=blocked, remaining=pending,
                        total=len(videos), done=len(videos) - pending)
 
+    if op == "safe_pull":
+        workspace.queue_watcher_safe_pull(client, channel_id)
+        ch = workspace.find_watcher_channel(ws, channel_id)
+        _audit(client, "queued watcher safe pull", ch.get("title", ""))
+        return jsonify(ok=True)
+
     if op == "refresh":
         ch = workspace.find_watcher_channel(ws, channel_id)
         listing = watcher.list_videos(ch.get("channel_id", ""))
@@ -2387,6 +2399,7 @@ def atrium_admin_watcher(client):
         return jsonify(ok=True, industry=industry)
 
     if op == "delete":
+        workspace.clear_watcher_safe_pull(client, channel_id)
         removed = workspace.delete_watcher_channel(client, channel_id)
         if removed:
             _audit(client, "removed watcher channel", removed.get("title", ""))

@@ -56,13 +56,16 @@ def data_dir():
         tmp = "/tmp/upwork_data"
         os.makedirs(tmp, exist_ok=True)
         bucket = storage.Client().bucket(DATA_BUCKET)
-        for name in ("jobs.sqlite", "aggregates.json"):
+        for name in ("jobs.sqlite", "aggregates.json", "job_scores.sqlite"):
             dest = os.path.join(tmp, name)
             if not os.path.exists(dest):
+                blob = bucket.blob("%s/%s" % (DATA_PREFIX, name))
+                if name == "job_scores.sqlite" and not blob.exists():
+                    continue  # scores are optional — dash works without them
                 # unique temp + atomic replace: concurrent workers can never
                 # truncate a file another worker is already serving from
                 part = "%s.part.%d" % (dest, os.getpid())
-                bucket.blob("%s/%s" % (DATA_PREFIX, name)).download_to_filename(part)
+                blob.download_to_filename(part)
                 os.replace(part, dest)
         _resolved_dir = tmp
         return _resolved_dir
@@ -72,6 +75,13 @@ def db():
     if "db" not in g:
         conn = sqlite3.connect(os.path.join(data_dir(), "jobs.sqlite"))
         conn.row_factory = sqlite3.Row
+        # scores are a SEPARATE db (they survive jobs.sqlite rebuilds) — attach
+        # read-only when present so queries can join on url. Attach must happen
+        # before query_only flips on.
+        scores = os.path.join(data_dir(), "job_scores.sqlite")
+        g.has_scores = os.path.exists(scores)
+        if g.has_scores:
+            conn.execute("ATTACH DATABASE ? AS sc", (scores,))
         conn.executescript(
             "PRAGMA query_only=1; PRAGMA mmap_size=1073741824; PRAGMA cache_size=-64000;")
         g.db = conn
@@ -133,6 +143,40 @@ def build_where(args):
         if v is not None:
             where.append("j.spent >= ?")
             params.append(v)
+    # spreadsheet-style column filters (title/skills contains, min hourly rate)
+    t = args.get("title", "").strip()
+    if t:
+        where.append("j.title LIKE ? COLLATE NOCASE")
+        params.append("%" + t + "%")
+    sk = args.get("skill", "").strip()
+    if sk:
+        where.append("j.skills LIKE ? COLLATE NOCASE")
+        params.append("%" + sk + "%")
+    mr = args.get("min_rate", "").strip()
+    if mr:
+        try:
+            v = float(mr)
+        except ValueError:
+            v = None
+        if v is not None:
+            where.append("j.rate_max >= ?")
+            params.append(v)
+    # Agora-fit score filter (subquery form so /api/stats works without a join);
+    # silently ignored when no scores db is attached
+    fit = args.get("fit", "").strip()
+    if fit:
+        db()  # ensures the attach ran and g.has_scores is set
+    if fit and getattr(g, "has_scores", False):
+        if fit == "unscored":
+            where.append("j.url NOT IN (SELECT url FROM sc.scores)")
+        else:
+            try:
+                v = int(fit)
+            except ValueError:
+                v = None
+            if v is not None:
+                where.append("j.url IN (SELECT url FROM sc.scores WHERE score >= ?)")
+                params.append(v)
     d_from, d_to = args.get("from", "").strip(), args.get("to", "").strip()
     if d_from:
         where.append("j.date >= ?")
@@ -277,8 +321,11 @@ def stats():
 
 SORTS = {
     "date": "j.date DESC", "date_asc": "j.date ASC",
-    "rate": "j.rate_max DESC NULLS LAST", "spent": "j.spent DESC NULLS LAST",
+    "rate": "j.rate_max DESC NULLS LAST", "rate_asc": "j.rate_max ASC NULLS LAST",
+    "spent": "j.spent DESC NULLS LAST", "spent_asc": "j.spent ASC NULLS LAST",
     "dups": "j.dup_count DESC",
+    "title": "j.title COLLATE NOCASE ASC", "title_desc": "j.title COLLATE NOCASE DESC",
+    "fit": "fit_score DESC NULLS LAST", "fit_asc": "fit_score ASC NULLS LAST",
 }
 
 JOB_COLS = ("id,date,title,url,category,budget_type,rate_min,rate_max,fixed_budget,"
@@ -286,23 +333,67 @@ JOB_COLS = ("id,date,title,url,category,budget_type,rate_min,rate_max,fixed_budg
             "client_jobs,hire_rate,avg_rate,spent,verified,tags")
 
 
+def _jobs_select(where, order):
+    """SELECT with fit columns: joined from sc.scores when attached, NULL otherwise."""
+    cols = ",".join("j." + c for c in JOB_COLS.split(","))
+    if getattr(g, "has_scores", False):
+        return ("SELECT %s, s.score AS fit_score, s.reason AS fit_reason"
+                " FROM jobs j LEFT JOIN sc.scores s ON s.url = j.url"
+                " WHERE %s ORDER BY %s LIMIT ? OFFSET ?" % (cols, where, order))
+    return ("SELECT %s, NULL AS fit_score, NULL AS fit_reason FROM jobs j"
+            " WHERE %s ORDER BY %s LIMIT ? OFFSET ?" % (cols, where, order))
+
+
+def _sort(args):
+    key = args.get("sort", "date")
+    if key.startswith("fit") and not getattr(g, "has_scores", False):
+        key = "date"
+    return SORTS.get(key, SORTS["date"])
+
+
 @app.get("/api/jobs")
 def jobs():
-    where, params = build_where(request.args)
     conn = db()
+    where, params = build_where(request.args)
     try:
         page = max(1, int(request.args.get("page", 1)))
         per = min(100, max(10, int(request.args.get("per", 25))))
     except ValueError:
         page, per = 1, 25
-    order = SORTS.get(request.args.get("sort", "date"), SORTS["date"])
     total = conn.execute("SELECT COUNT(*) n FROM jobs j WHERE " + where, params).fetchone()["n"]
-    rows = conn.execute(
-        "SELECT %s FROM jobs j WHERE %s ORDER BY %s LIMIT ? OFFSET ?"
-        % (",".join("j." + c for c in JOB_COLS.split(",")), where, order),
-        params + [per, (page - 1) * per])
+    rows = conn.execute(_jobs_select(where, _sort(request.args)),
+                        params + [per, (page - 1) * per])
     return jsonify({"total": total, "page": page, "per": per,
+                    "scored": bool(getattr(g, "has_scores", False)),
                     "rows": [dict(r) for r in rows]})
+
+
+EXPORT_CAP = 20000
+
+
+@app.get("/api/export.csv")
+def export_csv():
+    """Current filtered slice as CSV (spreadsheet hand-off), capped at EXPORT_CAP rows."""
+    import csv
+    import io
+    conn = db()
+    where, params = build_where(request.args)
+    rows = conn.execute(_jobs_select(where, _sort(request.args)), params + [EXPORT_CAP, 0])
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["date", "fit_score", "fit_reason", "title", "url", "category",
+                "budget_type", "rate_min", "rate_max", "fixed_budget", "level",
+                "skills", "tags", "country", "rating", "hire_rate", "spent",
+                "verified", "description"])
+    for r in rows:
+        w.writerow([(r["date"] or "")[:10], r["fit_score"], r["fit_reason"], r["title"],
+                    r["url"], r["category"], r["budget_type"], r["rate_min"], r["rate_max"],
+                    r["fixed_budget"], r["level"], r["skills"], r["tags"], r["country"],
+                    r["rating"], r["hire_rate"], r["spent"], r["verified"],
+                    (r["description"] or "").replace("\r", " ")])
+    out = buf.getvalue().encode("utf-8-sig")  # BOM so Excel opens it as UTF-8
+    return app.response_class(out, mimetype="text/csv", headers={
+        "Content-Disposition": "attachment; filename=upwork_jobs_filtered.csv"})
 
 
 # with gunicorn --preload this runs ONCE in the master before workers fork,

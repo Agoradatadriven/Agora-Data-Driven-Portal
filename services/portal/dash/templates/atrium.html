@@ -580,7 +580,7 @@
     .ax-shot-file { cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 14px; box-sizing: border-box; background: #f4f3fb; color: var(--ax-purple-d, #1856C9); text-decoration: none; }
     .ax-shot-file:hover { background: #ecebf8; }
     .ax-shot-file .ax-ic { width: 30px; height: 30px; }
-    .ax-shot-file-name { font-size: 12px; font-weight: 600; line-height: 1.3; word-break: break-word; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .ax-shot-file-name { font-size: 12px; font-weight: 600; line-height: 1.3; word-break: break-word; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
     /* Document attachment (pdf/docx/xlsx/…): a clean file-type icon (format depends on the file) +
        filename; click to enlarge into the scrollable doc lightbox. */
     .ax-shot-doc { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -630,7 +630,7 @@
     .ax-ch-type { display: inline-block; margin-bottom: 6px; }
     .ax-ch-meta { display: block; font-size: 12px; font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ax-violet-d); margin-bottom: 4px; }
     .ax-ch-title { font-family: "Roboto", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif; font-size: 15px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
-    .ax-ch-cap { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; color: #3a4050; line-height: 1.4; }
+    .ax-ch-cap { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; color: #3a4050; line-height: 1.4; }
     .ax-ch-right { display: flex; align-items: center; gap: 10px; }
     .ax-chev { color: #aab0bd; font-size: 13px; transition: transform .2s ease; }
     .ax-collapse.is-open .ax-chev { transform: rotate(180deg); }
@@ -2922,14 +2922,20 @@
               <div class="ax-wt-chactions">
                 {% if ch.transcript_count < ch.video_count %}
                 <button class="ax-btn violet" type="button" data-wtfetch="{{ ch.id }}">Fetch missing</button>
+                {% if ch.safe_queued %}
+                <button class="ax-btn" type="button" disabled>Safe pull queued &#10003;</button>
+                {% else %}
+                <button class="ax-btn" type="button" data-wtsafe="{{ ch.id }}"
+                        title="Queue this channel for the slow safe scraper — it never gets rate-limited, transcripts land automatically">Safe pull</button>
+                {% endif %}
                 {% endif %}
                 <button class="ax-btn" type="button" data-wtrefresh="{{ ch.id }}">Check new</button>
                 <button class="ax-btn" type="button" data-wtlabel="{{ ch.id }}">Auto-label</button>
                 <button class="ax-btn" type="button" data-wtdelete="{{ ch.id }}" data-wtname="{{ ch.title }}">Remove</button>
               </div>
-              <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" hidden>
-                <div class="ax-wt-bar"><span></span></div>
-                <div class="ax-wt-ptext"></div>
+              <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" {% if not ch.safe_queued %}hidden{% endif %}>
+                <div class="ax-wt-bar" {% if ch.safe_queued %}hidden{% endif %}><span></span></div>
+                <div class="ax-wt-ptext">{% if ch.safe_queued %}Safe pull queued — the safe scraper fetches these slowly from a home IP (no rate-limits). Transcripts land here automatically; check back later.{% endif %}</div>
               </div>
 
               <div class="ax-wt-recent">
@@ -3595,7 +3601,11 @@
         var bar = wrap ? wrap.querySelector(".ax-wt-bar span") : null;
         var ptext = wrap ? wrap.querySelector(".ax-wt-ptext") : null;
         btn.setAttribute("disabled", "disabled");
-        if (wrap) { wrap.hidden = false; }
+        if (wrap) {
+          wrap.hidden = false;
+          var barbox = wrap.querySelector(".ax-wt-bar");
+          if (barbox) { barbox.hidden = false; }
+        }
         if (ptext) { ptext.textContent = "Fetching missing transcripts…"; }
         function step(first) {
           post("/admin/watcher", { op: "fetch", channel_id: chan, retry: first ? "1" : "0" })
@@ -3627,6 +3637,41 @@
             });
         }
         step(true);
+      });
+    });
+
+    // Safe pull: queue the channel for the LOCAL safe scraper (slow home-IP pacing, never
+    // rate-limited). The scheduled task on the scrape machine picks the queue up within minutes;
+    // transcripts sync back on their own, so this just confirms and leaves a note.
+    qsa("[data-wtsafe]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var chan = btn.getAttribute("data-wtsafe");
+        var wrap = document.querySelector('[data-wtprogress="' + aq(chan) + '"]');
+        var ptext = wrap ? wrap.querySelector(".ax-wt-ptext") : null;
+        btn.setAttribute("disabled", "disabled");
+        post("/admin/watcher", { op: "safe_pull", channel_id: chan })
+          .then(function (data) {
+            if (!data || data.ok === false) {
+              btn.removeAttribute("disabled");
+              if (ptext) {
+                wrap.hidden = false;
+                ptext.textContent = (data && data.message) || "Could not queue the safe pull.";
+              }
+              return;
+            }
+            btn.textContent = "Safe pull queued ✓";
+            if (ptext) {
+              wrap.hidden = false;
+              ptext.textContent = "Safe pull queued — the safe scraper fetches these slowly from a home IP (no rate-limits). Transcripts land here automatically; check back later.";
+            }
+          })
+          .catch(function () {
+            btn.removeAttribute("disabled");
+            if (ptext) {
+              wrap.hidden = false;
+              ptext.textContent = "Could not queue the safe pull (network error) — please try again.";
+            }
+          });
       });
     });
 

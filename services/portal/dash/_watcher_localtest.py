@@ -267,6 +267,16 @@ def run():
     _check("new video is prepended, old transcripts kept",
            vids[0]["id"] == "vid00000009" and vids[1]["transcript"] == "transcript for vid00000001")
 
+    # --- Safe pull: queue the channel for the local slow scraper ---------------------------------
+    r = c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "safe_pull", "channel_id": chan})
+    _check("op=safe_pull queues the channel", r.get_json()["ok"] is True and
+           workspace.watcher_safe_pull_queue(workspace.load_workspace(CLIENT)) == [chan])
+    c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "safe_pull", "channel_id": chan})
+    _check("op=safe_pull is idempotent",
+           workspace.watcher_safe_pull_queue(workspace.load_workspace(CLIENT)) == [chan])
+    body = c.get("/w/%s/watcher" % CLIENT).get_data(as_text=True)
+    _check("queued card renders the Safe-pull note", "Safe pull queued" in body)
+
     # --- Team-only gating: a client must never see or touch Watcher ------------------------------
     with c.session_transaction() as s:
         s.clear()
@@ -284,8 +294,9 @@ def run():
         s.clear()
         s.update(SUPER)
     r = c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "delete", "channel_id": chan})
-    _check("op=delete removes the channel", r.get_json()["ok"] is True
-           and workspace.watcher_channels(workspace.load_workspace(CLIENT)) == [])
+    _check("op=delete removes the channel AND its safe-pull entry", r.get_json()["ok"] is True
+           and workspace.watcher_channels(workspace.load_workspace(CLIENT)) == []
+           and workspace.watcher_safe_pull_queue(workspace.load_workspace(CLIENT)) == [])
 
     watcher.resolve_channel, watcher.list_videos, watcher.fetch_transcript = (
         real_resolve, real_list, real_fetch)
