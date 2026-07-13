@@ -160,6 +160,11 @@ auto-refresh (see those bullets below). Product name is one constant:
   Vertex code paths run off-cloud with a `gcloud auth print-access-token` token. Off-cloud test:
   `dash/_assistant_localtest.py` (in CI). The Watcher tab also gained a Looker-style upload-date
   range control (presets + custom from/to) that filters videos and creators client-side.
+  The same chat is ALSO a **floating bubble** (team-only FAB bottom-right, Mastery-Engine style)
+  reachable from every tab: one `wireAssistantChat` wiring in `atrium.html` serves both surfaces
+  (the tab keeps the date-range + reindex controls), an open conversation survives client-side tab
+  switches, and the bubble hides on the Assistant tab itself (CSS on the root's `data-tab`, which
+  `showTab` keeps current).
 - **Content with a date mirrors onto the Content Calendar (linked event):** when an admin gives a
   content piece a `date` (in the add/edit-content form), `workspace.add_content`/`update_content`
   mirror it into `calendar[]` as a linked event carrying `content_id` + `tab` (paid→`leadgen`,

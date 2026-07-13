@@ -81,7 +81,10 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   BM25 index stored as `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change);
   answers via `intel_ai._call` (JSON-mode, parsed leniently) with cited sources.
   `POST /w/<c>/admin/assistant` (op ask|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs Vertex
-  off-cloud. Test: `python _assistant_localtest.py`.
+  off-cloud. Test: `python _assistant_localtest.py`. UI: the Assistant tab AND a team-only
+  floating bubble (`ax-asfab` FAB + `ax-aspanel` pop-up in `atrium.html`, inside `.atrium` so the
+  vars/font inherit) available on every tab — both wired by ONE `wireAssistantChat`; the bubble
+  hides on the Assistant tab via `.atrium[data-tab="assistant"]`.
 - **`intel_feed.py` / `intel_refresh.py`** — the DAILY Market Intelligence auto-refresh (opt-in,
   `INTEL_AUTO_ENABLED=1`). `intel_feed` parses Google News RSS + publisher feeds (keyless, stdlib
   `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**

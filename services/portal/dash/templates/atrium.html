@@ -1363,6 +1363,54 @@
     .ax-as-inputrow { display: flex; gap: 10px; align-items: flex-end; border-top: 1px solid var(--ax-line); padding-top: 12px; }
     .ax-as-input { flex: 1 1 auto; resize: vertical; min-height: 44px; }
     .ax-as-send { flex: 0 0 auto; }
+
+    /* ---- Floating assistant bubble (team-only): the same grounded chat, reachable from EVERY tab.
+           Styled after the Mastery Engine study-assistant FAB: purple gradient circle bottom-right
+           opening a pop-up chat card. Sits BELOW the full-attention overlays (lightbox 130+). ---- */
+    .ax-asfab {
+      position: fixed; right: 22px; bottom: 22px; z-index: 120;
+      width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
+      background: linear-gradient(135deg, #A79BFC, #8672F5); color: #fff;
+      box-shadow: 0 14px 32px -8px rgba(148,132,251,.6); transition: transform .15s ease;
+      display: grid; place-items: center;
+    }
+    .ax-asfab:hover { transform: translateY(-2px) scale(1.04); }
+    .ax-asfab.is-open { background: linear-gradient(135deg, #8672F5, #6C58E0); }
+    .ax-asfab .ax-ic { width: 27px; height: 27px; }
+    .ax-aspanel {
+      position: fixed; right: 22px; bottom: 92px; z-index: 121;
+      width: 400px; max-width: calc(100vw - 44px); height: min(560px, calc(100vh - 130px));
+      background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 18px;
+      box-shadow: 0 24px 60px -12px rgba(16,24,40,.28); padding: 16px;
+      display: flex; flex-direction: column; animation: ax-asfab-pop .22s cubic-bezier(.34,1.56,.64,1);
+    }
+    .ax-aspanel[hidden] { display: none; }
+    @keyframes ax-asfab-pop { from { transform: scale(.94) translateY(8px); opacity: 0; } }
+    .ax-aspanel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .ax-aspanel-title { font-size: 16px; font-weight: 800; color: var(--ax-ink); }
+    .ax-aspanel-hint { font-size: 12px; color: var(--ax-sub); margin-top: 2px; line-height: 1.4; }
+    .ax-aspanel-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    .ax-aspanel-new {
+      height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--ax-line);
+      background: var(--ax-canvas); color: var(--ax-sub); font: inherit; font-size: 12.5px;
+      font-weight: 700; cursor: pointer; line-height: 1; white-space: nowrap;
+    }
+    .ax-aspanel-new:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-aspanel-x {
+      width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--ax-line);
+      background: var(--ax-canvas); color: var(--ax-sub); font-size: 17px; cursor: pointer; line-height: 1;
+    }
+    .ax-aspanel-x:hover { color: var(--ax-ink); }
+    .ax-aspanel .ax-as-log { max-height: none; }
+    .ax-aspanel .ax-as-bubble { max-width: 86%; font-size: 13.5px; }
+    .ax-aspanel .ax-as-input { min-height: 40px; }
+    /* On the Assistant tab the pane IS the chat, so the bubble would be redundant — hide it there
+       (showTab keeps the root's data-tab current; the FAB/panel live inside .atrium). */
+    .atrium[data-tab="assistant"] .ax-asfab, .atrium[data-tab="assistant"] .ax-aspanel { display: none; }
+    @media (max-width: 560px) {
+      .ax-asfab { right: 14px; bottom: 14px; }
+      .ax-aspanel { right: 10px; left: 10px; width: auto; bottom: 86px; }
+    }
   </style>
 </head>
 <body>
@@ -2933,6 +2981,31 @@
       </main>
     </div>
   </div>
+
+  {% if is_superadmin %}
+  <!-- Floating assistant bubble (team-only): the workspace RAG chat as a FAB + pop-up panel, reachable
+       from every tab (the panes switch client-side, so an open conversation survives tab changes).
+       Lives INSIDE .atrium so the --ax-* vars + Roboto inherit; position:fixed still pins it to the
+       viewport (same posture as #ax-navtoggle). -->
+  <button class="ax-asfab" id="ax-asfab" type="button" title="Assistant — ask about this workspace" aria-label="Open the workspace assistant" aria-expanded="false">{{ ic('assistant') }}</button>
+  <div class="ax-aspanel" id="ax-aspanel" hidden role="dialog" aria-label="Workspace assistant">
+    <div class="ax-aspanel-head">
+      <div>
+        <div class="ax-aspanel-title">Assistant</div>
+        <div class="ax-aspanel-hint">Grounded in this workspace &mdash; campaigns, metrics, intel, conversations, and every Watcher transcript.</div>
+      </div>
+      <div class="ax-aspanel-actions">
+        <button class="ax-aspanel-new" id="ax-asfab-new" type="button" title="Start a new conversation">+ New</button>
+        <button class="ax-aspanel-x" id="ax-asfab-x" type="button" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab. The full Assistant tab has date-range and reindex controls."></div>
+    <div class="ax-as-inputrow">
+      <textarea class="ax-editbox ax-as-input" id="ax-asfab-input" rows="2" placeholder="Ask about campaigns, metrics, intel&hellip;"></textarea>
+      <button class="ax-btn violet ax-as-send" id="ax-asfab-send" type="button">Ask</button>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Branded confirm dialog (one shared instance; replaces the native window.confirm()) -->
@@ -3071,6 +3144,8 @@
     if (!pane) { return; }
     qsa(".ax-pane").forEach(function (p) { p.classList.remove("is-active"); });
     pane.classList.add("is-active");
+    // Keep the root's data-tab current (CSS hides the floating assistant on the Assistant tab).
+    root.setAttribute("data-tab", tab);
     qsa("#ax-nav a").forEach(function (a) {
       a.classList.toggle("is-active", a.getAttribute("data-tab") === tab);
     });
@@ -3635,15 +3710,16 @@
     }
   })();
 
-  // ---- Assistant (team-only tab): grounded chat over the whole workspace -----------------------
-  // Each question POSTs op=ask with the recent turns + the optional date range; the answer bubble
-  // carries citation chips (the retrieved sources). No page state persists -- the knowledge index
-  // lives server-side and rebuilds itself when workspace data changes.
-  (function () {
-    var log = document.getElementById("ax-as-log");
-    var input = document.getElementById("ax-as-input");
-    var send = document.getElementById("ax-as-send");
-    if (!log || !input || !send) { return; }
+  // ---- Assistant (team-only): grounded chat over the whole workspace ---------------------------
+  // ONE wiring serves BOTH surfaces: the Assistant tab pane AND the floating bubble reachable from
+  // every tab. Each surface keeps its own conversation; every question POSTs op=ask with the recent
+  // turns (+ the tab's optional date range) and the answer bubble carries citation chips. No page
+  // state persists -- the knowledge index lives server-side and rebuilds when workspace data changes.
+  function wireAssistantChat(ids) {
+    var log = document.getElementById(ids.log);
+    var input = document.getElementById(ids.input);
+    var send = document.getElementById(ids.send);
+    if (!log || !input || !send) { return null; }
     var history = [];
     function addMsg(role, text, extraClass) {
       var wrap = document.createElement("div");
@@ -3689,8 +3765,8 @@
       addMsg("user", q);
       history.push({ role: "user", text: q });
       var bubble = addMsg("bot", "Reading the workspace…", "is-thinking");
-      var from = document.getElementById("ax-as-from");
-      var to = document.getElementById("ax-as-to");
+      var from = ids.from ? document.getElementById(ids.from) : null;
+      var to = ids.to ? document.getElementById(ids.to) : null;
       post("/admin/assistant", {
         op: "ask", question: q, history: JSON.stringify(history.slice(-8)),
         date_from: from ? from.value : "", date_to: to ? to.value : ""
@@ -3721,8 +3797,24 @@
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askNow(); }
     });
+    return {
+      say: function (text, extraClass) { addMsg("bot", text, extraClass); },
+      reset: function (greeting) {
+        history = [];
+        log.innerHTML = "";
+        if (greeting) { addMsg("bot", greeting); }
+      }
+    };
+  }
+
+  // The Assistant tab pane: the full surface, with the date-range inputs + the reindex button.
+  (function () {
+    var tabChat = wireAssistantChat({
+      log: "ax-as-log", input: "ax-as-input", send: "ax-as-send",
+      from: "ax-as-from", to: "ax-as-to"
+    });
     var reindex = document.getElementById("ax-as-reindex");
-    if (reindex) {
+    if (reindex && tabChat) {
       reindex.addEventListener("click", function () {
         reindex.setAttribute("disabled", "disabled");
         reindex.textContent = "Rebuilding…";
@@ -3731,18 +3823,56 @@
             reindex.removeAttribute("disabled");
             reindex.textContent = "Rebuild knowledge";
             if (data && data.ok) {
-              addMsg("bot", "Knowledge rebuilt — " + data.chunks + " excerpts indexed.");
+              tabChat.say("Knowledge rebuilt — " + data.chunks + " excerpts indexed.");
             } else {
-              addMsg("bot", "Could not rebuild the knowledge index.", "is-err");
+              tabChat.say("Could not rebuild the knowledge index.", "is-err");
             }
           })
           .catch(function () {
             reindex.removeAttribute("disabled");
             reindex.textContent = "Rebuild knowledge";
-            addMsg("bot", "Could not rebuild the knowledge index.", "is-err");
+            tabChat.say("Could not rebuild the knowledge index.", "is-err");
           });
       });
     }
+  })();
+
+  // The floating bubble: FAB toggles the pop-up panel; its conversation survives client-side tab
+  // switches (the panes swap in place, no reload). Seeded from the log's data-greeting attribute.
+  (function () {
+    var fab = document.getElementById("ax-asfab");
+    var panel = document.getElementById("ax-aspanel");
+    if (!fab || !panel) { return; }
+    var log = document.getElementById("ax-asfab-log");
+    var input = document.getElementById("ax-asfab-input");
+    var greeting = log ? (log.getAttribute("data-greeting") || "") : "";
+    var chat = wireAssistantChat({ log: "ax-asfab-log", input: "ax-asfab-input", send: "ax-asfab-send" });
+    if (chat && greeting) { chat.reset(greeting); }
+    function setOpen(open) {
+      if (open) {
+        panel.removeAttribute("hidden");
+        fab.classList.add("is-open");
+        fab.setAttribute("aria-expanded", "true");
+        if (input) { input.focus(); }
+      } else {
+        panel.setAttribute("hidden", "hidden");
+        fab.classList.remove("is-open");
+        fab.setAttribute("aria-expanded", "false");
+      }
+    }
+    fab.addEventListener("click", function () { setOpen(panel.hasAttribute("hidden")); });
+    var closeBtn = document.getElementById("ax-asfab-x");
+    if (closeBtn) { closeBtn.addEventListener("click", function () { setOpen(false); }); }
+    var newBtn = document.getElementById("ax-asfab-new");
+    if (newBtn && chat) {
+      newBtn.addEventListener("click", function () {
+        chat.reset(greeting);
+        if (input) { input.focus(); }
+      });
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !panel.hasAttribute("hidden")) { setOpen(false); }
+    });
   })();
 
   // ---- Client crest: upload / change the workspace logo in place (any member, no reload) -------
