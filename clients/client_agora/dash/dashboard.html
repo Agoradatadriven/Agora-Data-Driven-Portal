@@ -90,7 +90,7 @@
   #filterBanner .fs { font-weight: 700; color: var(--brand-deep); }
   #filterBanner button { border: 0; background: none; color: var(--brand-deep); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0; }
   .seg button.off { opacity: .45; cursor: default; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 16px; align-items: center; }
   .chip {
     border: 1px solid var(--border); border-radius: 999px;
     background: var(--surface-1); color: var(--ink-2);
@@ -102,6 +102,26 @@
   .chip.on { background: var(--chip-on); color: var(--ink-1); border-color: transparent; font-weight: 600; }
   .chip.on .dot { display: inline-block; }
   .chip .n { color: var(--muted); font-size: 11.5px; }
+  .chip .x { font-weight: 700; color: var(--muted); margin-left: 2px; }
+  .chip.on:hover .x { color: var(--ink-1); }
+
+  /* tag multi-select dropdown (replaces the always-visible chip wall) */
+  .tagdd { position: relative; display: inline-block; }
+  .tagdd-panel {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 26px rgba(0,0,0,.13); min-width: 300px; max-height: 340px;
+    overflow-y: auto; padding: 6px;
+  }
+  .tagdd-panel.open { display: block; }
+  .tagdd-panel label {
+    display: flex; align-items: center; gap: 9px; padding: 6px 9px; border-radius: 7px;
+    font-size: 13px; color: var(--ink-1); cursor: pointer;
+  }
+  .tagdd-panel label:hover { background: var(--hover-wash); }
+  .tagdd-panel label.off { opacity: .45; cursor: default; }
+  .tagdd-panel label .n { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+  .tagdd-hint { padding: 5px 9px 3px; font-size: 11.5px; color: var(--muted); }
 
   /* ---- KPI tiles ---- */
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px; }
@@ -282,7 +302,13 @@
     </select>
     <label class="chk"><input type="checkbox" id="fVerified"> Payment verified</label>
   </div>
-  <div class="chips" id="tagChips" aria-label="Demand tags — pick up to 6 to compare"></div>
+  <div class="chips" aria-label="Demand tags — pick up to 6 to compare">
+    <div class="tagdd" id="tagDD">
+      <button type="button" id="tagBtn" class="morebtn" aria-expanded="false">Demand tags ▾<span class="n" id="tagCount" style="display:none"></span></button>
+      <div class="tagdd-panel" id="tagPanel"></div>
+    </div>
+    <span id="tagSel" style="display:contents"></span>
+  </div>
 
   <div id="filterBanner" role="status"></div>
 
@@ -1334,29 +1360,57 @@
       sel.appendChild(o);
     });
   }
+  function toggleTag(tag) {
+    var i = state.tags.indexOf(tag);
+    if (i >= 0) { state.tags.splice(i, 1); releaseSlot(tag); }
+    else {
+      if (state.tags.length >= 6) return; // series soft cap
+      state.tags.push(tag); reserveSlot(tag);
+    }
+    renderChips(); refreshAll();
+  }
+  // one dropdown instead of a wall of chips: checkbox list inside the panel,
+  // selected tags render as removable colored chips beside the button
   function renderChips() {
-    var host = document.getElementById("tagChips");
-    host.textContent = "";
+    var panel = document.getElementById("tagPanel");
+    var sel = document.getElementById("tagSel");
+    var count = document.getElementById("tagCount");
+    panel.textContent = ""; sel.textContent = "";
     var tagRows = (agg.mar31 && agg.mar31.tags && agg.mar31.tags.length) ? agg.mar31.tags : agg.tags;
-    host.title = (agg.mar31 && agg.mar31.tags) ? "Counts since Mar 31, 2025" : "";
+    var full = state.tags.length >= 6;
+
+    var hint = document.createElement("div"); hint.className = "tagdd-hint";
+    hint.textContent = "Compare up to 6 demand tags"
+      + ((agg.mar31 && agg.mar31.tags) ? " · counts since Mar 31, 2025" : "");
+    panel.appendChild(hint);
+
     tagRows.forEach(function (t) {
-      var chip = document.createElement("button"); chip.type = "button";
-      chip.className = "chip" + (state.tags.indexOf(t.tag) >= 0 ? " on" : "");
-      var dot = document.createElement("span"); dot.className = "dot";
-      if (state.tags.indexOf(t.tag) >= 0) dot.style.background = tagColor(t.tag);
+      var on = state.tags.indexOf(t.tag) >= 0;
+      var row = document.createElement("label");
+      if (full && !on) row.className = "off";
+      var cb = document.createElement("input"); cb.type = "checkbox";
+      cb.checked = on; cb.disabled = full && !on;
       var nm = document.createElement("span"); nm.textContent = t.tag;
       var n = document.createElement("span"); n.className = "n"; n.textContent = compact(t.n);
-      chip.appendChild(dot); chip.appendChild(nm); chip.appendChild(n);
-      chip.addEventListener("click", function () {
-        var i = state.tags.indexOf(t.tag);
-        if (i >= 0) { state.tags.splice(i, 1); releaseSlot(t.tag); }
-        else {
-          if (state.tags.length >= 6) return; // series soft cap
-          state.tags.push(t.tag); reserveSlot(t.tag);
-        }
-        renderChips(); refreshAll();
-      });
-      host.appendChild(chip);
+      row.appendChild(cb); row.appendChild(nm); row.appendChild(n);
+      cb.addEventListener("change", function () { toggleTag(t.tag); });
+      panel.appendChild(row);
+    });
+
+    count.style.display = state.tags.length ? "" : "none";
+    count.textContent = state.tags.length;
+
+    state.tags.forEach(function (tag) {
+      var chip = document.createElement("button"); chip.type = "button";
+      chip.className = "chip on";
+      chip.title = "Remove " + tag;
+      var dot = document.createElement("span"); dot.className = "dot";
+      dot.style.background = tagColor(tag);
+      var nm = document.createElement("span"); nm.textContent = tag;
+      var x = document.createElement("span"); x.className = "x"; x.textContent = "✕";
+      chip.appendChild(dot); chip.appendChild(nm); chip.appendChild(x);
+      chip.addEventListener("click", function () { toggleTag(tag); });
+      sel.appendChild(chip);
     });
   }
 
@@ -1480,6 +1534,21 @@
     });
     syncMore(moreActiveCount() > 0);  // arrive with an active hidden filter -> show it
     moreWrap.addEventListener("change", function () { syncMore(); });
+
+    // demand-tag dropdown: button toggles, clicking anywhere else closes
+    var tagBtn = document.getElementById("tagBtn");
+    var tagPanel = document.getElementById("tagPanel");
+    function setTagOpen(open) {
+      tagPanel.classList.toggle("open", open);
+      tagBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      tagBtn.childNodes[0].nodeValue = open ? "Demand tags ▴" : "Demand tags ▾";
+    }
+    tagBtn.addEventListener("click", function () {
+      setTagOpen(!tagPanel.classList.contains("open"));
+    });
+    document.addEventListener("click", function (ev) {
+      if (!document.getElementById("tagDD").contains(ev.target)) setTagOpen(false);
+    });
 
     // full screen: standalone -> browser fullscreen; iframed (Atrium) -> open
     // the same filtered view in its own tab
