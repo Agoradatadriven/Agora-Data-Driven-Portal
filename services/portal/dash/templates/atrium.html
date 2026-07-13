@@ -4015,7 +4015,8 @@
       wrap.className = "ax-as-msg " + (role === "user" ? "user" : "bot");
       var bub = document.createElement("div");
       bub.className = "ax-as-bubble" + (extraClass ? " " + extraClass : "");
-      bub.textContent = text;
+      // Bot answers arrive as markdown; user text stays literal.
+      if (role === "user") { bub.textContent = text; } else { bub.innerHTML = mdToHtml(text); }
       wrap.appendChild(bub);
       log.appendChild(wrap);
       log.scrollTop = log.scrollHeight;
