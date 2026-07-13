@@ -161,6 +161,22 @@ def aggregates():
         return app.response_class(fh.read(), mimetype="application/json")
 
 
+_excl_cache = None
+
+
+def excluded_weeks():
+    """Banded weeks (outages, holidays) — never enter momentum baselines.
+    Authored by the processor; shipped inside aggregates.json."""
+    global _excl_cache
+    if _excl_cache is None:
+        try:
+            with open(os.path.join(data_dir(), "aggregates.json"), encoding="utf-8") as fh:
+                _excl_cache = set(json.load(fh).get("excluded_weeks") or [])
+        except Exception:
+            _excl_cache = set()
+    return _excl_cache
+
+
 _stats_cache = {}  # normalized filter querystring -> response json (data is immutable per deploy)
 
 
@@ -227,25 +243,32 @@ def stats():
     fixed = [r["fixed_budget"] for r in conn.execute(
         "SELECT j.fixed_budget FROM jobs j WHERE %s AND j.fixed_budget IS NOT NULL" % where, params)]
 
-    # momentum: last 4 FULL weeks vs this slice's historical 4-week average
-    # (the final observed week is usually partial — excluded, like the KPIs)
+    # momentum: last 4 CLEAN full weeks vs the historical average of clean
+    # weeks, on coverage-adjusted counts — banded weeks (outages, holidays)
+    # and the partial current week never enter the computation
     momentum = []
-    wk = [r["week"] for r in weekly]
-    if len(wk) >= 10:
-        recent0, hist0 = wk[-5], wk[0]
-        hist_weeks = len(wk) - 5
-        rows = conn.execute(
-            "SELECT t.tag,"
-            " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END) recent,"
-            " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END) hist"
-            " FROM job_tags t JOIN jobs j ON j.id=t.job_id WHERE %s"
-            " GROUP BY t.tag HAVING recent + hist >= 10 ORDER BY recent DESC"
-            % where, [recent0, wk[-1], hist0, recent0] + params)
-        for r in rows:
-            hist4 = 4.0 * (r["hist"] or 0) / hist_weeks if hist_weeks else 0
-            pct = round(100.0 * (r["recent"] - hist4) / hist4, 1) if hist4 else None
-            momentum.append({"tag": r["tag"], "recent": round(r["recent"]),
-                             "hist": round(hist4), "pct": pct})
+    wk_all = [r["week"] for r in weekly]
+    excl = excluded_weeks()
+    clean = [w for w in wk_all[:-1] if w not in excl]
+    if len(clean) >= 10:
+        recent, hist = set(clean[-4:]), set(clean[:-4])
+        per_tag = {}
+        for r in conn.execute(
+                "SELECT t.tag tag, j.week week, SUM(j.weight) v FROM job_tags t"
+                " JOIN jobs j ON j.id=t.job_id WHERE %s GROUP BY t.tag, j.week"
+                % where, params):
+            acc = per_tag.setdefault(r["tag"], [0.0, 0.0])
+            if r["week"] in recent:
+                acc[0] += r["v"]
+            elif r["week"] in hist:
+                acc[1] += r["v"]
+        for tag in sorted(per_tag, key=lambda t: -per_tag[t][0]):
+            r_n, h_n = per_tag[tag]
+            if r_n + h_n >= 10 and hist:
+                hist4 = 4.0 * h_n / len(hist)
+                pct = round(100.0 * (r_n - hist4) / hist4, 1) if hist4 else None
+                momentum.append({"tag": tag, "recent": round(r_n),
+                                 "hist": round(hist4), "pct": pct})
 
     payload = json.dumps({
         "total": total,

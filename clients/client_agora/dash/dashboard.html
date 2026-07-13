@@ -554,11 +554,12 @@
   function renderKpis(d) {
     var el = document.getElementById("kpis");
     el.textContent = "";
-    // KPIs always use coverage-adjusted counts so the historical baselines
-    // aren't inflated by the boom-era pipeline
-    var wk = fullWeeks(d.weekly).map(function (w) {
-      return (w.a !== null && w.a !== undefined) ? w.a : w.n;
-    });
+    // KPIs use coverage-adjusted counts and skip banded weeks (outages,
+    // holidays) so baselines only contain normal, fully-covered weeks
+    var excl = {};
+    ((agg && agg.excluded_weeks) || []).forEach(function (w) { excl[w] = true; });
+    var wk = fullWeeks(d.weekly).filter(function (w) { return !excl[w.week]; })
+      .map(function (w) { return (w.a !== null && w.a !== undefined) ? w.a : w.n; });
     var avg = function (arr) {
       if (!arr.length) return null;
       var s = 0; arr.forEach(function (n) { s += n; });
@@ -800,7 +801,7 @@
       bl.setAttribute("text-anchor", "middle");
       bl.setAttribute("x", (bx0 + bx1) / 2);
       if (bx1 - bx0 > 200) bl.textContent = o.label;
-      else if (bx1 - bx0 > 16) bl.textContent = "outage";
+      else if (bx1 - bx0 > 16) bl.textContent = o.short || "outage";
       if (bl.textContent) svg.appendChild(bl);
     });
 

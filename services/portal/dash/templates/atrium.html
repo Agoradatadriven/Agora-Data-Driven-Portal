@@ -111,7 +111,7 @@
 {%- set _sel = (current.split(' · ') if current else []) -%}
 {%- for x in _sel %}{%- if x %}<span class="ax-platone">{{ plat_ic(x) }}<span>{{ x }}</span></span>{%- endif %}{%- endfor %}
 {%- endmacro %}
-{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Paid Media','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher','assistant':'Assistant'} %}
+{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Paid Media','organic':'Organic Content','calendar':'Content Calendar','conversations':'Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher','assistant':'Assistant'} %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -1520,12 +1520,6 @@
           </div>
         </div>
 
-        {% for key, label in [('calendar','Content Calendar'),('conversations','Client Communications')] %}
-        <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" title="{{ label }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
-          {{ ic(key) }}<span>{{ label }}</span>
-        </a>
-        {% endfor %}
-
         {#- Insights: the research/monitoring surfaces. Market Intelligence is client-visible;
            Website Health + Watcher stay TEAM-ONLY (admins + super-admins, hidden from clients
            entirely) — the nav, the panes, AND the routes all gate on is_superadmin. -#}
@@ -1549,6 +1543,12 @@
             {% endif %}
           </div>
         </div>
+
+        {% for key, label in [('calendar','Content Calendar'),('conversations','Communications')] %}
+        <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" title="{{ label }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
+          {{ ic(key) }}<span>{{ label }}</span>
+        </a>
+        {% endfor %}
       </nav>
 
       <div class="ax-side-card">
@@ -2430,7 +2430,7 @@
 
         <!-- ============ CLIENT COMMUNICATIONS (email + meeting summaries) ============ -->
         <section class="ax-pane {{ 'is-active' if view.active_tab=='conversations' else '' }}" data-pane="conversations">
-          <h1 class="ax-greet">Client Communications</h1>
+          <h1 class="ax-greet">Communications</h1>
           <p class="ax-lede">A running record of our meetings and email updates, so nothing gets lost.</p>
           <div class="ax-comm">
             <div class="ax-comm-col email">
@@ -3254,7 +3254,7 @@
   var titles = {
     overview: "Overview", dashboard: "Dashboard", leadgen: "Paid Media",
     organic: "Organic Content", calendar: "Content Calendar",
-    conversations: "Client Communications", intel: "Market Intelligence",
+    conversations: "Communications", intel: "Market Intelligence",
     settings: "Notification settings", "website-health": "Website Health", watcher: "Watcher",
     assistant: "Assistant"
   };

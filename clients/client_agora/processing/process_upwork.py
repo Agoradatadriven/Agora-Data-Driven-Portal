@@ -367,11 +367,30 @@ def run(raw_path):
 # boundaries; the dashboard defaults to the current era, offers a "% of jobs"
 # share mode for cross-era comparison, and bands every outage on the chart.
 ERA_FROM = "2025-11-03"
-OUTAGES = [  # >=12h offline periods (clustered), from the bot's own messages
-    {"from": "2024-11-23", "to": "2025-03-30", "label": "no active feeds · Zenfl offline"},
-    {"from": "2025-07-18", "to": "2025-07-26", "label": "Zenfl outage → came back over-delivering"},
-    {"from": "2025-10-17", "to": "2025-10-28", "label": "Zenfl outage → coverage reset"},
+# Every banded period is EXCLUDED from computations (KPI baselines, momentum,
+# calibration windows) — the chart still shows the data under a gray band.
+# NB: Zenfl stopped sending offline notices after Oct 2025, so silent
+# degradations (like Apr 2026) are diagnosed from the daily shape instead
+# (abrupt step to a flat low floor + abrupt recovery = mechanical).
+OUTAGES = [
+    {"from": "2024-11-23", "to": "2025-03-30", "label": "no active feeds · Zenfl offline", "short": "no feeds"},
+    {"from": "2025-07-18", "to": "2025-07-26", "label": "Zenfl outage → came back over-delivering", "short": "outage"},
+    {"from": "2025-10-17", "to": "2025-10-28", "label": "Zenfl outage → coverage reset", "short": "outage"},
+    {"from": "2025-12-22", "to": "2026-01-04", "label": "holiday season — real demand dip", "short": "holidays"},
+    {"from": "2026-04-09", "to": "2026-04-24", "label": "suspected Zenfl degradation — no bot notice", "short": "degraded?"},
 ]
+
+
+def _excluded_weeks(all_weeks):
+    """Week keys (Mondays) whose [Mon..Sun] overlaps any banded period."""
+    out = set()
+    for w in all_weeks:
+        w_end = (datetime.strptime(w, "%Y-%m-%d") + timedelta(days=6)).strftime("%Y-%m-%d")
+        for o in OUTAGES:
+            if w <= o["to"] and w_end >= o["from"]:
+                out.add(w)
+                break
+    return out
 FEED_EVENTS = [  # feed creations (real coverage additions — marked on the chart)
     {"date": "2025-03-30", "label": "SMMA feed created"},
     {"date": "2025-05-24", "label": "Paralegal feed created"},
@@ -400,8 +419,11 @@ _CAP_LO, _CAP_HI = 1.0 / 3, 6.0
 
 def _window_level(counts, first_week, lo, hi):
     """Mean weekly count of one stream in [lo, hi), zero-filled from the
-    stream's own first week (feed births mid-window handled)."""
-    weeks = [w for w in counts["_all_weeks"] if lo <= w < hi and w >= first_week]
+    stream's own first week (feed births mid-window handled); banded
+    (outage/holiday) weeks are excluded."""
+    excluded = _excluded_weeks(counts["_all_weeks"])
+    weeks = [w for w in counts["_all_weeks"]
+             if lo <= w < hi and w >= first_week and w not in excluded]
     if len(weeks) < _MIN_WEEKS:
         return None
     total = sum(counts.get(w, 0) for w in weeks)
@@ -481,22 +503,28 @@ def _agg_block(db, since):
     fixed = [r[0] for r in q("SELECT j.fixed_budget FROM jobs j WHERE j.fixed_budget IS NOT NULL" + jw)]
     med_fixed = round(statistics.median(fixed), 2) if fixed else None
 
-    # momentum: last 4 FULL weeks vs the slice's historical 4-week average,
-    # on coverage-adjusted counts so pipeline eras compare fairly
-    # (final week is usually partial — excluded, matching the KPI delta)
+    # momentum: last 4 CLEAN full weeks vs the historical average of clean
+    # weeks, on coverage-adjusted counts — banded weeks (outages, holidays)
+    # and the partial current week never enter the computation
     momentum = []
-    wk = [w for w, _, _ in weekly]
-    if len(wk) >= 10:
-        recent0, hist0 = wk[-5], wk[0]
-        hist_weeks = len(wk) - 5
-        for tag, r_n, h_n in db.execute(
-                "SELECT t.tag,"
-                " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END),"
-                " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END)"
-                " FROM job_tags t JOIN jobs j ON j.id=t.job_id GROUP BY t.tag",
-                (recent0, wk[-1], hist0, recent0)):
-            if (r_n or 0) + (h_n or 0) >= 10 and hist_weeks:
-                hist4 = 4.0 * (h_n or 0) / hist_weeks
+    wk_all = [w for w, _, _ in weekly]
+    excluded = _excluded_weeks(wk_all)
+    clean = [w for w in wk_all[:-1] if w not in excluded]
+    if len(clean) >= 10:
+        recent, hist = set(clean[-4:]), set(clean[:-4])
+        per_tag = {}
+        for tag, w, v in db.execute(
+                "SELECT t.tag, j.week, SUM(j.weight) FROM job_tags t"
+                " JOIN jobs j ON j.id=t.job_id WHERE 1=1%s GROUP BY t.tag, j.week" % jw, p):
+            acc = per_tag.setdefault(tag, [0.0, 0.0])
+            if w in recent:
+                acc[0] += v
+            elif w in hist:
+                acc[1] += v
+        for tag in sorted(per_tag, key=lambda t: -per_tag[t][0]):
+            r_n, h_n = per_tag[tag]
+            if r_n + h_n >= 10 and hist:
+                hist4 = 4.0 * h_n / len(hist)
                 pct = round(100.0 * (r_n - hist4) / hist4, 1) if hist4 else None
                 momentum.append({"tag": tag, "recent": round(r_n),
                                  "hist": round(hist4), "pct": pct})
@@ -535,6 +563,8 @@ def write_aggregates(db):
         "era_from": ERA_FROM,
         "outages": OUTAGES,
         "events": FEED_EVENTS,
+        "excluded_weeks": sorted(_excluded_weeks(
+            [r[0] for r in db.execute("SELECT DISTINCT week FROM jobs ORDER BY week")])),
         "era": _agg_block(db, ERA_FROM),
         "mar31": _agg_block(db, "2025-03-31"),
     })
