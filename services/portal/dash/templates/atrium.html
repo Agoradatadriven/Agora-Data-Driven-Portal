@@ -5556,23 +5556,30 @@
           if (ta) { ta.value = ta.getAttribute("data-default") || ""; }
         });
       });
+      // One save path for the whole panel (model + window + count + prompts + keywords), shared by
+      // Save settings AND Refresh now -- Refresh used to run the OLD saved config, so picking a
+      // model and clicking Refresh without Save researched with model=Off and reported
+      // "No AI model selected" while the dropdown snapped back.
+      function saveAiSettings() {
+        return post("/admin/intel", { op: "topics", topics: val("ax-intel-topics") })
+          .then(function () {
+            var thinkEl = document.getElementById("ax-intel-thinking");
+            return post("/admin/intel", {
+              op: "ai_settings",
+              model: val("ax-intel-model"),
+              window: val("ax-intel-window"),
+              count: val("ax-intel-count"),
+              business_prompt: val("ax-intel-bizprompt"),
+              media_prompt: val("ax-intel-mediaprompt"),
+              show_thinking: (thinkEl && thinkEl.checked) ? "1" : ""
+            });
+          });
+      }
       var saveBtn = document.getElementById("ax-intel-aisave");
       if (saveBtn) {
         saveBtn.addEventListener("click", function () {
           saveBtn.setAttribute("disabled", "disabled");
-          post("/admin/intel", { op: "topics", topics: val("ax-intel-topics") })
-            .then(function () {
-              var thinkEl = document.getElementById("ax-intel-thinking");
-              return post("/admin/intel", {
-                op: "ai_settings",
-                model: val("ax-intel-model"),
-                window: val("ax-intel-window"),
-                count: val("ax-intel-count"),
-                business_prompt: val("ax-intel-bizprompt"),
-                media_prompt: val("ax-intel-mediaprompt"),
-                show_thinking: (thinkEl && thinkEl.checked) ? "1" : ""
-              });
-            })
+          saveAiSettings()
             .then(function (data) {
               if (data && data.ok === false) {
                 adminMsg(data.message || "Could not save AI settings.", false);
@@ -5591,23 +5598,35 @@
       if (refreshBtn) {
         var refreshLabel = refreshBtn.innerHTML;
         refreshBtn.addEventListener("click", function () {
+          if (!val("ax-intel-model")) {
+            if (statusEl) { statusEl.classList.add("is-err"); statusEl.textContent = "The research model is set to Off — pick one above, then Refresh."; }
+            return;
+          }
           refreshBtn.setAttribute("disabled", "disabled");
           refreshBtn.textContent = "Researching…";
-          if (statusEl) { statusEl.classList.remove("is-err"); statusEl.textContent = "Researching — this can take up to a minute…"; }
-          post("/admin/intel", { op: "refresh-now" })
+          if (statusEl) { statusEl.classList.remove("is-err"); statusEl.textContent = "Saving these settings, then researching — this can take up to a minute…"; }
+          var refreshFail = function (msg) {
+            if (statusEl) { statusEl.classList.add("is-err"); statusEl.textContent = msg; }
+            refreshBtn.removeAttribute("disabled");
+            refreshBtn.innerHTML = refreshLabel;
+          };
+          saveAiSettings()
             .then(function (data) {
               if (data && data.ok === false) {
-                if (statusEl) { statusEl.classList.add("is-err"); statusEl.textContent = data.message || "Refresh failed."; }
-                refreshBtn.removeAttribute("disabled");
-                refreshBtn.innerHTML = refreshLabel;
+                refreshFail(data.message || "Could not save AI settings.");
                 return;
               }
-              window.location.reload();
+              return post("/admin/intel", { op: "refresh-now" })
+                .then(function (data2) {
+                  if (data2 && data2.ok === false) {
+                    refreshFail(data2.message || "Refresh failed.");
+                    return;
+                  }
+                  window.location.reload();
+                });
             })
             .catch(function () {
-              if (statusEl) { statusEl.classList.add("is-err"); statusEl.textContent = "Refresh failed. Please try again."; }
-              refreshBtn.removeAttribute("disabled");
-              refreshBtn.innerHTML = refreshLabel;
+              refreshFail("Refresh failed. Please try again.");
             });
         });
       }
