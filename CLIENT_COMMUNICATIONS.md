@@ -2,7 +2,7 @@
 
 This tab (`/w/<c>/conversations`, labelled **Client Communications**) is the running record of every
 conversation with a client: emails, Upwork chats, and meetings. This doc lists what it does and how to
-turn each piece on. It is the practical companion to the contract notes in
+turn each piece on. It is the practical companion to the contract notes innnn
 [`CLAUDE.md`](./CLAUDE.md) → *feedback_ai* and the root [`/CLAUDE.md`](../../../CLAUDE.md) Atrium section.
 
 > **Nothing here needs new infrastructure to run.** The panels, badges, week filter, and the manual
