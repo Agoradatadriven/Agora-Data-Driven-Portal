@@ -277,7 +277,7 @@ def plan_queries(question, history, caller):
         raw = (raw or "").strip()
         if raw.startswith("```"):
             raw = re.sub(r"^```[a-z]*\s*|\s*```$", "", raw, flags=re.I)
-        parsed = json.loads(raw)
+        parsed = json.loads(raw, strict=False)
         qs = parsed.get("queries") if isinstance(parsed, dict) else None
         return [str(q).strip() for q in (qs or []) if str(q).strip()][:5]
     except Exception:
@@ -305,17 +305,64 @@ def _user_prompt(question, hits, history):
     return "\n\n".join(lines)
 
 
+def _scan_answer_string(raw):
+    """Salvage the "answer" value out of a BROKEN JSON envelope, or "" if there is none.
+
+    Walks the string literal character by character (honoring backslash escapes), so it survives
+    garbage between the closing quote and the brace, a missing closing brace (output truncated at
+    the token cap), and raw newlines inside the string. The collected literal is decoded with
+    json.loads; if even that fails (e.g. truncated mid-escape) the common escapes are unescaped by
+    hand — the goal is that the UI NEVER has to display a raw JSON blob."""
+    m = re.search(r'"answer"\s*:\s*"', raw)
+    if not m:
+        return ""
+    i, n, out = m.end(), len(raw), []
+    while i < n:
+        ch = raw[i]
+        if ch == "\\" and i + 1 < n:
+            out.append(raw[i:i + 2])
+            i += 2
+            continue
+        if ch == '"':
+            break
+        out.append(ch)
+        i += 1
+    literal = "".join(out)
+    try:
+        return str(json.loads('"%s"' % literal, strict=False)).strip()
+    except ValueError:
+        _esc = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r": "\r",
+                "t": "\t"}
+        return re.sub(r'\\(["\\/bfnrt])', lambda mm: _esc[mm.group(1)], literal).strip()
+
+
 def _parse_answer(raw):
-    """The model answers {"answer": ...}; parse leniently, fall back to the raw text."""
+    """The model answers {"answer": ...}; parse leniently, salvage nearly-JSON, fall back to raw.
+
+    The providers run in JSON mode yet still occasionally emit an envelope json.loads rejects —
+    stray characters after the answer string, raw newlines/tabs inside it, or output cut at the
+    token cap. Salvage progressively: strict parse (strict=False allows raw control chars in
+    strings) → parse ignoring trailing junk → hand-scan the "answer" string literal."""
     raw = (raw or "").strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```[a-z]*\s*|\s*```$", "", raw, flags=re.I)
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(raw, strict=False)
         if isinstance(parsed, dict) and parsed.get("answer"):
             return str(parsed["answer"])
     except ValueError:
         pass
+    start = raw.find("{")
+    if start >= 0:
+        try:
+            parsed, _end = json.JSONDecoder(strict=False).raw_decode(raw, start)
+            if isinstance(parsed, dict) and parsed.get("answer"):
+                return str(parsed["answer"])
+        except ValueError:
+            pass
+        salvaged = _scan_answer_string(raw)
+        if salvaged:
+            return salvaged
     return raw
 
 

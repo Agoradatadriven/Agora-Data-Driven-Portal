@@ -79,14 +79,23 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   (watcher transcripts, intel, campaigns/content, metrics, calendar, conversations, health, plus
   the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Pure-Python
   BM25 index stored as `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change);
-  answers via `intel_ai._call` (JSON-mode, parsed leniently) with cited sources.
+  answers via `intel_ai._call` (JSON-mode; `_parse_answer` parses leniently AND salvages
+  nearly-JSON — `strict=False`, `raw_decode` past trailing junk, then a hand-scan of the
+  `"answer"` string literal that survives stray characters, truncation at the token cap, and raw
+  newlines — so the UI is never handed a raw JSON envelope) with cited sources. Bot bubbles render
+  the model's markdown via `mdToHtml` in `atrium.html` (headings/bold/lists; HTML-escaped first,
+  esprima-safe).
   `POST /w/<c>/admin/assistant` (op ask|settings|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs
   Vertex off-cloud. Test: `python _assistant_localtest.py`. UI: the team-only floating bubble
   (`ax-asfab` FAB + `ax-aspanel` pop-up in `atrium.html`, inside `.atrium` so the vars/font
   inherit; brand-green 72px since 2026-07-13) is the PRIMARY surface, available on every tab; the
   Assistant tab pane still exists but is no longer in the nav (reach `/w/<c>/assistant` by URL for
   the date-range + reindex controls) — both surfaces wired by ONE `wireAssistantChat`; the bubble
-  hides on the Assistant tab via `.atrium[data-tab="assistant"]`. **Model choice:** `op=settings`
+  hides on the Assistant tab via `.atrium[data-tab="assistant"]`. Each surface's conversation is
+  persistent **chat history**: localStorage key `agora.aschat:/w/<c>:<log-id>` (last 40 turns,
+  per-browser), replayed on load (greeting shows only when nothing is stored — it comes from the
+  log's `data-greeting`), cleared by the "New chat" button on either surface; the saved turns also
+  feed the model's multi-turn context (`history` field of op=ask, last 8). **Model choice:** `op=settings`
   saves `ws["assistant"]["model"]` ("" = automatic → intel model → deploy default; resolved by
   `main._assistant_model`); the dropdown renders via the shared `as_model_options()` macro (tab
   bar + the bubble's gear strip). **Detail (depth) control:** `op=settings` also saves

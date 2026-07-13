@@ -151,7 +151,9 @@ auto-refresh (see those bullets below). Product name is one constant:
   object `workspace/assistant/<c>/index.json` (rebuilt lazily via `fingerprint` whenever data
   moves; no vector DB, no new deps), `ask` retrieves top chunks (optionally date-ranged — dated
   sources only) and answers with the intel brain's provider plumbing (`intel_ai._call`, the
-  client's configured model or the default; prompts for `{"answer": ...}` JSON, parsed leniently).
+  client's configured model or the default; prompts for `{"answer": ...}` JSON, parsed leniently —
+  `_parse_answer` also SALVAGES nearly-JSON (trailing junk, truncation, raw newlines) so the chat
+  never displays a raw JSON envelope; the UI renders answers as markdown via `mdToHtml`).
   The admin's **Detail control** (`assistant_ai.DEPTHS` quick|standard|deep, saved via
   `op=settings` → `ws["assistant"]["depth"]`, dropdown beside the model picker in both surfaces)
   shapes the pipeline: deep first has the model PLAN extra BM25 queries (`plan_queries`, so a
@@ -171,9 +173,10 @@ auto-refresh (see those bullets below). Product name is one constant:
   The same chat is ALSO a **floating bubble** (team-only FAB bottom-right, Mastery-Engine style,
   brand-green 72px since 2026-07-13 — and the PRIMARY surface now that the nav tab is gone)
   reachable from every tab: one `wireAssistantChat` wiring in `atrium.html` serves both surfaces
-  (the tab keeps the date-range + reindex controls), an open conversation survives client-side tab
-  switches, and the bubble hides on the Assistant tab itself (CSS on the root's `data-tab`, which
-  `showTab` keeps current). The Assistant has its **own model choice** (dropdown in the tab bar +
+  (the tab keeps the date-range + reindex controls), the conversation is persistent **chat
+  history** (localStorage, per client + surface, last 40 turns, per-browser; replayed on the next
+  visit, "New chat" on either surface clears it), and the bubble hides on the Assistant tab itself
+  (CSS on the root's `data-tab`, which `showTab` keeps current). The Assistant has its **own model choice** (dropdown in the tab bar +
   the bubble's gear strip; `op=settings` → `ws["assistant"]["model"]`, "" = automatic: the intel
   brain's model, else the deploy default) and an on-screen **spend tally** (mastery-style cost
   pill above the FAB: session + all-time + by-model detail). Both provider calls in `intel_ai`
@@ -394,6 +397,17 @@ sql/*.sql  (view column)  ->  job/main.py  (assembled `data` dict key)  ->  dash
 Adding a metric is usually three edits, one per stage. **Renaming a key in one stage breaks the
 next** — the names must match exactly. For `template` the chain is: `kpi_overview` /
 `daily_performance` columns → `data["kpis"].*` / `data["daily"][].*` → `data.kpis.*` / `data.daily`.
+
+**Exception — `client_riverdance` is a Windsor-LIVE client (no BigQuery/SQL views).** Meta's rich
+fields (reach, link clicks, pixel-purchase bookings, revenue) and the creative images/copy are NOT in
+the shared `raw_windsor` mirror, and Meta rejects revenue on a breakdown query — so this client's
+export job pulls the Windsor connector API **directly** each run (main per-ad/day pull + separate
+age×gender + region breakdown pulls) and writes `riverdance.json` itself. There is no `sql/`, no
+dataset, and no freshness watermark; refresh is operator-driven (the Atrium console **Sync all
+dashboards** button → `services/portal/dash/sync_dash.py`, which triggers every `<c>-export` Cloud
+Run job via the Run Admin API — no scheduler). The dash service runs OPEN (no login) so it embeds in
+the gated Atrium. Stand it up with `clients/client_riverdance/deploy_riverdance.ps1`. Treat it as the
+pattern for any connector whose data isn't (yet) flowing through `raw_windsor`.
 
 ## Redeploy after an edit — MANUAL, never cloudbuild from a laptop
 

@@ -811,7 +811,7 @@ def insert_campaign(client, campaign):
 
 
 def _content_event_kind(camp):
-    """The content calendar 'kind' for a piece, derived from its campaign channel: a paid/lead-gen
+    """The content calendar 'kind' for a piece, derived from its campaign channel: a paid ads
     campaign mirrors as a 'paid' event, anything else as 'organic'."""
     return "paid" if (camp or {}).get("channel") == "paid" else "organic"
 

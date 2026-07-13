@@ -147,10 +147,11 @@ def _favicon_from_png(filename, w, h, viewbox):
     return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
 
-# The browser-tab icon: the REAL Agora mark (left of assets/agora_logo.png, cropped square via the
-# viewBox), falling back to the green line-art peak when the PNG is absent.
+# The browser-tab icon: the square "Agora Web Logo" monogram (assets/agora_web_logo.png). Falls
+# back to the cropped horizontal mark, then the green line-art peak, if a PNG is absent.
 FAVICON_DATA_URI = (
-    _favicon_from_png("agora_logo.png", 420, 101, "0 -8 118 118")
+    _favicon_from_png("agora_web_logo.png", 256, 256, "0 0 256 256")
+    or _favicon_from_png("agora_logo.png", 420, 101, "0 -8 118 118")
     or "data:image/svg+xml;base64," + base64.b64encode(_FAVICON_SVG.encode("utf-8")).decode("ascii")
 )
 

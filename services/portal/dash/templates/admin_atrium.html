@@ -394,6 +394,14 @@
             and edit it in place, or add a new one below &mdash; we'll create the login and a blank
             workspace and drop you straight into it.</p>
 
+          <div class="panel" id="sync-panel" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <div>
+              <h2 class="section" style="margin:0 0 4px">Live data sync</h2>
+              <p class="meta" id="sync-when" data-iso="" style="margin:0">Last synced: checking&hellip;</p>
+            </div>
+            <button type="button" class="btn" id="sync-btn">&#8635;&nbsp; Sync all dashboards</button>
+          </div>
+
           {% if clients %}
           <div class="grid">
             {% for c in clients %}
@@ -850,6 +858,55 @@
         });
         document.addEventListener("keydown", function (ev) {
           if (ev.key === "Escape") { closeSignout(); }
+        });
+      }
+
+      // ---- "Sync all dashboards": trigger every <c>-export job; show last-synced age. ----
+      var syncBtn = document.getElementById("sync-btn");
+      var syncWhen = document.getElementById("sync-when");
+      function fmtAgo(iso) {
+        if (!iso) { return "never"; }
+        var then = new Date(iso).getTime();
+        if (isNaN(then)) { return iso; }
+        var s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+        if (s < 60) { return s + "s ago"; }
+        var m = Math.floor(s / 60);
+        if (m < 60) { return m + "m ago"; }
+        var h = Math.floor(m / 60);
+        if (h < 24) { return h + "h ago"; }
+        return Math.floor(h / 24) + "d ago";
+      }
+      function setWhen(iso) {
+        syncWhen.setAttribute("data-iso", iso || "");
+        syncWhen.textContent = "Last synced: " + fmtAgo(iso);
+      }
+      if (syncBtn && syncWhen) {
+        fetch("/admin/atrium/sync-status", { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { setWhen(j.last_sync); })
+          .catch(function () { syncWhen.textContent = "Last synced: unknown"; });
+        setInterval(function () {
+          var iso = syncWhen.getAttribute("data-iso");
+          if (iso) { setWhen(iso); }
+        }, 60000);
+        syncBtn.addEventListener("click", function () {
+          var orig = syncBtn.innerHTML;
+          syncBtn.disabled = true;
+          syncBtn.textContent = "Syncing…";
+          fetch("/admin/atrium/sync-all", { method: "POST", credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              setWhen(j.last_sync);
+              var n = (j.triggered || []).length;
+              var nf = (j.failed || []).length;
+              syncBtn.textContent = "✓ Synced " + n + " dashboard" + (n === 1 ? "" : "s")
+                + (nf ? " (" + nf + " failed)" : "");
+              setTimeout(function () { syncBtn.innerHTML = orig; syncBtn.disabled = false; }, 4500);
+            })
+            .catch(function () {
+              syncBtn.textContent = "Sync failed — try again";
+              setTimeout(function () { syncBtn.innerHTML = orig; syncBtn.disabled = false; }, 4500);
+            });
         });
       }
     })();

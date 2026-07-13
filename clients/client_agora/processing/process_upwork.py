@@ -503,13 +503,12 @@ def _agg_block(db, since):
     fixed = [r[0] for r in q("SELECT j.fixed_budget FROM jobs j WHERE j.fixed_budget IS NOT NULL" + jw)]
     med_fixed = round(statistics.median(fixed), 2) if fixed else None
 
-    # momentum: last 4 CLEAN full weeks vs the historical average of clean
-    # weeks, on coverage-adjusted counts — banded weeks (outages, holidays)
-    # and the partial current week never enter the computation
+    # momentum: last 4 full weeks vs the historical 4-week average, on
+    # coverage-adjusted counts; ALL full weeks count (banded ones included,
+    # by request) — only the partial current week is dropped
     momentum = []
     wk_all = [w for w, _, _ in weekly]
-    excluded = _excluded_weeks(wk_all)
-    clean = [w for w in wk_all[:-1] if w not in excluded]
+    clean = wk_all[:-1]
     if len(clean) >= 10:
         recent, hist = set(clean[-4:]), set(clean[:-4])
         per_tag = {}

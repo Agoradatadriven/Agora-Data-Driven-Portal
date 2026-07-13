@@ -254,6 +254,10 @@
         <button data-vm="count">Raw count</button>
         <button data-vm="share">% of jobs</button>
       </div>
+      <div class="seg" id="ctxSeg" style="display:none" title="All jobs shows/hides the gray context line. 2nd axis moves it to its own right-hand scale so the selected tags keep a readable shape (scales differ — compare shapes, not heights).">
+        <button type="button" id="ctxShowBtn" class="on">All jobs</button>
+        <button type="button" id="ctxAxisBtn">2nd axis</button>
+      </div>
       <div class="seg" id="granSeg">
         <button data-g="day">Daily</button>
         <button data-g="week" class="on">Weekly</button>
@@ -328,7 +332,8 @@
   var state = {
     q: "", tags: [], category: "", country: "", budget: "", level: "",
     verified: false, min_spent: "", datePreset: "mar31", from: "", to: "",
-    sort: "date", page: 1, gran: "week", view: "chart", valmode: "adj"
+    sort: "date", page: 1, gran: "week", view: "chart", valmode: "adj",
+    showCtx: true, ctxAxis: false
   };
   var agg = null;           // /api/aggregates payload
   var lastStats = null;
@@ -346,6 +351,8 @@
     if (p.get("range")) state.datePreset = p.get("range");
     if (p.get("vm") === "share" || p.get("vm") === "count") state.valmode = p.get("vm");
     if (p.get("g") === "day" || p.get("g") === "month") state.gran = p.get("g");
+    if (p.get("ctx") === "0") state.showCtx = false;
+    if (p.get("ctx2") === "1") state.ctxAxis = true;
     state.tags.forEach(reserveSlot);
   }
   function writeUrl() {
@@ -361,6 +368,8 @@
     if (state.sort !== "date") p.set("sort", state.sort);
     if (state.valmode !== "adj") p.set("vm", state.valmode);
     if (state.gran !== "week") p.set("g", state.gran);
+    if (!state.showCtx) p.set("ctx", "0");
+    if (state.ctxAxis) p.set("ctx2", "1");
     var qs = p.toString();
     history.replaceState(null, "", qs ? "?" + qs : location.pathname);
   }
@@ -503,6 +512,17 @@
       b.classList.toggle("on", vm === state.valmode);
       b.classList.toggle("off", vm === "share" && !hasTags);
     });
+    syncCtxSeg();
+  }
+
+  function syncCtxSeg() {
+    // the context-line controls only mean anything when tag series ride over it
+    var relevant = state.tags.length > 0 && state.valmode !== "share";
+    document.getElementById("ctxSeg").style.display = relevant ? "" : "none";
+    document.getElementById("ctxShowBtn").classList.toggle("on", state.showCtx);
+    var ax = document.getElementById("ctxAxisBtn");
+    ax.classList.toggle("on", state.showCtx && state.ctxAxis);
+    ax.classList.toggle("off", !state.showCtx);
   }
 
   function clearFilters() {
@@ -554,12 +574,11 @@
   function renderKpis(d) {
     var el = document.getElementById("kpis");
     el.textContent = "";
-    // KPIs use coverage-adjusted counts and skip banded weeks (outages,
-    // holidays) so baselines only contain normal, fully-covered weeks
-    var excl = {};
-    ((agg && agg.excluded_weeks) || []).forEach(function (w) { excl[w] = true; });
-    var wk = fullWeeks(d.weekly).filter(function (w) { return !excl[w.week]; })
-      .map(function (w) { return (w.a !== null && w.a !== undefined) ? w.a : w.n; });
+    // KPIs use coverage-adjusted counts; ALL full weeks count toward the
+    // baselines — banded weeks (outages/holidays) included, by request
+    var wk = fullWeeks(d.weekly).map(function (w) {
+      return (w.a !== null && w.a !== undefined) ? w.a : w.n;
+    });
     var avg = function (arr) {
       if (!arr.length) return null;
       var s = 0; arr.forEach(function (n) { s += n; });
@@ -682,8 +701,11 @@
     }
     var series = [];
     if (state.tags.length) {
-      if (!share) {
-        series.push({ name: "All jobs (context)", color: CONTEXT_GRAY, context: true, map: ctx });
+      if (!share && state.showCtx) {
+        series.push({
+          name: state.ctxAxis ? "All jobs (right axis)" : "All jobs (context)",
+          color: CONTEXT_GRAY, context: true, axis: state.ctxAxis ? "r" : "l", map: ctx
+        });
       }
       state.tags.forEach(function (t) {
         var raw = tagMaps[t];

@@ -110,7 +110,7 @@ def run():
         _check("every <%s> is closed (page can render)" % tag,
                body.count("<" + tag) == body.count("</" + tag + ">"))
     _check("greeting present", "Good <span" in body)
-    _check("leadgen content present in DOM", "Summer Lead-Gen Push" in body)
+    _check("leadgen content present in DOM", "Summer Paid Ads Push" in body)
     _check("organic content present in DOM", "June Nurture &amp; SEO" in body or "June Nurture" in body)
     _check("AI summary present", "AI summary" in body)
     for tab in ("dashboard", "leadgen", "organic", "calendar", "conversations", "settings"):
@@ -200,11 +200,11 @@ def run():
 
     # Edit strategy in place.
     r = c.post("/w/%s/admin/strategy" % CLIENT,
-               data={"campaign_id": "c_paid_1", "name": "Summer Lead-Gen Push v2",
-                     "eyebrow": "PAID · LEAD GEN", "what": "W2", "why": "Y2", "next": "N2"})
+               data={"campaign_id": "c_paid_1", "name": "Summer Paid Ads Push v2",
+                     "eyebrow": "PAID ADS", "what": "W2", "why": "Y2", "next": "N2"})
     _check("inline strategy ok", r.status_code == 200 and r.get_json().get("ok") is True)
     camp = workspace._find_campaign(workspace.load_workspace(CLIENT), "c_paid_1")
-    _check("strategy persisted", camp["strategy"]["what"] == "W2" and camp["name"] == "Summer Lead-Gen Push v2")
+    _check("strategy persisted", camp["strategy"]["what"] == "W2" and camp["name"] == "Summer Paid Ads Push v2")
 
     # Save a strategy doc link, then generate a summary (AI OFF -> graceful, never 500).
     r = c.post("/w/%s/admin/strategy-doc" % CLIENT,
@@ -252,7 +252,7 @@ def run():
     _check("team comment ok", r.status_code == 200)
     _camp, v099b = workspace._find_content(workspace.load_workspace(CLIENT), "RVR-099")
     _check("team comment persisted (sender agora)", v099b["comments"][-1]["sender"] == "agora")
-    # The Delete-comment control renders for the team on PAID/lead-gen content too (not just organic):
+    # The Delete-comment control renders for the team on PAID/paid-ads content too (not just organic):
     # RVR-099 lives on c_paid_1, so its comment's Delete button must appear in the leadgen render.
     _paid_cm = v099b["comments"][-1]["id"]
     _check("team Delete-comment button renders on paid content",
@@ -544,7 +544,7 @@ def run():
                 "response_ms": 120, "page_title": "Riverdance", "error": "",
                 "tags": [{"type": "gtm", "label": "Google Tag Manager", "id": "GTM-RVR123"}],
                 "tag_count": 1, "gtm": ["GTM-RVR123"],
-                "issues": [{"level": "ok", "text": "Site is online and tags were detected — no problems found."}]}
+                "issues": [{"level": "ok", "text": "Site is online and tags were detected - no problems found."}]}
     atrium_health.check_website = _fake_check
 
     with c.session_transaction() as s:

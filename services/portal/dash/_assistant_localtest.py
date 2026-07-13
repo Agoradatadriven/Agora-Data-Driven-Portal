@@ -104,6 +104,19 @@ def run():
            == "Charge monthly.")
     _check("parses fenced JSON", assistant_ai._parse_answer('```json\n{"answer": "Yes."}\n```') == "Yes.")
     _check("falls back to raw text", assistant_ai._parse_answer("Just words.") == "Just words.")
+    # Nearly-JSON salvage: the UI must NEVER be handed a raw JSON envelope (2026-07-13 failure:
+    # junk between the answer string's closing quote and the brace made json.loads reject it all).
+    broken = '{\n  "answer": "Reed says \\"charge monthly\\" [1].\\n\\nUse retainers."\n."\n}'
+    _check("salvages junk inside the envelope",
+           assistant_ai._parse_answer(broken) == 'Reed says "charge monthly" [1].\n\nUse retainers.')
+    _check("salvages trailing junk after a valid object",
+           assistant_ai._parse_answer('{"answer": "Done."} trailing noise') == "Done.")
+    _check("tolerates raw newlines inside the answer string",
+           assistant_ai._parse_answer('{"answer": "Line one.\nLine two."}') == "Line one.\nLine two.")
+    _check("salvages output truncated at the token cap",
+           assistant_ai._parse_answer('{"answer": "Cut off mid-sent') == "Cut off mid-sent")
+    _check("a broken envelope never reaches the UI as raw JSON",
+           not assistant_ai._parse_answer(broken).lstrip().startswith("{"))
 
     # --- ask() with a stubbed model ---------------------------------------------------------------
     answer, sources, err = assistant_ai.ask(

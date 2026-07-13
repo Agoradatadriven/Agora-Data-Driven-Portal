@@ -836,7 +836,7 @@
     .ax-mile-title { font-size: 13.5px; font-weight: 700; margin: 1px 0 4px; }
     .ax-cal-day { font-size: 12px; font-weight: 700; margin-bottom: 4px; flex: 0 0 auto; }
     .ax-cal-cell.today .ax-cal-day { color: var(--ax-green-d); }
-    /* Calendar event pills, colour-coded by source: Lead Gen = purple, Organic = green, Personal = grey.
+    /* Calendar event pills, colour-coded by source: Paid Ads = purple, Organic = green, Personal = grey.
        Compact so they squish into the fixed-height box. */
     .ax-cal-ev { font-size: 10.5px; line-height: 1.25; margin-bottom: 2px; padding: 1px 6px; border-radius: 5px; font-weight: 700; color: #fff; background: #98a0b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
     .ax-cal-ev.leadgen { background: var(--ax-violet-d); }
@@ -970,7 +970,7 @@
     .ax-admin-tools .ax-btn.admin:hover { background: linear-gradient(135deg, var(--ax-violet-d) 0%, #4A3BB4 100%); }
     .ax-admin-tools .ax-btn.danger { background: linear-gradient(135deg, var(--ax-bad) 0%, #C9302D 100%); color: #fff; border-color: transparent; }  /* Delete -> brand red (destructive) */
     .ax-admin-tools .ax-btn.danger:hover { background: linear-gradient(135deg, #C9302D 0%, #A8211F 100%); }
-    /* Campaign-card controls (Lead Gen + Organic): neutral slate / navy / red-outline, per request. */
+    /* Campaign-card controls (Paid Ads + Organic): neutral slate / navy / red-outline, per request. */
     /* Match the Add/Delete-campaign buttons' size (the `.small` look) so the tool rows read consistently. */
     .ax-camp-tools .ax-btn { font-size: 12px; font-weight: 700; padding: 6px 11px; }
     .ax-camp-tools .ax-btn.green { background: linear-gradient(135deg, #3F4654 0%, #2D3340 100%); }                  /* Add content -> slate */
@@ -1383,6 +1383,19 @@
     .ax-as-msg.user .ax-as-bubble { background: var(--ax-purple, #9484FB); color: #fff; border-bottom-right-radius: 4px; }
     .ax-as-msg.bot .ax-as-bubble.is-err { background: rgba(229,65,62,.08); border-color: rgba(229,65,62,.34); color: #c0322f; }
     .ax-as-bubble.is-thinking { color: var(--ax-sub); font-style: italic; }
+    /* Answers render as markdown (mdToHtml): headings, lists, bold. Bot bubbles hold real block
+       elements, so they drop pre-wrap (the HTML carries its own structure). */
+    .ax-as-msg.bot .ax-as-bubble { white-space: normal; }
+    .ax-as-bubble p { margin: 0 0 9px; }
+    .ax-as-bubble p:last-child, .ax-as-bubble ul:last-child, .ax-as-bubble ol:last-child { margin-bottom: 0; }
+    .ax-as-bubble h3, .ax-as-bubble h4, .ax-as-bubble h5 { margin: 13px 0 6px; line-height: 1.3; font-weight: 800; color: inherit; }
+    .ax-as-bubble h3:first-child, .ax-as-bubble h4:first-child, .ax-as-bubble h5:first-child { margin-top: 0; }
+    .ax-as-bubble h3 { font-size: 15.5px; }
+    .ax-as-bubble h4 { font-size: 14.5px; }
+    .ax-as-bubble h5 { font-size: 14px; }
+    .ax-as-bubble ul, .ax-as-bubble ol { margin: 0 0 9px; padding-left: 20px; }
+    .ax-as-bubble li { margin: 3px 0; }
+    .ax-as-bubble code { background: rgba(16,24,40,.07); border-radius: 4px; padding: 1px 5px; font-size: .92em; }
     .ax-as-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .ax-as-schip { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); text-decoration: none; }
     a.ax-as-schip:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
@@ -1889,20 +1902,6 @@
                   </select>
                 </div>
               </div>
-              {# Cross-campaign content-type filter: pick a type and every campaign collapses to just
-                 its matching pieces, each headed by its campaign marker (see .ax-typeview JS/CSS). #}
-              {% set type_opts = content_types %}
-              {% set used_types = camps|map(attribute='content')|sum(start=[])|map(attribute='type_tag')|select|unique|list %}
-              <div class="ax-campswitch">
-                <span class="ax-campswitch-label">{{ ic('tag') }} Filter by type</span>
-                <div class="ax-campbox is-type">
-                  <select class="ax-select" data-globaltypefilter="{{ tab }}" aria-label="Show one content type across every campaign">
-                    <option value="all">All types</option>
-                    {% for t in type_opts %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-                    {% for t in used_types if t not in type_opts %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-                  </select>
-                </div>
-              </div>
             </div>
             {% endif %}
           </div>
@@ -2281,7 +2280,7 @@
             <div class="ax-modal-card">
               <button class="ax-modal-x" type="button" data-modalclose aria-label="Close">&times;</button>
               <div class="ax-addpanel" data-addcampaign="{{ chan }}" style="border:0;background:transparent;padding:0;margin:0">
-            <h3>Add a {{ 'paid / lead-gen' if chan=='paid' else 'organic' }} campaign</h3>
+            <h3>Add a {{ 'paid ads' if chan=='paid' else 'organic' }} campaign</h3>
             <input class="ax-editbox" data-ac="name" placeholder="Campaign name">
             <div class="ax-strat-doc" style="margin-top:14px">
               <span class="ax-doc-label">{{ ic('sparkle') }} Strategy doc → AI writes the strategy</span>
@@ -3041,12 +3040,11 @@
               <label>To <input class="ax-wt-fdate-in" type="date" id="ax-as-to"></label>
             </span>
             <button class="ax-btn" id="ax-as-reindex" type="button" title="Re-read every source now (also happens automatically when data changes)">Rebuild knowledge</button>
+            <button class="ax-btn" id="ax-as-new" type="button" title="Clear this conversation and start fresh (otherwise it is kept on this device)">New chat</button>
           </div>
 
           <div class="ax-panel ax-as-chat">
-            <div class="ax-as-log" id="ax-as-log">
-              <div class="ax-as-msg bot"><div class="ax-as-bubble">Hi &mdash; I can answer from everything in this workspace. Try &ldquo;What do Carson Reed and Nick Saraev say about pricing AI services?&rdquo; or &ldquo;Which content pieces are still awaiting approval?&rdquo;</div></div>
-            </div>
+            <div class="ax-as-log" id="ax-as-log" data-greeting="Hi &mdash; I can answer from everything in this workspace. Try &ldquo;What do Carson Reed and Nick Saraev say about pricing AI services?&rdquo; or &ldquo;Which content pieces are still awaiting approval?&rdquo;"></div>
             <div class="ax-as-inputrow">
               <textarea class="ax-editbox ax-as-input" id="ax-as-input" rows="2" placeholder="Ask about campaigns, metrics, market intel, or anything a watched creator has said&hellip;"></textarea>
               <button class="ax-btn violet ax-as-send" id="ax-as-send" type="button">Ask</button>
@@ -3242,6 +3240,16 @@
       var collapsed = !root.classList.contains("nav-collapsed");
       setNav(collapsed);
       try { if (window.localStorage) { window.localStorage.setItem(navKey, collapsed ? "1" : "0"); } } catch (e) {}
+      // The shell grid (256px|68px -> 1fr) animates over .3s, so the .ax-main content grows/shrinks.
+      // The Looker embed is scaled to a FIXED pixel width by JS, so it must be re-fit to the new
+      // container width -- otherwise it keeps its old size and leaves the dead strip. fitDashScale is
+      // hoisted (function declaration), so it's callable here; re-run it across the whole transition
+      // so the report tracks the sidebar smoothly rather than snapping at the end.
+      var t0 = Date.now();
+      (function reflow() {
+        fitDashScale();
+        if (Date.now() - t0 < 420) { (window.requestAnimationFrame || window.setTimeout)(reflow, 16); }
+      })();
     });
   }
 
@@ -3949,20 +3957,75 @@
   // ---- Assistant (team-only): grounded chat over the whole workspace ---------------------------
   // ONE wiring serves BOTH surfaces: the Assistant tab pane AND the floating bubble reachable from
   // every tab. Each surface keeps its own conversation; every question POSTs op=ask with the recent
-  // turns (+ the tab's optional date range) and the answer bubble carries citation chips. No page
-  // state persists -- the knowledge index lives server-side and rebuilds when workspace data changes.
+  // turns (+ the tab's optional date range) and the answer bubble carries citation chips. The
+  // conversation is real CHAT HISTORY: saved to localStorage (per client + surface, most recent 40
+  // turns, this browser only) and replayed on the next visit -- "New chat" clears it. The knowledge
+  // index lives server-side and rebuilds when workspace data changes.
+  // The model writes markdown (### headings, **bold**, * bullets); render it instead of showing
+  // the symbols. HTML is escaped FIRST, so model/user text can never inject markup.
+  function mdToHtml(md) {
+    var esc = String(md == null ? "" : md)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    function inline(s) {
+      return s
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*])\*([^*\s][^*]*)\*(?!\*)/g, "$1<em>$2</em>");
+    }
+    var lines = esc.split(/\r?\n/);
+    var html = [], para = [], list = null;
+    function flushPara() {
+      if (para.length) { html.push("<p>" + para.join("<br>") + "</p>"); para = []; }
+    }
+    function flushList() {
+      if (list) {
+        var open = list.tag === "ol" && list.start > 1 ? '<ol start="' + list.start + '">' : "<" + list.tag + ">";
+        html.push(open + "<li>" + list.items.join("</li><li>") + "</li></" + list.tag + ">");
+        list = null;
+      }
+    }
+    var i;
+    for (i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var h = ln.match(/^\s*(#{1,4})\s+(.*)$/);
+      var b = ln.match(/^\s*(?:[-*•]|(\d+)[.)])\s+(.*)$/);
+      if (h) {
+        flushPara(); flushList();
+        var lvl = Math.min(h[1].length, 3) + 2;
+        html.push("<h" + lvl + ">" + inline(h[2]) + "</h" + lvl + ">");
+      } else if (b) {
+        flushPara();
+        var tag = b[1] ? "ol" : "ul";
+        if (!list || list.tag !== tag) { flushList(); list = { tag: tag, start: b[1] ? parseInt(b[1], 10) || 1 : 1, items: [] }; }
+        list.items.push(inline(b[2]));
+      } else if (!ln.replace(/\s+/g, "")) {
+        flushPara(); flushList();
+      } else {
+        flushList();
+        para.push(inline(ln));
+      }
+    }
+    flushPara(); flushList();
+    return html.join("");
+  }
   function wireAssistantChat(ids) {
     var log = document.getElementById(ids.log);
     var input = document.getElementById(ids.input);
     var send = document.getElementById(ids.send);
     if (!log || !input || !send) { return null; }
+    var storeKey = "agora.aschat:" + base + ":" + ids.log;
+    var greeting = log.getAttribute("data-greeting") || "";
     var history = [];
+    function saveHistory() {
+      try { localStorage.setItem(storeKey, JSON.stringify(history.slice(-40))); } catch (e) {}
+    }
     function addMsg(role, text, extraClass) {
       var wrap = document.createElement("div");
       wrap.className = "ax-as-msg " + (role === "user" ? "user" : "bot");
       var bub = document.createElement("div");
       bub.className = "ax-as-bubble" + (extraClass ? " " + extraClass : "");
-      bub.textContent = text;
+      // Bot answers arrive as markdown; user text stays literal.
+      if (role === "user") { bub.textContent = text; } else { bub.innerHTML = mdToHtml(text); }
       wrap.appendChild(bub);
       log.appendChild(wrap);
       log.scrollTop = log.scrollHeight;
@@ -3991,6 +4054,20 @@
       }
       bub.appendChild(row);
     }
+    // Replay the saved conversation (if any); otherwise open with the surface's greeting.
+    var restored = false;
+    try {
+      var saved = JSON.parse(localStorage.getItem(storeKey) || "[]");
+      if (saved && saved.length) {
+        var si;
+        for (si = 0; si < saved.length; si++) {
+          if (saved[si] && saved[si].text) { addMsg(saved[si].role === "user" ? "user" : "bot", saved[si].text); }
+        }
+        history = saved;
+        restored = true;
+      }
+    } catch (e) {}
+    if (!restored && greeting) { addMsg("bot", greeting); }
     var busy = false;
     function askNow() {
       var q = input.value.replace(/^\s+|\s+$/g, "");
@@ -4000,6 +4077,7 @@
       input.value = "";
       addMsg("user", q);
       history.push({ role: "user", text: q });
+      saveHistory();
       var depthSel = document.querySelector(".ax-as-depthsel");
       var waitText = (depthSel && depthSel.value === "deep")
         ? "Analyzing deeply — planning searches and thinking it through (takes a little longer)…"
@@ -4020,10 +4098,11 @@
             bubble.textContent = (data && data.message) || "Could not answer. Please try again.";
             return;
           }
-          bubble.textContent = data.answer;
+          bubble.innerHTML = mdToHtml(data.answer);
           addSources(bubble, data.sources);
           if (assistCost && data.usage) { assistCost.note(data.usage, data.totals); }
           history.push({ role: "bot", text: data.answer });
+          saveHistory();
           log.scrollTop = log.scrollHeight;
         })
         .catch(function () {
@@ -4040,8 +4119,9 @@
     });
     return {
       say: function (text, extraClass) { addMsg("bot", text, extraClass); },
-      reset: function (greeting) {
+      reset: function () {
         history = [];
+        try { localStorage.removeItem(storeKey); } catch (e) {}
         log.innerHTML = "";
         if (greeting) { addMsg("bot", greeting); }
       }
@@ -4054,6 +4134,10 @@
       log: "ax-as-log", input: "ax-as-input", send: "ax-as-send",
       from: "ax-as-from", to: "ax-as-to"
     });
+    var newTab = document.getElementById("ax-as-new");
+    if (newTab && tabChat) {
+      newTab.addEventListener("click", function () { tabChat.reset(); });
+    }
     var reindex = document.getElementById("ax-as-reindex");
     if (reindex && tabChat) {
       reindex.addEventListener("click", function () {
@@ -4079,16 +4163,13 @@
   })();
 
   // The floating bubble: FAB toggles the pop-up panel; its conversation survives client-side tab
-  // switches (the panes swap in place, no reload). Seeded from the log's data-greeting attribute.
+  // switches AND reloads (chat history in localStorage). Greeting comes from data-greeting.
   (function () {
     var fab = document.getElementById("ax-asfab");
     var panel = document.getElementById("ax-aspanel");
     if (!fab || !panel) { return; }
-    var log = document.getElementById("ax-asfab-log");
     var input = document.getElementById("ax-asfab-input");
-    var greeting = log ? (log.getAttribute("data-greeting") || "") : "";
     var chat = wireAssistantChat({ log: "ax-asfab-log", input: "ax-asfab-input", send: "ax-asfab-send" });
-    if (chat && greeting) { chat.reset(greeting); }
     function setOpen(open) {
       if (open) {
         panel.removeAttribute("hidden");
@@ -4107,7 +4188,7 @@
     var newBtn = document.getElementById("ax-asfab-new");
     if (newBtn && chat) {
       newBtn.addEventListener("click", function () {
-        chat.reset(greeting);
+        chat.reset();
         if (input) { input.focus(); }
       });
     }
@@ -5586,7 +5667,7 @@
       // Today (SGT business day) for the overdue/red logic, read from the Month-history button.
       var histBtn = document.querySelector("[data-today]");
       var todayIso = histBtn ? (histBtn.getAttribute("data-today") || "") : "";
-      // Jump from a linked content event straight to its card on the Lead-Gen / Organic tab:
+      // Jump from a linked content event straight to its card on the Paid Ads / Organic tab:
       // switch tab, expand the (collapsible) card, scroll it into view and flash it.
       function gotoContent(cid, tab) {
         closeDlg();

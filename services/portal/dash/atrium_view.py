@@ -261,7 +261,7 @@ def calendar_payload(events):
             "kind": e.get("kind", "milestone"),
             "status": e.get("status", ""),
             # Linked content events carry a back-pointer so the day-popup can show a "where it came
-            # from" tag and an arrow that jumps straight to the piece on its Lead-Gen/Organic tab.
+            # from" tag and an arrow that jumps straight to the piece on its Paid Ads/Organic tab.
             "content_id": e.get("content_id", ""),
             "tab": e.get("tab", ""),
         })
