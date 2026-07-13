@@ -257,12 +257,13 @@ def _parse_answer(raw):
 
 
 def ask(client_name, index, question, history=None, date_from="", date_to="", model=None,
-        caller=None):
+        caller=None, usage_out=None):
     """Answer `question` from the workspace index. Returns (answer, sources, error).
 
     `sources` is the de-duplicated list of {title, kind, date, url} actually retrieved (shown as
     citation chips). `caller(system, user)` -> (text, error) is the LLM seam; the default uses the
-    intel brain's provider plumbing with its default model."""
+    intel brain's provider plumbing with its default model. A `usage_out` dict is filled by the
+    default caller with the call's token counts + the model id (the spend tally)."""
     hits = search(index, question, date_from=date_from, date_to=date_to)
     if not hits:
         return ("", [], "Nothing in this workspace matches that question — try rephrasing, or "
@@ -281,8 +282,10 @@ def ask(client_name, index, question, history=None, date_from="", date_to="", mo
             mid = model or intel_ai.default_model()
             if not mid or not intel_ai.model_available(mid):
                 return "", "no AI provider configured"
+            if usage_out is not None:
+                usage_out["model"] = mid
             text, err, _think = intel_ai._call(intel_ai.model_meta(mid), system, user,
-                                               None, 8192)
+                                               None, 8192, usage_out=usage_out)
             return text, err
     raw, err = caller(_system_prompt(client_name), _user_prompt(question, hits, history or []))
     if err:

@@ -80,11 +80,21 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Pure-Python
   BM25 index stored as `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change);
   answers via `intel_ai._call` (JSON-mode, parsed leniently) with cited sources.
-  `POST /w/<c>/admin/assistant` (op ask|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs Vertex
-  off-cloud. Test: `python _assistant_localtest.py`. UI: the Assistant tab AND a team-only
+  `POST /w/<c>/admin/assistant` (op ask|settings|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs
+  Vertex off-cloud. Test: `python _assistant_localtest.py`. UI: the Assistant tab AND a team-only
   floating bubble (`ax-asfab` FAB + `ax-aspanel` pop-up in `atrium.html`, inside `.atrium` so the
   vars/font inherit) available on every tab — both wired by ONE `wireAssistantChat`; the bubble
-  hides on the Assistant tab via `.atrium[data-tab="assistant"]`.
+  hides on the Assistant tab via `.atrium[data-tab="assistant"]`. **Model choice:** `op=settings`
+  saves `ws["assistant"]["model"]` ("" = automatic → intel model → deploy default; resolved by
+  `main._assistant_model`); the dropdown renders via the shared `as_model_options()` macro (tab
+  bar + the bubble's gear strip). **Spend tally:** `intel_ai` provider calls fill an optional
+  `usage_out` dict (DeepSeek `usage`, Vertex `usageMetadata` incl. thinking tokens);
+  `intel_ai.PRICING`/`cost_of` price it, `workspace.add_assistant_usage` accumulates
+  `ws["assistant"]["usage"]`, and the cost pill (`ax-ascost`, seeded from data-* attrs, updated
+  from each ask's `usage`/`totals`) shows session + all-time + by-model. **Client rename:**
+  `POST /admin/atrium/<c>/rename` (superadmin) updates the registry name
+  (`store.set_client_name`) AND the workspace `display_name` — display-only, the key/resources
+  never change; the console cards have a Rename button (prompt-driven).
 - **`intel_feed.py` / `intel_refresh.py`** — the DAILY Market Intelligence auto-refresh (opt-in,
   `INTEL_AUTO_ENABLED=1`). `intel_feed` parses Google News RSS + publisher feeds (keyless, stdlib
   `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**

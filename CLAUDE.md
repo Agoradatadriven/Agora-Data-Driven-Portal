@@ -164,7 +164,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   reachable from every tab: one `wireAssistantChat` wiring in `atrium.html` serves both surfaces
   (the tab keeps the date-range + reindex controls), an open conversation survives client-side tab
   switches, and the bubble hides on the Assistant tab itself (CSS on the root's `data-tab`, which
-  `showTab` keeps current).
+  `showTab` keeps current). The Assistant has its **own model choice** (dropdown in the tab bar +
+  the bubble's gear strip; `op=settings` → `ws["assistant"]["model"]`, "" = automatic: the intel
+  brain's model, else the deploy default) and an on-screen **spend tally** (mastery-style cost
+  pill above the FAB: session + all-time + by-model detail). Both provider calls in `intel_ai`
+  accept a `usage_out` dict that captures token counts; `intel_ai.PRICING`/`cost_of` price them
+  (approximate, editable) and `workspace.add_assistant_usage` persists the all-time tally in
+  `ws["assistant"]["usage"]`; each `op=ask` response carries `usage` + `totals`.
 - **Content with a date mirrors onto the Content Calendar (linked event):** when an admin gives a
   content piece a `date` (in the add/edit-content form), `workspace.add_content`/`update_content`
   mirror it into `calendar[]` as a linked event carrying `content_id` + `tab` (paid→`leadgen`,
@@ -296,7 +302,9 @@ auto-refresh (see those bullets below). Product name is one constant:
   an **Upload logo** control (POST `/admin/atrium/<c>/logo` — embeds the image inline as a
   `brand.client_logo` `<img>` data-URI, ≤512 KB; same posture as seeded logos) and a confirmed
   **Delete** control (POST `/admin/atrium/<c>/delete` — `store.remove_client` +
-  `workspace.delete_workspace`). **Add a new client** (`POST /admin/atrium/new`) asks ONLY for a
+  `workspace.delete_workspace`) and a **Rename** control (POST `/admin/atrium/<c>/rename` —
+  display name only, updates the registry `name` + workspace `display_name`; the key `<c>` and
+  every derived resource never change). **Add a new client** (`POST /admin/atrium/new`) asks ONLY for a
   display name (key auto-derives, password auto-generates) and on success redirects STRAIGHT to the
   new client's blank `/w/<c>/`. The
   portal landing (`/`) shows **Open dashboard** per client; the workspace `/w/<c>/` stays reachable

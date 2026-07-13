@@ -46,6 +46,30 @@ MODELS = (
     {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "provider": "deepseek"},
 )
 
+# Approximate USD per 1,000,000 tokens, "in" = prompt, "out" = completion (thinking bills as
+# output). EDITABLE -- keep in step with provider price changes (mirrors mastery-engine
+# lib/usage.js PRICING). Used by the Assistant's on-screen spend tally, not by billing itself.
+PRICING = {
+    "gemini-2.5-flash": {"in": 0.30, "out": 2.50},
+    "gemini-2.5-pro": {"in": 1.25, "out": 10.0},
+    "deepseek-v4-flash": {"in": 0.28, "out": 0.42},
+    "deepseek-v4-pro": {"in": 0.55, "out": 2.19},
+}
+
+
+def cost_of(model_id, input_tokens, output_tokens):
+    """Approximate USD cost of one call. Unknown models price at $0 (tokens still counted).
+    Falls back to a prefix match so a versioned id (gemini-2.5-flash-002) still prices."""
+    p = PRICING.get(model_id)
+    if p is None:
+        for key in PRICING:
+            if (model_id or "").startswith(key):
+                p = PRICING[key]
+                break
+    if p is None:
+        return 0.0
+    return (input_tokens / 1e6) * p["in"] + (output_tokens / 1e6) * p["out"]
+
 # Admin-choosable search look-back (how far back to pull candidate articles). The value is the
 # Google-News `when:` operator suffix; publisher feeds ignore it and just return their latest.
 WINDOWS = (
@@ -332,12 +356,13 @@ def _gcp_access_token(token_fetcher=None):
         return ""
 
 
-def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False):
+def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False, usage_out=None):
     """DeepSeek chat/completions (OpenAI-compatible). Returns (text, error, thinking).
 
     When `capture` is set we surface the model's `reasoning_content` (only the reasoner-class models
     emit it; the V4 chat models may return none, in which case thinking is "" -- the candidate list
-    and raw output still make the run transparent)."""
+    and raw output still make the run transparent). A `usage_out` dict is filled with the call's
+    `input_tokens`/`output_tokens` (the Assistant's spend tally); missing usage leaves it at 0."""
     key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if not key:
         return "", "DeepSeek not configured", ""
@@ -362,13 +387,18 @@ def _call_deepseek(model_id, system, user, fetcher, max_tokens, capture=False):
     try:
         data = resp.json()
         msg = data["choices"][0]["message"]
+        if usage_out is not None:
+            u = data.get("usage") or {}
+            usage_out["input_tokens"] = int(u.get("prompt_tokens") or 0)
+            usage_out["output_tokens"] = int(u.get("completion_tokens") or 0)
         thinking = (msg.get("reasoning_content") or "").strip() if capture else ""
         return (msg.get("content") or "").strip(), "", thinking
     except Exception:
         return "", "DeepSeek returned an unexpected response", ""
 
 
-def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetcher=None, capture=False):
+def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetcher=None, capture=False,
+                        usage_out=None):
     """Vertex AI Gemini :generateContent (GCP-billed, SA-token auth). Returns (text, error, thinking).
 
     Gemini 2.5 "thinks" by default and that thinking is billed against maxOutputTokens -- on a big
@@ -411,6 +441,12 @@ def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetch
     try:
         data = resp.json()
         parts = data["candidates"][0]["content"]["parts"]
+        if usage_out is not None:
+            u = data.get("usageMetadata") or {}
+            usage_out["input_tokens"] = int(u.get("promptTokenCount") or 0)
+            # Thinking tokens are billed as output, so they belong in the output tally.
+            usage_out["output_tokens"] = (int(u.get("candidatesTokenCount") or 0)
+                                          + int(u.get("thoughtsTokenCount") or 0))
         # A part flagged `thought:true` is reasoning, not the answer -- keep them apart.
         answer = "".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
         thinking = "".join(p.get("text", "") for p in parts if p.get("thought")).strip() if capture else ""
@@ -419,12 +455,13 @@ def _call_vertex_gemini(model_id, system, user, fetcher, max_tokens, token_fetch
         return "", "Vertex returned an unexpected response", ""
 
 
-def _call(model, system, user, fetcher, max_tokens, token_fetcher=None, capture=False):
+def _call(model, system, user, fetcher, max_tokens, token_fetcher=None, capture=False, usage_out=None):
     """Dispatch to the right provider for `model` (a MODELS dict). Returns (text, error, thinking)."""
     if model["provider"] == "deepseek":
-        return _call_deepseek(model["id"], system, user, fetcher, max_tokens, capture)
+        return _call_deepseek(model["id"], system, user, fetcher, max_tokens, capture, usage_out)
     if model["provider"] == "gemini":
-        return _call_vertex_gemini(model["id"], system, user, fetcher, max_tokens, token_fetcher, capture)
+        return _call_vertex_gemini(model["id"], system, user, fetcher, max_tokens, token_fetcher,
+                                   capture, usage_out)
     return "", "unknown provider", ""
 
 

@@ -41,6 +41,7 @@
 {%- elif name == 'watcher' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
 {%- elif name == 'assistant' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 9 9 0 0 1-3.2-.6L3 21l1.9-5.1a8 8 0 0 1-1.4-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3z"/><path d="M12 8.6l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>
 {%- elif name == 'intel' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12.5a1 1 0 0 1 1 1v11a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17.5 8.5H20a1 1 0 0 1 1 1v8.5a2 2 0 0 1-2 2"/><line x1="7.5" y1="9.5" x2="14" y2="9.5"/><line x1="7.5" y1="13" x2="14" y2="13"/><line x1="7.5" y1="16.5" x2="11.5" y2="16.5"/></svg>
+{%- elif name == 'gear' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 {%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
 {%- endif -%}
 {%- endmacro %}
@@ -1404,12 +1405,42 @@
     .ax-aspanel .ax-as-log { max-height: none; }
     .ax-aspanel .ax-as-bubble { max-width: 86%; font-size: 13.5px; }
     .ax-aspanel .ax-as-input { min-height: 40px; }
+    /* In-panel settings strip (the gear): the Assistant's own model choice. */
+    .ax-aspanel-gear { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--ax-line); background: var(--ax-canvas); color: var(--ax-sub); cursor: pointer; display: grid; place-items: center; }
+    .ax-aspanel-gear .ax-ic { width: 16px; height: 16px; }
+    .ax-aspanel-gear:hover, .ax-aspanel-gear.is-on { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-aspanel-set { background: linear-gradient(180deg, #FBFAFF, #F5F4FD); border: 1px solid #ECE9FA; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+    .ax-aspanel-set[hidden] { display: none; }
+    .ax-aspanel-setlabel { display: block; font-size: 12px; font-weight: 700; color: var(--ax-sub); }
+    .ax-aspanel-set select { display: block; width: 100%; margin-top: 6px; }
+    .ax-aspanel-setnote { margin: 8px 0 0; font-size: 11.5px; color: var(--ax-sub); line-height: 1.5; }
+    /* Model picker in the tab bar (mirrors the date-range control). */
+    .ax-as-model { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ax-sub); }
+    .ax-as-model select { font-size: 12.5px; padding: 7px 9px; margin: 0; width: auto; }
+    .ax-savehint.ax-as-saved { font-size: 12px; }
+    /* Cost pill (mastery-engine style): the Assistant's AI spend, pinned above the FAB. The open
+       panel intentionally covers it (same posture as the Mastery Engine dock). */
+    .ax-ascost { position: fixed; right: 22px; bottom: 90px; z-index: 120; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 999px; padding: 7px 14px 7px 11px; box-shadow: 0 6px 16px rgba(16,24,40,.12); font: inherit; }
+    .ax-ascost:hover { border-color: var(--ax-purple, #9484FB); }
+    .ax-ascost-ic { color: var(--ax-purple, #9484FB); font-size: 14px; }
+    .ax-ascost-figs { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+    .ax-ascost-main { font-weight: 800; font-size: 14px; color: var(--ax-ink); font-variant-numeric: tabular-nums; }
+    .ax-ascost-sub { font-size: 10.5px; color: var(--ax-sub); }
+    .ax-ascost-detail { position: fixed; right: 22px; bottom: 138px; z-index: 122; width: 280px; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 14px; box-shadow: 0 18px 42px rgba(16,24,40,.16); padding: 14px 16px; font-size: 13px; animation: ax-asfab-pop .18s ease-out; }
+    .ax-ascost-detail[hidden] { display: none; }
+    .ax-ascost-h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--ax-sub); margin: 10px 0 6px; }
+    .ax-ascost-h:first-child { margin-top: 0; }
+    .ax-ascost-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; color: var(--ax-charcoal); }
+    .ax-ascost-row span:last-child { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .ax-ascost-row.is-total { font-weight: 800; color: var(--ax-ink); }
     /* On the Assistant tab the pane IS the chat, so the bubble would be redundant — hide it there
        (showTab keeps the root's data-tab current; the FAB/panel live inside .atrium). */
     .atrium[data-tab="assistant"] .ax-asfab, .atrium[data-tab="assistant"] .ax-aspanel { display: none; }
     @media (max-width: 560px) {
       .ax-asfab { right: 14px; bottom: 14px; }
       .ax-aspanel { right: 10px; left: 10px; width: auto; bottom: 86px; }
+      .ax-ascost { right: 14px; bottom: 82px; }
+      .ax-ascost-detail { right: 10px; bottom: 130px; width: min(280px, calc(100vw - 24px)); }
     }
   </style>
 </head>
@@ -2913,12 +2944,25 @@
         </section>
 
         <!-- ============ ASSISTANT (team-only: RAG chat over the whole workspace) ============ -->
+        {#- The Assistant's model options, shared by the tab bar and the floating bubble's settings
+           strip. "Automatic" follows the intel research brain's model, else the deploy default. -#}
+        {% macro as_model_options() -%}
+          <option value=""{{ ' selected' if not assistant_model else '' }}>Automatic</option>
+          {%- for m in assistant_models -%}
+          <option value="{{ m.id }}"{{ ' selected' if m.id == assistant_model else '' }}{{ ' disabled' if not m.available else '' }}>{{ m.label }}{{ '' if m.available else ' — not set up' }}</option>
+          {%- endfor -%}
+        {%- endmacro %}
         <section class="ax-pane {{ 'is-active' if view.active_tab=='assistant' else '' }}" data-pane="assistant">
           <h1 class="ax-greet">Assistant</h1>
           <p class="ax-lede">Ask anything about {{ ws.display_name }}'s world &mdash; it reads the whole workspace: campaigns and content, metrics and dashboard data, Market Intelligence, the content calendar, client conversations, and every Watcher transcript.</p>
 
           <div class="ax-panel ax-as-bar">
             <span class="ax-as-src">{{ ic('assistant') }} Answers are grounded in this workspace's data and cite their sources.</span>
+            <span class="ax-as-model" title="The AI model the Assistant answers with — Automatic follows the research brain's model">
+              <label for="ax-as-model">Model</label>
+              <select class="ax-editbox ax-as-modelsel" id="ax-as-model">{{ as_model_options() }}</select>
+              <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span>
+            </span>
             <span class="ax-as-range" title="Limit dated sources (transcripts, intel, content) to a range">
               <label>From <input class="ax-wt-fdate-in" type="date" id="ax-as-from"></label>
               <label>To <input class="ax-wt-fdate-in" type="date" id="ax-as-to"></label>
@@ -2987,6 +3031,17 @@
        from every tab (the panes switch client-side, so an open conversation survives tab changes).
        Lives INSIDE .atrium so the --ax-* vars + Roboto inherit; position:fixed still pins it to the
        viewport (same posture as #ax-navtoggle). -->
+  <div class="ax-ascost-detail" id="ax-ascost-detail" hidden></div>
+  <button class="ax-ascost" id="ax-ascost" type="button" title="The Assistant's AI spend (click for detail)"
+          data-cost="{{ assistant_usage.cost_usd }}" data-in="{{ assistant_usage.input_tokens }}"
+          data-out="{{ assistant_usage.output_tokens }}" data-calls="{{ assistant_usage.calls }}"
+          data-bymodel='{{ assistant_usage.by_model | tojson }}'>
+    <span class="ax-ascost-ic">&#9672;</span>
+    <span class="ax-ascost-figs">
+      <span class="ax-ascost-main" id="ax-ascost-main">$0.0000</span>
+      <span class="ax-ascost-sub" id="ax-ascost-sub">session &middot; $0.0000 all-time</span>
+    </span>
+  </button>
   <button class="ax-asfab" id="ax-asfab" type="button" title="Assistant — ask about this workspace" aria-label="Open the workspace assistant" aria-expanded="false">{{ ic('assistant') }}</button>
   <div class="ax-aspanel" id="ax-aspanel" hidden role="dialog" aria-label="Workspace assistant">
     <div class="ax-aspanel-head">
@@ -2995,9 +3050,16 @@
         <div class="ax-aspanel-hint">Grounded in this workspace &mdash; campaigns, metrics, intel, conversations, and every Watcher transcript.</div>
       </div>
       <div class="ax-aspanel-actions">
+        <button class="ax-aspanel-gear" id="ax-asfab-gear" type="button" title="AI model" aria-label="Choose the AI model">{{ ic('gear') }}</button>
         <button class="ax-aspanel-new" id="ax-asfab-new" type="button" title="Start a new conversation">+ New</button>
         <button class="ax-aspanel-x" id="ax-asfab-x" type="button" aria-label="Close">&times;</button>
       </div>
+    </div>
+    <div class="ax-aspanel-set" id="ax-asfab-set" hidden>
+      <label class="ax-aspanel-setlabel" for="ax-asfab-model">AI model
+        <select class="ax-editbox ax-as-modelsel" id="ax-asfab-model">{{ as_model_options() }}</select>
+      </label>
+      <p class="ax-aspanel-setnote">Applies to the Assistant everywhere in this workspace &mdash; this bubble and the Assistant tab. Automatic follows the research brain's model. <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span></p>
     </div>
     <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab. The full Assistant tab has date-range and reindex controls."></div>
     <div class="ax-as-inputrow">
@@ -3710,6 +3772,87 @@
     }
   })();
 
+  // ---- Assistant spend (the cost pill): session + all-time, mastery-engine style ----------------
+  // Seeded from the pill's data-* attributes (the server-side all-time tally); each answered
+  // question folds its usage/totals from the ask response back in. Click toggles the breakdown.
+  var assistCost = (function () {
+    var pill = document.getElementById("ax-ascost");
+    var detail = document.getElementById("ax-ascost-detail");
+    if (!pill || !detail) { return null; }
+    function num(attr) { return parseFloat(pill.getAttribute(attr)) || 0; }
+    var totals = {
+      cost_usd: num("data-cost"), input_tokens: num("data-in"),
+      output_tokens: num("data-out"), calls: num("data-calls"), by_model: {}
+    };
+    try { totals.by_model = JSON.parse(pill.getAttribute("data-bymodel") || "{}") || {}; }
+    catch (e) { totals.by_model = {}; }
+    var session = 0;
+    function fmtUsd(n) {
+      var v = Number(n) || 0;
+      return "$" + (v < 1 ? v.toFixed(4) : v.toFixed(2));
+    }
+    function fmtTok(n) {
+      var v = Number(n) || 0;
+      if (v >= 1e6) { return (v / 1e6).toFixed(2) + "M"; }
+      if (v >= 1e3) { return (v / 1e3).toFixed(1) + "k"; }
+      return String(v);
+    }
+    function row(label, value, isTotal) {
+      var r = document.createElement("div");
+      r.className = "ax-ascost-row" + (isTotal ? " is-total" : "");
+      var a = document.createElement("span");
+      a.textContent = label;
+      var b = document.createElement("span");
+      b.textContent = value;
+      r.appendChild(a);
+      r.appendChild(b);
+      return r;
+    }
+    function head(label) {
+      var h = document.createElement("div");
+      h.className = "ax-ascost-h";
+      h.textContent = label;
+      return h;
+    }
+    function render() {
+      document.getElementById("ax-ascost-main").textContent = fmtUsd(session);
+      document.getElementById("ax-ascost-sub").textContent =
+        "session · " + fmtUsd(totals.cost_usd) + " all-time";
+      detail.innerHTML = "";
+      detail.appendChild(head("Assistant AI spend"));
+      detail.appendChild(row("All-time", fmtUsd(totals.cost_usd), true));
+      detail.appendChild(row("Tokens in / out",
+                             fmtTok(totals.input_tokens) + " / " + fmtTok(totals.output_tokens)));
+      detail.appendChild(row("Questions", String(totals.calls || 0)));
+      detail.appendChild(head("By model"));
+      var keys = [];
+      var k;
+      for (k in totals.by_model) {
+        if (totals.by_model.hasOwnProperty(k)) { keys.push(k); }
+      }
+      keys.sort(function (a, b) {
+        return ((totals.by_model[b] || {}).cost_usd || 0) - ((totals.by_model[a] || {}).cost_usd || 0);
+      });
+      if (!keys.length) { detail.appendChild(row("No spend yet", "$0")); }
+      var i;
+      for (i = 0; i < keys.length; i++) {
+        detail.appendChild(row(keys[i], fmtUsd((totals.by_model[keys[i]] || {}).cost_usd)));
+      }
+    }
+    pill.addEventListener("click", function () {
+      if (detail.hasAttribute("hidden")) { detail.removeAttribute("hidden"); }
+      else { detail.setAttribute("hidden", "hidden"); }
+    });
+    render();
+    return {
+      note: function (usage, newTotals) {
+        session += (usage && usage.cost_usd) || 0;
+        if (newTotals) { totals = newTotals; }
+        render();
+      }
+    };
+  })();
+
   // ---- Assistant (team-only): grounded chat over the whole workspace ---------------------------
   // ONE wiring serves BOTH surfaces: the Assistant tab pane AND the floating bubble reachable from
   // every tab. Each surface keeps its own conversation; every question POSTs op=ask with the recent
@@ -3782,6 +3925,7 @@
           }
           bubble.textContent = data.answer;
           addSources(bubble, data.sources);
+          if (assistCost && data.usage) { assistCost.note(data.usage, data.totals); }
           history.push({ role: "bot", text: data.answer });
           log.scrollTop = log.scrollHeight;
         })
@@ -3873,6 +4017,44 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && !panel.hasAttribute("hidden")) { setOpen(false); }
     });
+  })();
+
+  // ---- Assistant model choice: ONE saved setting, two dropdowns (tab bar + the bubble's gear) ---
+  (function () {
+    var sels = qsa(".ax-as-modelsel");
+    if (!sels.length) { return; }
+    var saving = false;
+    sels.forEach(function (sel) {
+      sel.addEventListener("change", function () {
+        if (saving) { return; }
+        saving = true;
+        var val = sel.value;
+        post("/admin/assistant", { op: "settings", model: val })
+          .then(function (data) {
+            saving = false;
+            if (!data || data.ok === false) { return; }
+            sels.forEach(function (other) { other.value = val; });
+            qsa("[data-asmodelsaved]").forEach(function (hint) {
+              hint.removeAttribute("hidden");
+              setTimeout(function () { hint.setAttribute("hidden", "hidden"); }, 1600);
+            });
+          })
+          .catch(function () { saving = false; });
+      });
+    });
+    var gear = document.getElementById("ax-asfab-gear");
+    var strip = document.getElementById("ax-asfab-set");
+    if (gear && strip) {
+      gear.addEventListener("click", function () {
+        if (strip.hasAttribute("hidden")) {
+          strip.removeAttribute("hidden");
+          gear.classList.add("is-on");
+        } else {
+          strip.setAttribute("hidden", "hidden");
+          gear.classList.remove("is-on");
+        }
+      });
+    }
   })();
 
   // ---- Client crest: upload / change the workspace logo in place (any member, no reload) -------

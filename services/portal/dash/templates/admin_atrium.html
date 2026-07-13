@@ -414,6 +414,11 @@
                            data-logo-input hidden>
                   </label>
                 </form>
+                <form method="post" action="/admin/atrium/{{ c.key }}/rename"
+                      data-rename-client data-client-name="{{ c.name|default(c.key, true) }}">
+                  <input type="hidden" name="name">
+                  <button type="submit" class="mini-btn" title="Rename this client (display name only)">Rename</button>
+                </form>
               </div>
               <form class="card-del" method="post" action="/admin/atrium/{{ c.key }}/delete"
                     data-delete-client data-client-name="{{ c.name|default(c.key, true) }}">
@@ -776,6 +781,17 @@
       qsa("input[data-logo-input]").forEach(function (inp) {
         inp.addEventListener("change", function () {
           if (this.files && this.files.length && this.form) { this.form.submit(); }
+        });
+      });
+
+      // ---- "Rename": ask for the new display name, then submit (key + resources untouched). ----
+      qsa("form[data-rename-client]").forEach(function (f) {
+        f.addEventListener("submit", function (e) {
+          var current = this.getAttribute("data-client-name") || "";
+          var next = window.prompt("New display name for " + current + ":", current);
+          if (next !== null) { next = next.replace(/^\s+|\s+$/g, ""); }
+          if (!next || next === current) { e.preventDefault(); return; }
+          this.querySelector("input[name=name]").value = next;
         });
       });
 

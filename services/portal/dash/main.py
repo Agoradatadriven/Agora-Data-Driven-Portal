@@ -1007,6 +1007,11 @@ def atrium(client, tab):
         # Watcher (team-only tab): per-channel video cards with transcript PREVIEWS only -- the
         # full transcripts stay in each channel's own archive object, fetched on click.
         watcher=(_watcher_view(ws, client) if (is_superadmin() and not admin_preview) else []),
+        # Assistant (team-only): the model dropdown options + the saved choice ("" = automatic)
+        # + the all-time spend tally that seeds the cost pill.
+        assistant_models=intel_ai.available_models(),
+        assistant_model=((ws.get("assistant") or {}).get("model", "")),
+        assistant_usage=workspace.assistant_usage(ws),
         admin_preview=admin_preview,
         admin_name=_admin_sender_name(user),
         profile_photo=(current_account() or {}).get("photo", ""),
@@ -2402,15 +2407,27 @@ def _assistant_index(ws, client, force=False):
     return index
 
 
+def _assistant_model(ws):
+    """The model the Assistant should use: its own saved choice when set AND available, else the
+    intel brain's model, else the deploy default ("" when no provider is configured)."""
+    own = ((ws.get("assistant") or {}).get("model") or "").strip()
+    if own and intel_ai.model_available(own):
+        return own
+    return ((ws.get("intel_ai") or {}).get("model") or "").strip()
+
+
 @app.route("/w/<client>/admin/assistant", methods=["POST"])
 def atrium_admin_assistant(client):
     """The Atrium Assistant (team-only). `op` is:
 
-    * ask     -- answer `question` from the workspace knowledge index (question + optional
-                 `history` JSON of recent turns + optional `date_from`/`date_to` ISO dates that
-                 scope DATED sources like transcripts/intel to a range). The index rebuilds
-                 lazily when stale, so answers always reflect the latest fetched data.
-    * reindex -- force-rebuild the index now; returns its size (the pane's Rebuild button).
+    * ask      -- answer `question` from the workspace knowledge index (question + optional
+                  `history` JSON of recent turns + optional `date_from`/`date_to` ISO dates that
+                  scope DATED sources like transcripts/intel to a range). The index rebuilds
+                  lazily when stale, so answers always reflect the latest fetched data. The
+                  response carries the call's token `usage` + the updated all-time `totals`
+                  (the cost pill).
+    * settings -- save the Assistant's model choice (`model`; "" = automatic).
+    * reindex  -- force-rebuild the index now; returns its size (the pane's Rebuild button).
     """
     gate = _atrium_admin_json_gate(client)
     if gate:
@@ -2427,6 +2444,15 @@ def atrium_admin_assistant(client):
         return jsonify(ok=True, chunks=len(index.get("chunks") or []),
                        built_at=index.get("built_at", ""))
 
+    if op == "settings":
+        model = request.form.get("model", "").strip()
+        if model and intel_ai.model_meta(model) is None:
+            return jsonify(ok=False, message="Unknown model.")
+        workspace.set_assistant_model(client, model)
+        meta = intel_ai.model_meta(model)
+        _audit(client, "set assistant model", (meta or {}).get("label") or "automatic")
+        return jsonify(ok=True, model=model)
+
     if op == "ask":
         question = request.form.get("question", "").strip()
         if not question:
@@ -2436,16 +2462,28 @@ def atrium_admin_assistant(client):
         except ValueError:
             history = []
         index = _assistant_index(ws, client)
+        usage = {}
         answer, sources, err = assistant_ai.ask(
             ws.get("display_name") or client, index, question,
             history=history if isinstance(history, list) else [],
             date_from=request.form.get("date_from", "").strip(),
             date_to=request.form.get("date_to", "").strip(),
-            model=(ws.get("intel_ai") or {}).get("model", ""))
+            model=_assistant_model(ws), usage_out=usage)
         if err:
             return jsonify(ok=False, message=err, sources=sources)
+        # Spend accounting: price this call and fold it into the client's all-time tally so the
+        # cost pill (this answer + session + all-time) has real numbers. Best-effort -- a tally
+        # failure must never eat an answer the model already produced.
+        mid = usage.get("model", "")
+        cost = intel_ai.cost_of(mid, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+        usage["cost_usd"] = cost
+        try:
+            totals = workspace.add_assistant_usage(
+                client, mid, usage.get("input_tokens", 0), usage.get("output_tokens", 0), cost)
+        except Exception:
+            totals = workspace.assistant_usage(ws)
         _audit(client, "asked the assistant", question[:80])
-        return jsonify(ok=True, answer=answer, sources=sources)
+        return jsonify(ok=True, answer=answer, sources=sources, usage=usage, totals=totals)
 
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 
@@ -3034,6 +3072,31 @@ def admin_atrium_logo(client):
                                      % client)
     _audit(client, "uploaded client logo")
     return _atrium_redirect_list("Logo updated for '%s'." % client)
+
+
+@app.route("/admin/atrium/<client>/rename", methods=["POST"])
+def admin_atrium_rename(client):
+    """Rename a client on the fly (display name only -- the key `<c>` and every derived resource
+    stay untouched). Updates BOTH places a name lives: the registry entry (login page, console
+    cards) and the workspace's display_name (the workspace header + assistant prompts)."""
+    if not is_superadmin():
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    entry = store.get_client(client)
+    if entry is None:
+        return _atrium_redirect_list("Unknown client '%s'." % client)
+    name = " ".join(request.form.get("name", "").split()).strip()[:80]
+    if not name:
+        return _atrium_redirect_list("Enter the new name first.")
+    old = entry.get("name") or client
+    if name == old:
+        return _atrium_redirect_list("'%s' is already the current name." % name)
+    store.set_client_name(client, name)
+    try:
+        workspace.set_display_name(client, name)
+    except KeyError:
+        pass  # no workspace yet -- the registry rename is still worth keeping
+    _audit(client, "renamed client", "%s -> %s" % (old, name))
+    return _atrium_redirect_list("Renamed '%s' to '%s'." % (old, name))
 
 
 @app.route("/admin/atrium/<client>/delete", methods=["POST"])

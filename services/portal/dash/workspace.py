@@ -1455,6 +1455,59 @@ def set_intel_ai(client, fields):
     return _mutate(client, fn)
 
 
+# --- Assistant (team-only chat): its own model choice + a running spend tally --------------------
+def set_assistant_model(client, model_id):
+    """Persist the Assistant's model choice ("" = automatic: intel brain's model, else the default).
+    Stored verbatim -- the route validates against intel_ai.MODELS first. Returns the config."""
+    def fn(ws):
+        cfg = ws.setdefault("assistant", {})
+        cfg["model"] = (model_id or "").strip()
+        return cfg
+    return _mutate(client, fn)
+
+
+def _blank_usage():
+    return {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "calls": 0, "by_model": {}}
+
+
+def assistant_usage(ws):
+    """The workspace's all-time Assistant spend tally (always fully-shaped, never None)."""
+    u = ((ws or {}).get("assistant") or {}).get("usage") or {}
+    out = _blank_usage()
+    for k in ("input_tokens", "output_tokens", "calls"):
+        try:
+            out[k] = int(u.get(k) or 0)
+        except (TypeError, ValueError):
+            pass
+    try:
+        out["cost_usd"] = float(u.get("cost_usd") or 0.0)
+    except (TypeError, ValueError):
+        pass
+    out["by_model"] = dict(u.get("by_model") or {})
+    return out
+
+
+def add_assistant_usage(client, model_id, input_tokens, output_tokens, cost_usd):
+    """Accumulate one Assistant call into the client's all-time spend tally (mirrors mastery-engine's
+    per-user tally). Returns the updated tally so the response can carry the fresh totals."""
+    def fn(ws):
+        cfg = ws.setdefault("assistant", {})
+        tally = cfg.setdefault("usage", _blank_usage())
+        tally["input_tokens"] = int(tally.get("input_tokens") or 0) + int(input_tokens or 0)
+        tally["output_tokens"] = int(tally.get("output_tokens") or 0) + int(output_tokens or 0)
+        tally["cost_usd"] = float(tally.get("cost_usd") or 0.0) + float(cost_usd or 0.0)
+        tally["calls"] = int(tally.get("calls") or 0) + 1
+        key = model_id or "unknown"
+        by = tally.setdefault("by_model", {})
+        m = by.setdefault(key, {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "calls": 0})
+        m["input_tokens"] = int(m.get("input_tokens") or 0) + int(input_tokens or 0)
+        m["output_tokens"] = int(m.get("output_tokens") or 0) + int(output_tokens or 0)
+        m["cost_usd"] = float(m.get("cost_usd") or 0.0) + float(cost_usd or 0.0)
+        m["calls"] = int(m.get("calls") or 0) + 1
+        return assistant_usage(ws)
+    return _mutate(client, fn)
+
+
 def mark_intel_run(client, model, error="", backfilled=None, traces=None):
     """Record run metadata after a refresh attempt (best-effort; never raises out of the job).
 
