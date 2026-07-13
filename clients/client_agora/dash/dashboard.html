@@ -62,7 +62,21 @@
     padding: 6px 9px; font: inherit; font-size: 13px;
   }
   .filters input[type=search] { width: 220px; }
+  .filters input[type=number] {
+    background: var(--surface-1); color: var(--ink-1);
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 9px; font: inherit; font-size: 13px; width: 118px;
+  }
   .filters label.chk { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+  .morebtn {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--ink-1);
+    border-radius: 7px; padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .morebtn:hover { background: var(--hover-wash); }
+  .morebtn .n { display: inline-block; min-width: 17px; border-radius: 999px; background: var(--brand-deep);
+    color: #fff; font-size: 11px; font-weight: 700; padding: 1px 5px; margin-left: 4px; }
+  .fspacer { flex: 1; }
+  .filters.secondary { padding: 8px 10px; background: var(--hover-wash); border-radius: 8px; margin-top: -4px; }
   .clearbtn {
     border: 1px solid var(--border); background: var(--surface-1); color: var(--brand-deep);
     border-radius: 7px; padding: 6px 11px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
@@ -223,7 +237,8 @@
     <span class="sub" id="metaSub">loading…</span>
   </header>
 
-  <!-- one filter block; everything below re-renders against the same slice -->
+  <!-- one filter block; everything below re-renders against the same slice.
+       Primary row = what gets touched daily; the rest lives behind "More filters". -->
   <div class="filters" id="filterRow">
     <select id="fDate" aria-label="Date range">
       <option value="mar31">Since Mar 31, 2025 · full feed history</option>
@@ -238,6 +253,14 @@
     <input type="date" id="fFrom" style="display:none" aria-label="From date">
     <input type="date" id="fTo" style="display:none" aria-label="To date">
     <input type="search" id="fQ" placeholder="Search title, skills, description…" aria-label="Search">
+    <input type="number" id="fFit" min="0" max="100" step="1" placeholder="Min fit 0–100"
+           title="Show only jobs whose Agora-fit score is at or above this number" aria-label="Minimum Agora fit">
+    <button type="button" id="moreBtn" class="morebtn" aria-expanded="false">Filters ▾<span class="n" id="moreCount" style="display:none"></span></button>
+    <button type="button" id="fClear" class="clearbtn">✕ Clear filters</button>
+    <span class="fspacer"></span>
+    <button type="button" id="fsBtn" class="morebtn" title="Open the dashboard full screen">⛶ Full screen</button>
+  </div>
+  <div class="filters secondary" id="moreFilters" style="display:none">
     <select id="fCategory" aria-label="Category"><option value="">All categories</option></select>
     <select id="fCountry" aria-label="Client country"><option value="">All countries</option></select>
     <select id="fBudget" aria-label="Budget type">
@@ -258,7 +281,6 @@
       <option value="100000">Spent $100k+</option>
     </select>
     <label class="chk"><input type="checkbox" id="fVerified"> Payment verified</label>
-    <button type="button" id="fClear" class="clearbtn">✕ Clear filters</button>
   </div>
   <div class="chips" id="tagChips" aria-label="Demand tags — pick up to 6 to compare"></div>
 
@@ -336,14 +358,7 @@
         </tr>
         <tr class="colfilters">
           <th></th>
-          <th><select id="cfFit" aria-label="Fit filter">
-            <option value="">Any</option>
-            <option value="90">90+</option>
-            <option value="75">75+</option>
-            <option value="50">50+</option>
-            <option value="25">25+</option>
-            <option value="unscored">Unscored</option>
-          </select></th>
+          <th><input id="cfFit" type="number" min="0" max="100" step="1" placeholder="Min" aria-label="Minimum Agora fit"></th>
           <th><input id="cfTitle" type="search" placeholder="Title contains…" aria-label="Title filter"></th>
           <th></th>
           <th><input id="cfSkill" type="search" placeholder="Skill contains…" aria-label="Skill filter"></th>
@@ -593,13 +608,17 @@
     state.valmode = "adj";
     document.getElementById("fQ").value = "";
     ["fCategory", "fCountry", "fBudget", "fLevel", "fSpent",
-     "cfFit", "cfTitle", "cfSkill", "cfRate"].forEach(function (id) {
+     "fFit", "cfFit", "cfTitle", "cfSkill", "cfRate"].forEach(function (id) {
       document.getElementById(id).value = "";
     });
     document.getElementById("fVerified").checked = false;
     document.getElementById("fDate").value = "mar31";
     document.getElementById("fFrom").style.display = "none";
     document.getElementById("fTo").style.display = "none";
+    document.getElementById("moreCount").style.display = "none";
+    document.getElementById("moreFilters").style.display = "none";
+    document.getElementById("moreBtn").childNodes[0].nodeValue = "Filters ▾";
+    document.getElementById("moreBtn").setAttribute("aria-expanded", "false");
     renderChips();
     refreshAll();
   }
@@ -1386,10 +1405,29 @@
       state.page++; refreshJobs();
     });
 
-    // spreadsheet mode: per-column filters + click-to-sort headers + CSV export
-    var cfFit = document.getElementById("cfFit");
-    cfFit.value = state.fit;
-    cfFit.addEventListener("change", function () { state.fit = cfFit.value; refreshAll(); });
+    // spreadsheet mode: per-column filters + click-to-sort headers + CSV export.
+    // Min-fit is a real number, entered either in the top bar or the column
+    // filter — the two inputs mirror each other.
+    var fFit = document.getElementById("fFit"), cfFit = document.getElementById("cfFit");
+    fFit.value = state.fit === "unscored" ? "" : state.fit;
+    cfFit.value = fFit.value;
+    function wireFit(el, twin) {
+      el.addEventListener("input", function () {
+        twin.value = el.value;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          var v = el.value.trim();
+          if (v !== "") {
+            var n = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+            v = String(n);
+            if (el.value.trim() !== v) { el.value = v; twin.value = v; }
+          }
+          state.fit = v; refreshAll();
+        }, 350);
+      });
+    }
+    wireFit(fFit, cfFit);
+    wireFit(cfFit, fFit);
     [["cfTitle", "title"], ["cfSkill", "skill"], ["cfRate", "min_rate"]].forEach(function (pair) {
       var el = document.getElementById(pair[0]);
       el.value = state[pair[1]];
@@ -1415,6 +1453,44 @@
       var p = filterParams();
       p.set("sort", state.sort);
       window.location.href = "api/export.csv?" + p.toString();
+    });
+
+    // secondary filters live behind "Filters ▾"; the badge counts active ones
+    // so a hidden filter can never silently narrow the data
+    var moreBtn = document.getElementById("moreBtn");
+    var moreWrap = document.getElementById("moreFilters");
+    function moreActiveCount() {
+      var n = 0;
+      ["category", "country", "budget", "level", "min_spent"].forEach(function (k) { if (state[k]) n++; });
+      if (state.verified) n++;
+      return n;
+    }
+    function syncMore(open) {
+      if (open !== undefined) moreWrap.style.display = open ? "flex" : "none";
+      var isOpen = moreWrap.style.display !== "none";
+      moreBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      moreBtn.childNodes[0].nodeValue = isOpen ? "Filters ▴" : "Filters ▾";
+      var n = moreActiveCount();
+      var badge = document.getElementById("moreCount");
+      badge.style.display = n ? "" : "none";
+      badge.textContent = n;
+    }
+    moreBtn.addEventListener("click", function () {
+      syncMore(moreWrap.style.display === "none");
+    });
+    syncMore(moreActiveCount() > 0);  // arrive with an active hidden filter -> show it
+    moreWrap.addEventListener("change", function () { syncMore(); });
+
+    // full screen: standalone -> browser fullscreen; iframed (Atrium) -> open
+    // the same filtered view in its own tab
+    document.getElementById("fsBtn").addEventListener("click", function () {
+      var framed = false;
+      try { framed = window.self !== window.top; } catch (e) { framed = true; }
+      if (framed) { window.open(window.location.href, "_blank"); return; }
+      var doc = document;
+      if (doc.fullscreenElement) { doc.exitFullscreen(); }
+      else if (doc.documentElement.requestFullscreen) { doc.documentElement.requestFullscreen(); }
+      else { window.open(window.location.href, "_blank"); }
     });
 
     document.querySelectorAll("#granSeg button").forEach(function (x) {
