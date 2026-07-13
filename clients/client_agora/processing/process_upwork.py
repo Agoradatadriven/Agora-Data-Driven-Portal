@@ -245,7 +245,8 @@ CREATE TABLE jobs (
     country TEXT, rating REAL, reviews INTEGER, client_jobs INTEGER,
     hire_rate INTEGER, avg_rate REAL, spent REAL, verified INTEGER DEFAULT 0,
     tags TEXT,                      -- '|' joined demand tags
-    dup_count INTEGER DEFAULT 1     -- times this URL appeared in the export
+    dup_count INTEGER DEFAULT 1,    -- times this URL appeared in the export
+    weight REAL NOT NULL DEFAULT 1  -- coverage-adjusted contribution (see calibrate)
 );
 CREATE TABLE job_skills (job_id INTEGER NOT NULL, skill TEXT NOT NULL);
 CREATE TABLE job_tags (job_id INTEGER NOT NULL, tag TEXT NOT NULL);
@@ -350,6 +351,7 @@ def run(raw_path):
     db.executescript(POST_INDEX)
     db.commit()
 
+    calibrate(db)
     write_aggregates(db)
     db.execute("VACUUM")
     db.close()
@@ -358,13 +360,100 @@ def run(raw_path):
     print("  -> %s  (%.1f MB)" % (db_path, os.path.getsize(db_path) / 1e6))
 
 
-# Zenfl went down 2025-10-17..28 and came back with a rebuilt pipeline that
-# delivers ~4x fewer matching jobs (and no longer forwards jobs without a
-# posted rate). Volumes before/after are NOT comparable — the dashboard
-# defaults to this era and marks the outage on the chart. (Verified against
-# the chat audit trail: no feed-setting changes by Ian anywhere near the drop.)
+# Zenfl's pipeline changed capacity at every major outage (verified against the
+# chat audit trail — no feed-setting changes by Ian near any boundary):
+# the July-2025 rebuild OVER-delivered ~3x, the October-2025 rebuild delivers
+# ~half the original baseline. Raw counts are NOT comparable across these
+# boundaries; the dashboard defaults to the current era, offers a "% of jobs"
+# share mode for cross-era comparison, and bands every outage on the chart.
 ERA_FROM = "2025-11-03"
-OUTAGE_FROM, OUTAGE_TO = "2025-10-13", "2025-11-03"  # affected weeks (Mondays)
+OUTAGES = [  # >=12h offline periods (clustered), from the bot's own messages
+    {"from": "2024-11-23", "to": "2025-03-30", "label": "no active feeds · Zenfl offline"},
+    {"from": "2025-07-18", "to": "2025-07-26", "label": "Zenfl outage → came back over-delivering"},
+    {"from": "2025-10-17", "to": "2025-10-28", "label": "Zenfl outage → coverage reset"},
+]
+FEED_EVENTS = [  # feed creations (real coverage additions — marked on the chart)
+    {"date": "2025-03-30", "label": "SMMA feed created"},
+    {"date": "2025-05-24", "label": "Paralegal feed created"},
+    {"date": "2025-06-30", "label": "Bookkeeping feed created"},
+    {"date": "2025-07-04", "label": "Automation feed created"},
+    {"date": "2025-08-08", "label": "Data Science feed created"},
+]
+
+# --- coverage calibration (chain-linked, per feed stream) --------------------
+# Zenfl's delivery capacity changed at the July and October 2025 outages.
+# To make counts comparable, every job gets weight = 1/factor(feed, regime),
+# where the factor is the pipeline's delivery level relative to the current
+# (post-Oct) pipeline, measured per feed stream in windows ADJACENT to each
+# boundary (chain-linking: a demand level can't jump 3x in two weeks, so the
+# boundary jump isolates the pipeline change while real trends pass through).
+R1_FROM, R2_FROM, R3_FROM = "2025-03-31", "2025-07-28", ERA_FROM
+_WINDOWS = {                      # [from, to) week windows around boundaries
+    "r1_late": ("2025-06-02", "2025-07-14"),
+    "r2_early": ("2025-07-28", "2025-09-08"),
+    "r2_late": ("2025-08-25", "2025-10-13"),
+    "r3_early": ("2025-11-03", "2025-12-15"),
+}
+_MIN_LEVEL, _MIN_WEEKS = 5.0, 3   # below this a stream falls back to the global factor
+_CAP_LO, _CAP_HI = 1.0 / 3, 6.0
+
+
+def _window_level(counts, first_week, lo, hi):
+    """Mean weekly count of one stream in [lo, hi), zero-filled from the
+    stream's own first week (feed births mid-window handled)."""
+    weeks = [w for w in counts["_all_weeks"] if lo <= w < hi and w >= first_week]
+    if len(weeks) < _MIN_WEEKS:
+        return None
+    total = sum(counts.get(w, 0) for w in weeks)
+    return total / float(len(weeks))
+
+
+def calibrate(db):
+    """Compute jobs.weight (coverage-adjusted count contribution)."""
+    all_weeks = [r[0] for r in db.execute(
+        "SELECT DISTINCT week FROM jobs ORDER BY week")]
+    feeds = [r[0] for r in db.execute("SELECT DISTINCT feed FROM jobs")]
+
+    def stream_counts(feed):
+        c = {w: n for w, n in db.execute(
+            "SELECT week, COUNT(*) FROM jobs WHERE feed=? GROUP BY week", (feed,))}
+        c["_all_weeks"] = all_weeks
+        return c
+
+    def levels_of(counts, first_week):
+        return {k: _window_level(counts, first_week, lo, hi)
+                for k, (lo, hi) in _WINDOWS.items()}
+
+    # global fallback factors from the all-jobs series
+    g_counts = {w: n for w, n in db.execute(
+        "SELECT week, COUNT(*) FROM jobs GROUP BY week")}
+    g_counts["_all_weeks"] = all_weeks
+    gl = levels_of(g_counts, "0000")
+    g_f2 = (gl["r2_late"] / gl["r3_early"]) if gl["r2_late"] and gl["r3_early"] else 1.0
+    g_jump = (gl["r2_early"] / gl["r1_late"]) if gl["r2_early"] and gl["r1_late"] else 1.0
+    g_f1 = g_f2 / g_jump if g_jump else 1.0
+
+    def clamp(f):
+        return max(_CAP_LO, min(_CAP_HI, f))
+
+    updates = []  # (weight, feed, week_lo, week_hi)
+    print("calibration factors (feed: f1 pre-July, f2 boom; 1.0 = current coverage):")
+    for feed in feeds:
+        counts = stream_counts(feed)
+        first = db.execute("SELECT MIN(week) FROM jobs WHERE feed=?", (feed,)).fetchone()[0]
+        lv = levels_of(counts, first)
+        ok = lambda a, b: (lv[a] or 0) >= _MIN_LEVEL and (lv[b] or 0) >= _MIN_LEVEL
+        f2 = clamp(lv["r2_late"] / lv["r3_early"]) if ok("r2_late", "r3_early") else clamp(g_f2)
+        jump = (lv["r2_early"] / lv["r1_late"]) if ok("r2_early", "r1_late") else g_jump
+        f1 = clamp(f2 / jump) if jump else clamp(g_f1)
+        print("  %-55r f1=%.2f f2=%.2f" % (feed[:52], f1, f2))
+        updates.append((1.0 / f1, feed, R1_FROM, R2_FROM))
+        updates.append((1.0 / f2, feed, R2_FROM, R3_FROM))
+    db.execute("UPDATE jobs SET weight = 1.0")
+    db.executemany(
+        "UPDATE jobs SET weight=? WHERE feed=? AND week >= ? AND week < ?", updates)
+    db.commit()
+    print("  global fallbacks: f1=%.2f f2=%.2f" % (g_f1, g_f2))
 
 
 def _agg_block(db, since):
@@ -374,8 +463,10 @@ def _agg_block(db, since):
     q = lambda sql: db.execute(sql, p).fetchall()
 
     total, dmin, dmax = q("SELECT COUNT(*), MIN(j.date), MAX(j.date) FROM jobs j WHERE 1=1" + jw)[0]
-    weekly = q("SELECT j.week, COUNT(*) FROM jobs j WHERE 1=1%s GROUP BY j.week ORDER BY j.week" % jw)
-    daily = q("SELECT substr(j.date,1,10) d, COUNT(*) FROM jobs j WHERE 1=1%s GROUP BY d ORDER BY d" % jw)
+    weekly = q("SELECT j.week, COUNT(*), ROUND(SUM(j.weight)) FROM jobs j WHERE 1=1%s"
+               " GROUP BY j.week ORDER BY j.week" % jw)
+    daily = q("SELECT substr(j.date,1,10) d, COUNT(*), ROUND(SUM(j.weight)) FROM jobs j WHERE 1=1%s"
+              " GROUP BY d ORDER BY d" % jw)
     tag_totals = q("SELECT t.tag, COUNT(*) n FROM job_tags t JOIN jobs j ON j.id=t.job_id"
                    " WHERE 1=1%s GROUP BY t.tag ORDER BY n DESC" % jw)
     top_skills = q("SELECT s.skill, COUNT(*) n FROM job_skills s JOIN jobs j ON j.id=s.job_id"
@@ -390,28 +481,32 @@ def _agg_block(db, since):
     fixed = [r[0] for r in q("SELECT j.fixed_budget FROM jobs j WHERE j.fixed_budget IS NOT NULL" + jw)]
     med_fixed = round(statistics.median(fixed), 2) if fixed else None
 
-    # momentum: last 4 FULL weeks vs the 4 before (final week is usually
-    # partial — exclude it, matching the dashboard's KPI delta)
+    # momentum: last 4 FULL weeks vs the slice's historical 4-week average,
+    # on coverage-adjusted counts so pipeline eras compare fairly
+    # (final week is usually partial — excluded, matching the KPI delta)
     momentum = []
-    wk = [w for w, _ in weekly]
-    if len(wk) >= 9:
-        recent0, prior0, cut = wk[-5], wk[-9], wk[-1]
-        for tag, r_n, p_n in db.execute(
+    wk = [w for w, _, _ in weekly]
+    if len(wk) >= 10:
+        recent0, hist0 = wk[-5], wk[0]
+        hist_weeks = len(wk) - 5
+        for tag, r_n, h_n in db.execute(
                 "SELECT t.tag,"
-                " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN 1 ELSE 0 END),"
-                " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN 1 ELSE 0 END)"
+                " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END),"
+                " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END)"
                 " FROM job_tags t JOIN jobs j ON j.id=t.job_id GROUP BY t.tag",
-                (recent0, cut, prior0, recent0)):
-            if (r_n or 0) + (p_n or 0) >= 10:
-                pct = round(100.0 * (r_n - p_n) / p_n, 1) if p_n else None
-                momentum.append({"tag": tag, "recent": r_n, "prior": p_n, "pct": pct})
+                (recent0, wk[-1], hist0, recent0)):
+            if (r_n or 0) + (h_n or 0) >= 10 and hist_weeks:
+                hist4 = 4.0 * (h_n or 0) / hist_weeks
+                pct = round(100.0 * (r_n - hist4) / hist4, 1) if hist4 else None
+                momentum.append({"tag": tag, "recent": round(r_n),
+                                 "hist": round(hist4), "pct": pct})
 
     return {
         "total_jobs": total, "date_min": dmin, "date_max": dmax,
         "median_hourly_min": med_rate, "median_fixed": med_fixed,
         "momentum": momentum,
-        "weekly": [{"week": w, "n": n} for w, n in weekly],
-        "daily": [{"d": d, "n": n} for d, n in daily],
+        "weekly": [{"week": w, "n": n, "a": a} for w, n, a in weekly],
+        "daily": [{"d": d, "n": n, "a": a} for d, n, a in daily],
         "tags": [{"tag": t, "n": n} for t, n in tag_totals],
         "top_skills": [{"skill": s, "n": n} for s, n in top_skills],
         "categories": [{"category": c, "n": n} for c, n in categories],
@@ -438,9 +533,10 @@ def write_aggregates(db):
         "feeds": [{"feed": f, "n": n} for f, n in feeds],
         "tag_names": TAG_NAMES,
         "era_from": ERA_FROM,
-        "outage": {"from": OUTAGE_FROM, "to": OUTAGE_TO,
-                   "label": "Zenfl outage — feed coverage reset"},
+        "outages": OUTAGES,
+        "events": FEED_EVENTS,
         "era": _agg_block(db, ERA_FROM),
+        "mar31": _agg_block(db, "2025-03-31"),
     })
     out = os.path.join(OUT_DIR, "aggregates.json")
     with open(out, "w", encoding="utf-8") as fh:

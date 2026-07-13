@@ -178,11 +178,11 @@ def stats():
 
     total = conn.execute("SELECT COUNT(*) n FROM jobs j WHERE " + where, params).fetchone()["n"]
     weekly = [dict(r) for r in conn.execute(
-        "SELECT j.week, COUNT(*) n FROM jobs j WHERE %s GROUP BY j.week ORDER BY j.week"
-        % where, params)]
+        "SELECT j.week, COUNT(*) n, ROUND(SUM(j.weight)) a FROM jobs j WHERE %s"
+        " GROUP BY j.week ORDER BY j.week" % where, params)]
     daily = [dict(r) for r in conn.execute(
-        "SELECT substr(j.date,1,10) d, COUNT(*) n FROM jobs j WHERE %s GROUP BY d ORDER BY d"
-        % where, params)]
+        "SELECT substr(j.date,1,10) d, COUNT(*) n, ROUND(SUM(j.weight)) a FROM jobs j WHERE %s"
+        " GROUP BY d ORDER BY d" % where, params)]
 
     # per-tag comparison series + the tag-free context slice (the "all jobs"
     # line and the share denominator — same filters MINUS the tag condition)
@@ -192,24 +192,25 @@ def stats():
         args_no_tags = {k: v for k, v in request.args.items() if k != "tags"}
         where_ctx, params_ctx = build_where(args_no_tags)
         weekly_ctx = [dict(r) for r in conn.execute(
-            "SELECT j.week, COUNT(*) n FROM jobs j WHERE %s GROUP BY j.week ORDER BY j.week"
-            % where_ctx, params_ctx)]
+            "SELECT j.week, COUNT(*) n, ROUND(SUM(j.weight)) a FROM jobs j WHERE %s"
+            " GROUP BY j.week ORDER BY j.week" % where_ctx, params_ctx)]
         daily_ctx = [dict(r) for r in conn.execute(
-            "SELECT substr(j.date,1,10) d, COUNT(*) n FROM jobs j WHERE %s GROUP BY d ORDER BY d"
-            % where_ctx, params_ctx)]
+            "SELECT substr(j.date,1,10) d, COUNT(*) n, ROUND(SUM(j.weight)) a FROM jobs j WHERE %s"
+            " GROUP BY d ORDER BY d" % where_ctx, params_ctx)]
         rows = conn.execute(
-            "SELECT t.tag, j.week, COUNT(*) n FROM job_tags t JOIN jobs j ON j.id=t.job_id"
+            "SELECT t.tag, j.week, COUNT(*) n, ROUND(SUM(j.weight)) a"
+            " FROM job_tags t JOIN jobs j ON j.id=t.job_id"
             " WHERE t.tag IN (%s) AND %s GROUP BY t.tag, j.week"
             % (",".join("?" * len(tags)), where), tags + params)
         for r in rows:
-            weekly_by_tag.setdefault(r["tag"], []).append([r["week"], r["n"]])
+            weekly_by_tag.setdefault(r["tag"], []).append([r["week"], r["n"], r["a"]])
         rows = conn.execute(
-            "SELECT t.tag, substr(j.date,1,10) d, COUNT(*) n"
+            "SELECT t.tag, substr(j.date,1,10) d, COUNT(*) n, ROUND(SUM(j.weight)) a"
             " FROM job_tags t JOIN jobs j ON j.id=t.job_id"
             " WHERE t.tag IN (%s) AND %s GROUP BY t.tag, d"
             % (",".join("?" * len(tags)), where), tags + params)
         for r in rows:
-            daily_by_tag.setdefault(r["tag"], []).append([r["d"], r["n"]])
+            daily_by_tag.setdefault(r["tag"], []).append([r["d"], r["n"], r["a"]])
 
     top_skills = [dict(r) for r in conn.execute(
         "SELECT s.skill, COUNT(*) n FROM job_skills s JOIN jobs j ON j.id=s.job_id"
@@ -226,25 +227,25 @@ def stats():
     fixed = [r["fixed_budget"] for r in conn.execute(
         "SELECT j.fixed_budget FROM jobs j WHERE %s AND j.fixed_budget IS NOT NULL" % where, params)]
 
-    # momentum: last 4 FULL weeks vs the 4 before, within this slice (the
-    # final observed week is usually partial — excluded, like the KPI delta)
+    # momentum: last 4 FULL weeks vs this slice's historical 4-week average
+    # (the final observed week is usually partial — excluded, like the KPIs)
     momentum = []
     wk = [r["week"] for r in weekly]
-    if len(wk) >= 9:
-        recent0, prior0, cut = wk[-5], wk[-9], wk[-1]
+    if len(wk) >= 10:
+        recent0, hist0 = wk[-5], wk[0]
+        hist_weeks = len(wk) - 5
         rows = conn.execute(
             "SELECT t.tag,"
-            " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN 1 ELSE 0 END) recent,"
-            " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN 1 ELSE 0 END) prior"
+            " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END) recent,"
+            " SUM(CASE WHEN j.week >= ? AND j.week < ? THEN j.weight ELSE 0 END) hist"
             " FROM job_tags t JOIN jobs j ON j.id=t.job_id WHERE %s"
-            " GROUP BY t.tag HAVING recent + prior >= 10 ORDER BY recent DESC"
-            % where, [recent0, cut, prior0, recent0] + params)
+            " GROUP BY t.tag HAVING recent + hist >= 10 ORDER BY recent DESC"
+            % where, [recent0, wk[-1], hist0, recent0] + params)
         for r in rows:
-            pct = None
-            if r["prior"]:
-                pct = round(100.0 * (r["recent"] - r["prior"]) / r["prior"], 1)
-            momentum.append({"tag": r["tag"], "recent": r["recent"],
-                             "prior": r["prior"], "pct": pct})
+            hist4 = 4.0 * (r["hist"] or 0) / hist_weeks if hist_weeks else 0
+            pct = round(100.0 * (r["recent"] - hist4) / hist4, 1) if hist4 else None
+            momentum.append({"tag": r["tag"], "recent": round(r["recent"]),
+                             "hist": round(hist4), "pct": pct})
 
     payload = json.dumps({
         "total": total,

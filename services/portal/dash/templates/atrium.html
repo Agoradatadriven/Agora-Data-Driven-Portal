@@ -42,6 +42,8 @@
 {%- elif name == 'assistant' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 9 9 0 0 1-3.2-.6L3 21l1.9-5.1a8 8 0 0 1-1.4-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3z"/><path d="M12 8.6l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>
 {%- elif name == 'intel' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12.5a1 1 0 0 1 1 1v11a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17.5 8.5H20a1 1 0 0 1 1 1v8.5a2 2 0 0 1-2 2"/><line x1="7.5" y1="9.5" x2="14" y2="9.5"/><line x1="7.5" y1="13" x2="14" y2="13"/><line x1="7.5" y1="16.5" x2="11.5" y2="16.5"/></svg>
 {%- elif name == 'gear' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+{%- elif name == 'campaigns' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l17-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+{%- elif name == 'insights' -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21.5h4"/><path d="M12 2.5a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3a7 7 0 0 0-4-12.7z"/></svg>
 {%- else -%}<svg class="ax-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>
 {%- endif -%}
 {%- endmacro %}
@@ -109,7 +111,7 @@
 {%- set _sel = (current.split(' · ') if current else []) -%}
 {%- for x in _sel %}{%- if x %}<span class="ax-platone">{{ plat_ic(x) }}<span>{{ x }}</span></span>{%- endif %}{%- endfor %}
 {%- endmacro %}
-{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Lead Generation','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher','assistant':'Assistant'} %}
+{% set tab_titles = {'overview':'Overview','dashboard':'Dashboard','leadgen':'Paid Media','organic':'Organic Content','calendar':'Content Calendar','conversations':'Client Communications','intel':'Market Intelligence','settings':'Notification settings','website-health':'Website Health','watcher':'Watcher','assistant':'Assistant'} %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -194,6 +196,24 @@
       background: var(--ax-violet-d); color: #fff; border-radius: var(--ax-pill); padding: 1px 6px;
     }
     .ax-nav a.is-active .ax-count { background: var(--ax-violet-d); }
+    /* Nav groups: "Campaigns" and "Insights" are expandable parents with indented sub-tabs.
+       The head is a button (expand/collapse only, never navigates); a group opens automatically
+       when one of its tabs is active. Collapsed rail + phone layouts flatten the groups away. */
+    .ax-nav-group { display: flex; flex-direction: column; gap: 3px; }
+    .ax-nav-ghead {
+      display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px;
+      border: 0; background: transparent; cursor: pointer; text-align: left; width: 100%;
+      color: var(--ax-sub); font: inherit; font-size: 14px; font-weight: 600;
+      transition: background .12s, color .12s;
+    }
+    .ax-nav-ghead:hover { background: var(--ax-canvas); color: var(--ax-ink); }
+    .ax-nav-ghead .ax-count { margin-left: auto; }
+    .ax-nav-chev { width: 14px; height: 14px; flex: 0 0 auto; margin-left: auto; transition: transform .15s ease; }
+    .ax-nav-ghead .ax-count ~ .ax-nav-chev { margin-left: 0; }
+    .ax-nav-group.is-open .ax-nav-chev { transform: rotate(90deg); }
+    .ax-nav-sub { display: none; flex-direction: column; gap: 3px; }
+    .ax-nav-group.is-open .ax-nav-sub { display: flex; }
+    .ax-nav-sub a { padding-left: 43px; font-size: 13.5px; }
 
     /* Sidebar collapse toggle: a round button pinned to the RIGHT-MIDDLE edge of the left panel
        (on the divider), viewport-fixed so it stays centred while you scroll. */
@@ -1156,6 +1176,9 @@
     .atrium.nav-collapsed .ax-side-card { display: none; }
     .atrium.nav-collapsed .ax-nav a { justify-content: center; gap: 0; padding: 11px 0; position: relative; }
     .atrium.nav-collapsed .ax-nav a > span:not(.ax-count) { display: none; }
+    /* Icon rail: no room for group heads -- flatten the groups so every tab is one click. */
+    .atrium.nav-collapsed .ax-nav-ghead { display: none; }
+    .atrium.nav-collapsed .ax-nav-sub { display: flex; }
     .atrium.nav-collapsed .ax-nav .ax-count {
       position: absolute; top: 3px; right: 7px; margin: 0; min-width: 16px; padding: 0 4px;
       font-size: 10px; line-height: 16px; box-shadow: 0 0 0 2px var(--ax-white);
@@ -1180,6 +1203,9 @@
       .ax-nav { flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
       .ax-nav::-webkit-scrollbar { height: 0; }
       .ax-nav a { flex: 0 0 auto; white-space: nowrap; padding: 9px 12px; }
+      /* No group heads in the strip -- dissolve the group wrappers so every tab rides the row. */
+      .ax-nav-ghead { display: none; }
+      .ax-nav-group, .ax-nav-sub, .ax-nav-group.is-open .ax-nav-sub { display: contents; }
       .ax-top { padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
       .ax-top h1 { font-size: 16px; }
       .ax-top-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -1207,7 +1233,6 @@
     }
 
     /* ---- Website Health (team-only tab) ------------------------------------------------------ */
-    .ax-nav a.ax-nav-team { margin-top: 8px; border-top: 1px dashed var(--ax-line); padding-top: 12px; }
     .ax-wh-card { margin-bottom: 16px; }
     .ax-wh-urlrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .ax-wh-globe { color: var(--ax-green); display: inline-flex; }
@@ -1366,20 +1391,21 @@
     .ax-as-send { flex: 0 0 auto; }
 
     /* ---- Floating assistant bubble (team-only): the same grounded chat, reachable from EVERY tab.
-           Styled after the Mastery Engine study-assistant FAB: purple gradient circle bottom-right
-           opening a pop-up chat card. Sits BELOW the full-attention overlays (lightbox 130+). ---- */
+           Styled after the Mastery Engine study-assistant FAB: brand-green gradient circle
+           bottom-right opening a pop-up chat card. Sits BELOW the full-attention overlays
+           (lightbox 130+). ---- */
     .ax-asfab {
       position: fixed; right: 22px; bottom: 22px; z-index: 120;
-      width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer;
-      background: linear-gradient(135deg, #A79BFC, #8672F5); color: #fff;
-      box-shadow: 0 14px 32px -8px rgba(148,132,251,.6); transition: transform .15s ease;
+      width: 72px; height: 72px; border-radius: 50%; border: 0; cursor: pointer;
+      background: var(--ax-grad-green); color: #fff;
+      box-shadow: 0 14px 32px -8px rgba(79,171,74,.6); transition: transform .15s ease;
       display: grid; place-items: center;
     }
     .ax-asfab:hover { transform: translateY(-2px) scale(1.04); }
-    .ax-asfab.is-open { background: linear-gradient(135deg, #8672F5, #6C58E0); }
-    .ax-asfab .ax-ic { width: 27px; height: 27px; }
+    .ax-asfab.is-open { background: linear-gradient(135deg, #3E8C3B, #2F6E2D); }
+    .ax-asfab .ax-ic { width: 34px; height: 34px; }
     .ax-aspanel {
-      position: fixed; right: 22px; bottom: 92px; z-index: 121;
+      position: fixed; right: 22px; bottom: 106px; z-index: 121;
       width: 400px; max-width: calc(100vw - 44px); height: min(560px, calc(100vh - 130px));
       background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 18px;
       box-shadow: 0 24px 60px -12px rgba(16,24,40,.28); padding: 16px;
@@ -1420,13 +1446,13 @@
     .ax-savehint.ax-as-saved { font-size: 12px; }
     /* Cost pill (mastery-engine style): the Assistant's AI spend, pinned above the FAB. The open
        panel intentionally covers it (same posture as the Mastery Engine dock). */
-    .ax-ascost { position: fixed; right: 22px; bottom: 90px; z-index: 120; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 999px; padding: 7px 14px 7px 11px; box-shadow: 0 6px 16px rgba(16,24,40,.12); font: inherit; }
+    .ax-ascost { position: fixed; right: 22px; bottom: 104px; z-index: 120; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 999px; padding: 7px 14px 7px 11px; box-shadow: 0 6px 16px rgba(16,24,40,.12); font: inherit; }
     .ax-ascost:hover { border-color: var(--ax-purple, #9484FB); }
     .ax-ascost-ic { color: var(--ax-purple, #9484FB); font-size: 14px; }
     .ax-ascost-figs { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
     .ax-ascost-main { font-weight: 800; font-size: 14px; color: var(--ax-ink); font-variant-numeric: tabular-nums; }
     .ax-ascost-sub { font-size: 10.5px; color: var(--ax-sub); }
-    .ax-ascost-detail { position: fixed; right: 22px; bottom: 138px; z-index: 122; width: 280px; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 14px; box-shadow: 0 18px 42px rgba(16,24,40,.16); padding: 14px 16px; font-size: 13px; animation: ax-asfab-pop .18s ease-out; }
+    .ax-ascost-detail { position: fixed; right: 22px; bottom: 152px; z-index: 122; width: 280px; background: var(--ax-white); border: 1px solid var(--ax-line); border-radius: 14px; box-shadow: 0 18px 42px rgba(16,24,40,.16); padding: 14px 16px; font-size: 13px; animation: ax-asfab-pop .18s ease-out; }
     .ax-ascost-detail[hidden] { display: none; }
     .ax-ascost-h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--ax-sub); margin: 10px 0 6px; }
     .ax-ascost-h:first-child { margin-top: 0; }
@@ -1438,9 +1464,9 @@
     .atrium[data-tab="assistant"] .ax-asfab, .atrium[data-tab="assistant"] .ax-aspanel { display: none; }
     @media (max-width: 560px) {
       .ax-asfab { right: 14px; bottom: 14px; }
-      .ax-aspanel { right: 10px; left: 10px; width: auto; bottom: 86px; }
-      .ax-ascost { right: 14px; bottom: 82px; }
-      .ax-ascost-detail { right: 10px; bottom: 130px; width: min(280px, calc(100vw - 24px)); }
+      .ax-aspanel { right: 10px; left: 10px; width: auto; bottom: 98px; }
+      .ax-ascost { right: 14px; bottom: 94px; }
+      .ax-ascost-detail { right: 10px; bottom: 142px; width: min(280px, calc(100vw - 24px)); }
     }
   </style>
 </head>
@@ -1466,27 +1492,63 @@
       </div>
 
       <nav class="ax-nav" id="ax-nav">
-        {% for key, label in [('dashboard','Dashboard'),('leadgen','Lead Generation'),('organic','Organic Content'),('calendar','Content Calendar'),('conversations','Client Communications'),('intel','Market Intelligence')] %}
+        {% for key, label in [('dashboard','Dashboard')] %}
         <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" title="{{ label }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
           {{ ic(key) }}<span>{{ label }}</span>
-          {% if key in ('leadgen','organic') %}
-            {% set ac = ws.campaigns|selectattr('channel','equalto', 'paid' if key=='leadgen' else 'organic')|map(attribute='content')|sum(start=[])|selectattr('status','equalto','awaiting')|list|length %}
-            {% if ac > 0 %}<span class="ax-count">{{ ac }}</span>{% endif %}
-          {% endif %}
         </a>
         {% endfor %}
-        {#- Website Health: a TEAM-ONLY tab (admins + super-admins). Hidden from clients entirely. -#}
-        {% if is_superadmin %}
-        <a href="{{ '/w/' ~ view.client ~ '/website-health' }}" data-tab="website-health" title="Website Health" class="ax-nav-team {{ 'is-active' if view.active_tab == 'website-health' else '' }}">
-          {{ ic('health') }}<span>Website Health</span>
+
+        {#- Campaigns: an expandable parent grouping the two campaign streams. The head badge is the
+           COMBINED awaiting count (so nothing is missed while the group is closed); each sub-tab
+           keeps its own count. Opens automatically when one of its tabs is active. -#}
+        {% set camp_awaiting = ws.campaigns|map(attribute='content')|sum(start=[])|selectattr('status','equalto','awaiting')|list|length %}
+        {% set camp_open = view.active_tab in ('leadgen','organic') %}
+        <div class="ax-nav-group {{ 'is-open' if camp_open else '' }}">
+          <button class="ax-nav-ghead" type="button" title="Campaigns" aria-expanded="{{ 'true' if camp_open else 'false' }}">
+            {{ ic('campaigns') }}<span>Campaigns</span>
+            {% if camp_awaiting > 0 %}<span class="ax-count">{{ camp_awaiting }}</span>{% endif %}
+            <svg class="ax-nav-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <div class="ax-nav-sub">
+            {% for key, label in [('leadgen','Paid Media'),('organic','Organic Content')] %}
+            <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" title="{{ label }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
+              {{ ic(key) }}<span>{{ label }}</span>
+              {% set ac = ws.campaigns|selectattr('channel','equalto', 'paid' if key=='leadgen' else 'organic')|map(attribute='content')|sum(start=[])|selectattr('status','equalto','awaiting')|list|length %}
+              {% if ac > 0 %}<span class="ax-count">{{ ac }}</span>{% endif %}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% for key, label in [('calendar','Content Calendar'),('conversations','Client Communications')] %}
+        <a href="{{ '/w/' ~ view.client ~ '/' ~ key }}" data-tab="{{ key }}" title="{{ label }}" class="{{ 'is-active' if view.active_tab == key else '' }}">
+          {{ ic(key) }}<span>{{ label }}</span>
         </a>
-        <a href="{{ '/w/' ~ view.client ~ '/watcher' }}" data-tab="watcher" title="Watcher" class="ax-nav-team {{ 'is-active' if view.active_tab == 'watcher' else '' }}">
-          {{ ic('watcher') }}<span>Watcher</span>
-        </a>
-        <a href="{{ '/w/' ~ view.client ~ '/assistant' }}" data-tab="assistant" title="Assistant" class="ax-nav-team {{ 'is-active' if view.active_tab == 'assistant' else '' }}">
-          {{ ic('assistant') }}<span>Assistant</span>
-        </a>
-        {% endif %}
+        {% endfor %}
+
+        {#- Insights: the research/monitoring surfaces. Market Intelligence is client-visible;
+           Website Health + Watcher stay TEAM-ONLY (admins + super-admins, hidden from clients
+           entirely) — the nav, the panes, AND the routes all gate on is_superadmin. -#}
+        {% set tools_open = view.active_tab in ('intel', 'website-health', 'watcher') %}
+        <div class="ax-nav-group {{ 'is-open' if tools_open else '' }}">
+          <button class="ax-nav-ghead" type="button" title="Insights" aria-expanded="{{ 'true' if tools_open else 'false' }}">
+            {{ ic('insights') }}<span>Insights</span>
+            <svg class="ax-nav-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <div class="ax-nav-sub">
+            <a href="{{ '/w/' ~ view.client ~ '/intel' }}" data-tab="intel" title="Market Intelligence" class="{{ 'is-active' if view.active_tab == 'intel' else '' }}">
+              {{ ic('intel') }}<span>Market Intelligence</span>
+            </a>
+            {% if is_superadmin %}
+            <a href="{{ '/w/' ~ view.client ~ '/website-health' }}" data-tab="website-health" title="Website Health" class="{{ 'is-active' if view.active_tab == 'website-health' else '' }}">
+              {{ ic('health') }}<span>Website Health</span>
+            </a>
+            <a href="{{ '/w/' ~ view.client ~ '/watcher' }}" data-tab="watcher" title="Watcher" class="{{ 'is-active' if view.active_tab == 'watcher' else '' }}">
+              {{ ic('watcher') }}<span>Watcher</span>
+            </a>
+            {% endif %}
+          </div>
+        </div>
       </nav>
 
       <div class="ax-side-card">
@@ -1727,7 +1789,7 @@
                     <div class="ax-row-main">
                       <div class="ax-row-t">{{ a.type_tag }} &middot; {{ a.ref }}</div>
                       <div class="ax-row-s">
-                        <span class="ax-tag {{ a.channel }}">{{ 'Paid / Lead Generation' if a.channel=='paid' else 'Organic' }}</span>
+                        <span class="ax-tag {{ a.channel }}">{{ 'Paid Media' if a.channel=='paid' else 'Organic' }}</span>
                         {{ a.campaign_name }} &middot; {{ a.platform }} &middot; Awaiting review
                       </div>
                     </div>
@@ -1793,11 +1855,11 @@
           {% endif %}
         </section>
 
-        <!-- ============ LEAD GEN (paid) + ORGANIC (organic) ============ -->
+        <!-- ============ PAID MEDIA (paid, tab key `leadgen`) + ORGANIC (organic) ============ -->
         {% for stream in [('leadgen','paid'),('organic','organic')] %}
         {% set tab = stream[0] %} {% set chan = stream[1] %}
-        {# Content types offered for this stream. "Lead Magnet" is a Lead-Generation-only type, so it
-           is appended only on the paid (Lead Generation) stream -- shared by the add/edit forms and
+        {# Content types offered for this stream. "Lead Magnet" is a paid-only type, so it
+           is appended only on the paid (Paid Media) stream -- shared by the add/edit forms and
            the type filters below so the option set never drifts between them. #}
         {% set content_types = ['Blog Post','Static Post','Quizzes','Email','Newsletter','Video Edit'] + (['Lead Magnet'] if chan=='paid' else []) %}
         {% set camps = ws.campaigns|selectattr('channel','equalto',chan)|list %}
@@ -2044,7 +2106,7 @@
                 <div class="ax-tagrow">
                   <span class="ax-tag plain" data-fld="type_tag">{{ p.type_tag }}</span>
                   <span class="ax-plattags" data-fld="platform">{{ plat_tags(p.platform) }}</span>
-                  <span class="ax-tag {{ chan }}">{{ 'Paid / Lead Generation' if chan=='paid' else 'Organic' }}</span>
+                  <span class="ax-tag {{ chan }}">{{ 'Paid Media' if chan=='paid' else 'Organic' }}</span>
                   <span class="ax-status {{ p.status }}" data-statuspill>{{ 'Changes requested' if p.status=='changes' else p.status }}</span>
                 </div>
                 <div class="ax-ref"><span data-fld="ref">{{ p.ref }}</span> &middot; {{ p.decided_at|atrium_dt if p.decided_at else 'Drafted for review' }}</div>
@@ -2257,7 +2319,7 @@
           {% endif %}
 
           <div class="ax-cal-legend">
-            <span><span class="ax-dot-i" style="background:#1856C9"></span>Lead Generation</span>
+            <span><span class="ax-dot-i" style="background:#1856C9"></span>Paid Media</span>
             <span><span class="ax-dot-i" style="background:#4CAC4C"></span>Organic Content</span>
             <span><span class="ax-dot-i" style="background:#98a0b0"></span>Personal</span>
             <span class="ax-mile-aheadkey">✓ done / ahead of schedule</span>
@@ -3075,7 +3137,7 @@
       </label>
       <p class="ax-aspanel-setnote">Both apply to the Assistant everywhere in this workspace &mdash; this bubble and the Assistant tab. Automatic follows the research brain's model; Deep analysis thinks before answering and digs for comparisons (slower, costs a little more). <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span></p>
     </div>
-    <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab. The full Assistant tab has date-range and reindex controls."></div>
+    <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab: campaigns, metrics, intel, conversations, and every Watcher transcript."></div>
     <div class="ax-as-inputrow">
       <textarea class="ax-editbox ax-as-input" id="ax-asfab-input" rows="2" placeholder="Ask about campaigns, metrics, intel&hellip;"></textarea>
       <button class="ax-btn violet ax-as-send" id="ax-asfab-send" type="button">Ask</button>
@@ -3190,7 +3252,7 @@
 
   // ---- Tab switching -------------------------------------------------------
   var titles = {
-    overview: "Overview", dashboard: "Dashboard", leadgen: "Lead Generation",
+    overview: "Overview", dashboard: "Dashboard", leadgen: "Paid Media",
     organic: "Organic Content", calendar: "Content Calendar",
     conversations: "Client Communications", intel: "Market Intelligence",
     settings: "Notification settings", "website-health": "Website Health", watcher: "Watcher",
@@ -3225,6 +3287,16 @@
     qsa("#ax-nav a").forEach(function (a) {
       a.classList.toggle("is-active", a.getAttribute("data-tab") === tab);
     });
+    // A tab inside a collapsed nav group (Campaigns / Insights) pops its group open.
+    var activeLink = document.querySelector('#ax-nav a[data-tab="' + aq(tab) + '"]');
+    if (activeLink && activeLink.parentNode && activeLink.parentNode.classList.contains("ax-nav-sub")) {
+      var grp = activeLink.parentNode.parentNode;
+      if (grp && !grp.classList.contains("is-open")) {
+        grp.classList.add("is-open");
+        var ghead = grp.querySelector(".ax-nav-ghead");
+        if (ghead) { ghead.setAttribute("aria-expanded", "true"); }
+      }
+    }
     var title = document.getElementById("ax-title");
     if (title && titles[tab]) { title.textContent = titles[tab]; }
     var shareBtnToggle = document.getElementById("ax-sharebtn");
@@ -3241,6 +3313,13 @@
     a.addEventListener("click", function (ev) {
       ev.preventDefault();
       showTab(a.getAttribute("data-tab"), true);
+    });
+  });
+  // Nav group heads (Campaigns / Insights) expand or collapse their sub-tabs; they never navigate.
+  qsa(".ax-nav-ghead").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var open = btn.parentNode.classList.toggle("is-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
     });
   });
   // Reveal one content piece: switch tab, switch to its campaign, scroll it into view + flash it.
@@ -5633,7 +5712,7 @@
             var src = document.createElement("span");
             var isPaid = (e.kind === "paid") || (e.tab === "leadgen");
             src.className = "ax-caldlg-src " + (isPaid ? "paid" : "organic");
-            src.textContent = isPaid ? "Lead Generation" : "Organic Content";
+            src.textContent = isPaid ? "Paid Media" : "Organic Content";
             lab.appendChild(document.createTextNode(" "));
             lab.appendChild(src);
 

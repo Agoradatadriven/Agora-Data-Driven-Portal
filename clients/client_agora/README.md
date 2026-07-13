@@ -43,10 +43,19 @@ hardest; low-volume niche feeds like Paralegal were unaffected; the "USA"
 country-label variant also vanished — backend change). Rate/country/category
 mixes are otherwise unchanged, so it is a coverage cut, not a filter.
 
-The dashboard therefore **defaults to the comparable era (week ≥ 2025-11-03,
-`ERA_FROM` in the processor)** and draws the outage band on the all-time chart.
-Cross-era comparisons of absolute volume are meaningless; within-era trends
-and shares are fine.
+The dashboard handles this three ways (all shipped 2026-07-13):
+
+1. **Chain-linked coverage calibration** (`calibrate()` in the processor):
+   every feed stream gets a delivery factor per pipeline era, measured in
+   6-week windows adjacent to each outage boundary (a demand level cannot
+   jump 3× in two weeks — the boundary jump isolates the pipeline change).
+   Each job carries `weight = 1/factor`; summing weights instead of counting
+   rows gives the **Comparable** series the chart shows by default (default
+   range: since 2025-03-31). KPI baselines and Momentum use adjusted numbers.
+   Raw counts stay one click away ("Raw count").
+2. **"% of jobs" share mode** per tag — fully assumption-free comparability.
+3. **Every outage banded + feed creations marked** on the chart, so any
+   remaining step has a visible explanation.
 
 ## Refresh with a new Telegram export
 

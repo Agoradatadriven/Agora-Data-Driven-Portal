@@ -168,7 +168,8 @@ auto-refresh (see those bullets below). Product name is one constant:
   Vertex code paths run off-cloud with a `gcloud auth print-access-token` token. Off-cloud test:
   `dash/_assistant_localtest.py` (in CI). The Watcher tab also gained a Looker-style upload-date
   range control (presets + custom from/to) that filters videos and creators client-side.
-  The same chat is ALSO a **floating bubble** (team-only FAB bottom-right, Mastery-Engine style)
+  The same chat is ALSO a **floating bubble** (team-only FAB bottom-right, Mastery-Engine style,
+  brand-green 72px since 2026-07-13 — and the PRIMARY surface now that the nav tab is gone)
   reachable from every tab: one `wireAssistantChat` wiring in `atrium.html` serves both surfaces
   (the tab keeps the date-range + reindex controls), an open conversation survives client-side tab
   switches, and the bubble hides on the Assistant tab itself (CSS on the root's `data-tab`, which
@@ -184,7 +185,7 @@ auto-refresh (see those bullets below). Product name is one constant:
   mirror it into `calendar[]` as a linked event carrying `content_id` + `tab` (paid→`leadgen`,
   organic→`organic`); the piece is the source of truth (editing date/title/channel OVERWRITES the
   event, clearing the date or deleting the piece removes it), while the calendar keeps its own
-  mark-as-done `status`. The calendar day-popup shows linked events with a "Lead Generation /
+  mark-as-done `status`. The calendar day-popup shows linked events with a "Paid Media /
   Organic Content" source tag and a **→** arrow that jumps to the piece on its tab. Done/colour
   logic (`atrium_view._event_done`/`_event_overdue`): a content-linked event is green only once
   **explicitly marked done**, **red (overdue)** if past its date and unmarked, green-ahead if a
@@ -294,6 +295,14 @@ auto-refresh (see those bullets below). Product name is one constant:
     now; **rerun after any `intel_feed`/`intel_refresh`/`intel_ai` change** — image-pinned) AND
     `deploy_dash_platform.ps1` (the web service's Refresh-now runs `refresh_client` in-process).
     Off-cloud tests: `dash/_intel_feed_localtest.py` + `dash/_intel_ai_localtest.py` (inject fetchers).
+- **Nav labels vs tab keys:** the sidebar was regrouped 2026-07-13 — the `leadgen` tab is LABELED
+  **"Paid Media"** (the key `leadgen` stays in every route/data shape, never rename it), Paid Media +
+  Organic Content sit under an expandable **Campaigns** parent (head badge = combined awaiting
+  count), and Market Intelligence + the team-only Website Health/Watcher sit under an **Insights**
+  parent. Group heads are expand/collapse buttons only (auto-open when a child tab is active); the
+  collapsed icon rail and the phone strip flatten the groups away. The **Assistant nav tab was
+  removed** — the floating bubble (FAB) is the chat surface; the `/w/<c>/assistant` route + pane
+  still exist (reachable by URL, keeps the date-range + reindex controls).
 - **Routes (all behind existing session auth):** client `GET /w/<c>/` + `/w/<c>/<tab>` (overview,
   dashboard, leadgen, organic, calendar, conversations, intel, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify,logo}` +
