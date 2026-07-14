@@ -240,6 +240,18 @@ def run():
                                           token_fetcher=lambda: "gcp-token")
     _check("a missing Workspace grant reads as a delegation error", "domain-wide-delegation" in err)
 
+    def _refused_longform(url, headers, payload, timeout, form=False):
+        if "signJwt" in url:
+            return _Resp({"signedJwt": "signed.jwt.blob"})
+        return _Resp({"error": "unauthorized_client",
+                      "error_description": "Client is unauthorized to retrieve access tokens "
+                                           "using this method, or client not authorized for any "
+                                           "of the scopes requested."}, status=401)
+    _tok, err = mailroom.dwd_access_token("x@agoradatadriven.com", poster=_refused_longform,
+                                          token_fetcher=lambda: "gcp-token")
+    _check("Google's long-form delegation refusal maps to the same guidance",
+           "domain-wide-delegation" in err and "propagate" in err)
+
     # --- mailroom: IMAP pull (fake connection) ------------------------------------------------------
     threads, err = mailroom.imap_pull({"email": "projects@gmail.com", "kind": "imap"},
                                       q, imap_factory=lambda mb: _FakeImap())
@@ -252,6 +264,14 @@ def run():
         raise RuntimeError("[AUTHENTICATIONFAILED] Invalid credentials (Failure)")
     _thr, err = mailroom.imap_pull({"email": "x@gmail.com", "kind": "imap"}, q, imap_factory=_badlogin)
     _check("a rejected app password reads as a friendly error", "app password" in err)
+
+    def _normalpw(mb):
+        raise RuntimeError(b"[ALERT] Application-specific password required: "
+                           b"https://support.google.com/accounts/answer/185833 (Failure)")
+    _thr, err = mailroom.imap_pull({"email": "gab@meloyelo.nz", "kind": "imap"},
+                                   q, imap_factory=_normalpw)
+    _check("a NORMAL password (not an app password) gets step-by-step guidance",
+           "APP password" in err and "apppasswords" in err and "b'" not in err)
 
     # --- workspace: the mailbox registry ------------------------------------------------------------
     try:

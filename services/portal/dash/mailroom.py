@@ -172,9 +172,13 @@ def dwd_access_token(mailbox_email, poster=None, token_fetcher=None, now=None):
     data = _safe_json(resp) or {}
     if getattr(resp, "status_code", 0) >= 400 or not data.get("access_token"):
         desc = (data.get("error_description") or data.get("error") or "").lower()
-        if "unauthorized_client" in desc or "access_denied" in desc:
-            return "", ("Google refused the delegation for %s -- check the Workspace Admin "
-                        "domain-wide-delegation grant (client id + gmail.readonly scope)"
+        if ("unauthorized_client" in desc or "access_denied" in desc
+                or "unauthorized to retrieve access tokens" in desc
+                or "not authorized for any of the scopes" in desc):
+            return "", ("the Workspace domain-wide-delegation grant for %s isn't in effect -- in "
+                        "admin.google.com -> Security -> API controls -> Domain-wide delegation, "
+                        "authorize the mail-sync client id (enable_atrium_mail.ps1 prints it) with "
+                        "scope gmail.readonly; a fresh grant can take a few minutes to propagate"
                         % mailbox_email)
         return "", "token exchange failed (%s)" % (desc[:120] or "no detail")
     return data["access_token"], ""
@@ -298,6 +302,30 @@ def _api_body_text(payload):
 
 
 # --- IMAP: app-password pull ------------------------------------------------------------------------
+def _imap_error_text(exc):
+    """A readable message out of an imaplib exception (whose args are often raw BYTES)."""
+    parts = []
+    for a in getattr(exc, "args", ()) or ():
+        parts.append(a.decode("utf-8", "replace") if isinstance(a, bytes) else str(a))
+    return (" ".join(p for p in parts if p) or str(exc)).strip()
+
+
+def _imap_friendly(exc, email):
+    """Step-by-step guidance for the connect failures operators actually hit (None = not one)."""
+    up = _imap_error_text(exc).upper()
+    if "APPLICATION-SPECIFIC PASSWORD REQUIRED" in up:
+        return ("%s needs an APP password -- its normal Google password never works over IMAP. "
+                "Sign into that account, turn on 2-Step Verification, create an app password at "
+                "myaccount.google.com/apppasswords, then re-add this mailbox with the 16-character "
+                "code. (If that page says the setting isn't available, the account's Workspace "
+                "admin has app passwords disabled.)" % (email or "this mailbox"))
+    if "AUTHENTICATIONFAILED" in up or "INVALID CREDENTIALS" in up:
+        return ("Gmail rejected the app password for %s -- regenerate it "
+                "(myaccount.google.com/apppasswords) and re-add the mailbox to replace it."
+                % (email or "this mailbox"))
+    return None
+
+
 def _imap_connect(mb):
     """A logged-in imaplib connection for mailbox dict `mb`, selected on All Mail (read-only).
 
@@ -335,14 +363,12 @@ def imap_pull(mb, query, imap_factory=None, max_threads=MAX_THREADS_PER_RUN):
     try:
         conn = factory(mb)
     except Exception as exc:
-        name = type(exc).__name__
-        detail = str(exc)[:120]
-        if "AUTHENTICATIONFAILED" in detail.upper() or "Invalid credentials" in detail:
-            return None, ("Gmail rejected the app password for %s -- regenerate it "
-                          "(myaccount.google.com/apppasswords) and re-save the mailbox"
-                          % (mb.get("email") or "this mailbox"))
-        return None, "could not connect to %s (%s: %s)" % (mb.get("host") or "imap.gmail.com",
-                                                           name, detail or "no detail")
+        friendly = _imap_friendly(exc, mb.get("email"))
+        if friendly:
+            return None, friendly
+        return None, "could not connect to %s (%s: %s)" % (
+            mb.get("host") or "imap.gmail.com", type(exc).__name__,
+            _imap_error_text(exc)[:140] or "no detail")
     try:
         try:
             typ, data = conn.uid("SEARCH", "X-GM-RAW", '"%s"' % query.replace('"', ""))
@@ -640,10 +666,11 @@ def test_mailbox(mb, poster=None, getter=None, token_fetcher=None, imap_factory=
         try:
             conn = factory(mb)
         except Exception as exc:
-            detail = str(exc)[:120]
-            if "AUTHENTICATIONFAILED" in detail.upper() or "Invalid credentials" in detail:
-                return False, "Gmail rejected the app password -- regenerate it and re-save."
-            return False, "could not connect (%s)" % (detail or type(exc).__name__)
+            friendly = _imap_friendly(exc, mb.get("email"))
+            if friendly:
+                return False, friendly
+            return False, "could not connect (%s)" % (_imap_error_text(exc)[:140]
+                                                      or type(exc).__name__)
         try:
             conn.logout()
         except Exception:
