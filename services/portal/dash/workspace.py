@@ -1452,10 +1452,13 @@ def normalize_task(task):
     """Migrate a task IN PLACE to the two-level model: maintasks[] each owning subs[].
 
     A legacy flat subtasks[] becomes one maintask (named after the content type, owned by the
-    lead) so no data is lost; the old key is dropped. Idempotent -- a normalized task passes
+    lead) so no data is lost; the old key is dropped. Tasks created before start_date existed
+    get one backfilled from their creation day. Idempotent -- a normalized task passes
     through untouched."""
     if task is None:
         return None
+    if not task.get("start_date") and task.get("created_at"):
+        task["start_date"] = str(task["created_at"])[:10]
     if not isinstance(task.get("maintasks"), list):
         legacy = task.pop("subtasks", None) or []
         task["maintasks"] = [{
@@ -1533,7 +1536,8 @@ def add_task(client, fields, actor=""):
         "labels": list(f.get("labels") or []),
         "campaign": f.get("campaign") or "",
         "content_type": f.get("content_type") or "",
-        "start_date": f.get("start_date") or "",
+        # Every service has a start date: work starts when it's created unless told otherwise.
+        "start_date": f.get("start_date") or now_iso()[:10],
         "due_date": f.get("due_date") or "",
         "service_charge": f.get("service_charge") or "",
         "on_hold": bool(f.get("on_hold")),

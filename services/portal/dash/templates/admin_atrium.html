@@ -162,8 +162,10 @@
     .pane { display: none; } .pane.is-active { display: block; animation: rise .5s cubic-bezier(.22,1,.36,1); }
     @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
     .eyebrow { font-family: var(--font-display); font-size: .75rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--brand-600); margin: 0 0 10px; }
-    h1.page { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 8px; }
-    p.lead { color: var(--muted); font-size: 15px; margin: 0 0 30px; max-width: 62ch; line-height: 1.6; }
+    /* Pane headers share ONE rhythm: eyebrow -> title -> a one-line lede (details belong in the
+       UI itself), so every pane opens on the same beat. */
+    h1.page { font-size: 24px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 6px; }
+    p.lead { color: var(--muted); font-size: 13.5px; margin: 0 0 24px; max-width: 68ch; line-height: 1.55; }
     h2.section { font-family: var(--font-display); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .16em; font-weight: 600; margin: 32px 0 14px; }
     .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px 22px; margin-bottom: 16px; box-shadow: var(--shadow-card); }
     .panel .meta { color: var(--muted); font-size: 13px; margin: 0 0 14px; line-height: 1.55; }
@@ -186,6 +188,8 @@
       background: var(--surface); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: border-color .13s, color .13s, background .13s; }
     .btn-ghost { color: var(--body); } .btn-ghost:hover { border-color: var(--brand-400); color: var(--brand-700); }
     .btn-ghost-danger { color: var(--danger); } .btn-ghost-danger:hover { border-color: rgba(192,69,59,.4); background: var(--danger-bg); }
+    /* Transient failure state on a ghost button (e.g. the sync result): red-tinted, never a green ✓. */
+    .btn-ghost.warn { color: var(--danger); border-color: rgba(192,69,59,.4); background: var(--danger-bg); }
 
     /* Client workspace cards (unchanged markers: .card .name + href="/w/<key>/"). */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; }
@@ -201,8 +205,12 @@
     .card .chip.await { background: var(--accent-100); color: var(--accent-600); }
     .card .chip.ok { background: var(--tint); color: var(--brand-700); }
     .card .card-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 72px; }
-    .card .card-logo { width: 72px; height: 54px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line);
-      border-radius: 10px; background: var(--canvas); overflow: hidden; padding: 6px; }
+    /* The crest gets a brand seat: soft green-tinted plate instead of a grey box, so client
+       rows read as branded objects. Works behind uploaded logos and text marks alike. */
+    .card .card-logo { width: 72px; height: 54px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--brand-200); border-radius: 10px; overflow: hidden; padding: 6px;
+      background: linear-gradient(150deg, var(--brand-100), var(--tint)); color: var(--brand-700);
+      font-family: var(--font-display); font-weight: 800; }
     .card .card-logo img, .card .card-logo svg { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; mix-blend-mode: multiply; }
     .card .logo-up { margin: 0; }
     .card .mini-btn { display: inline-block; cursor: pointer; font-size: 11px; font-weight: 700; color: var(--accent-600); border: 1px solid var(--line);
@@ -269,7 +277,13 @@
 
     /* ---- Delivery / Task Board (spec: TASK_TRACKER_INTEGRATION.md; look = the approved
        task_tracker_prototype.html, restyled onto the console shell) ---- */
-    .tk-pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .tk-pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 18px; }
+    .tk-pagehead p.lead { margin-bottom: 14px; }
+    /* Compact sync control + the pane's primary action in the Clients page head. */
+    .sync-inline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+    .sync-inline .meta { font-size: 12px; color: var(--muted); font-weight: 600; margin: 0; white-space: nowrap; }
+    .sync-inline .btn { margin: 0; display: inline-flex; align-items: center; gap: 7px; }
     .tk-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     /* One toolbar: every header button is the SAME height + shape, so the green primary sits on the
        same baseline as the ghost buttons instead of towering over them. */
@@ -315,7 +329,9 @@
     .tk-hold svg { width: 10px; height: 10px; }
     /* Card top line: the CLIENT leads (display caps, ink), pills sit right — hierarchy, not color. */
     .tk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-width: 0; }
-    .tk-client { font-family: var(--font-display); font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+    /* Card hierarchy by WEIGHT: the title is the card's one bold element; the client leads by
+       position + caps (not shout), and everything else recedes until it has a reason to speak. */
+    .tk-client { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: .08em;
       text-transform: uppercase; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .tk-top .tk-pills { margin-bottom: 0; flex: 0 0 auto; justify-content: flex-end; }
     .tk-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
@@ -333,14 +349,15 @@
     .tk-pdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
     .tk-pdot.p-Low { background: #8b8f8c; } .tk-pdot.p-Medium { background: #2f6ecc; }
     .tk-pdot.p-High { background: #c77d16; } .tk-pdot.p-Urgent { background: var(--danger); }
-    .tk-due { font-weight: 700; } .tk-due.over { color: var(--danger); } .tk-due.soon { color: #c77d16; }
+    .tk-due { font-weight: 600; }   /* quiet by default; bold ONLY when it's a signal */
+    .tk-due.over { color: var(--danger); font-weight: 700; } .tk-due.soon { color: #c77d16; font-weight: 700; }
     .tk-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
     .tk-people { display: flex; align-items: center; gap: 5px; min-width: 0; }
     .tk-av { width: 22px; height: 22px; border-radius: 50%; background: var(--brand-500); color: #fff; font-size: 10px; font-weight: 800;
       display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .tk-av.sup { background: var(--accent-600); width: 19px; height: 19px; font-size: 9px; margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); }
-    .tk-lead-nm { font-size: 11.5px; font-weight: 700; color: var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tk-icons { display: flex; align-items: center; gap: 9px; font-size: 11.5px; font-weight: 700; color: var(--muted); flex: 0 0 auto; }
+    .tk-lead-nm { font-size: 11.5px; font-weight: 600; color: var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tk-icons { display: flex; align-items: center; gap: 9px; font-size: 11.5px; font-weight: 600; color: var(--muted); flex: 0 0 auto; }
     .tk-icons svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
     .tk-icons span { display: inline-flex; align-items: center; gap: 2px; }
     .tk-icons .warn { color: #c77d16; font-weight: 800; } .tk-icons .chg { color: var(--danger); font-weight: 800; }
@@ -363,7 +380,9 @@
     .tk-stagepill { font-size: 10px; font-weight: 800; border-radius: 999px; padding: 2px 9px; letter-spacing: .03em; text-transform: uppercase; }
     .tk-stagepill.in_process { background: #eaf1fb; color: #1c4f9c; } .tk-stagepill.for_launch { background: #fdf3e3; color: #8a6003; }
     .tk-stagepill.launched { background: var(--tint); color: var(--brand-700); } .tk-stagepill.closed { background: #eef0ee; color: #5b615c; }
-    .tkd-sl { font-size: 10.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 16px 0 7px; }
+    /* Section labels: quiet sentence-case guides, not shouting uppercase headers — the content
+       carries the hierarchy, the label just whispers what it is. */
+    .tkd-sl { font-size: 11.5px; font-weight: 700; letter-spacing: .01em; color: var(--muted); margin: 15px 0 6px; }
     .tkd-sl:first-child { margin-top: 0; }
     .tkd-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
     .tkd-kv .k { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -407,8 +426,8 @@
     .tk-activity b { color: var(--body); }
     /* Collapsible disclosure inside the overlay (Activity) — matches the prototype's ▸ sections. */
     details.tk-disc { margin-top: 14px; }
-    details.tk-disc > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; font-size: 10.5px;
-      font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 4px 0; }
+    details.tk-disc > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; font-size: 11.5px;
+      font-weight: 700; letter-spacing: .01em; color: var(--muted); padding: 4px 0; }
     details.tk-disc > summary::-webkit-details-marker { display: none; }
     details.tk-disc > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
       transform: rotate(-45deg); transition: transform .15s; margin-left: 2px; opacity: .7; }
@@ -462,8 +481,18 @@
     .tkd-ctx.live { background: var(--tint); color: var(--brand-700); }
     .tkd-ctx.done { background: var(--canvas); color: var(--muted); border: 1px solid var(--line); }
     .tkd-ctx.hold { background: #fdf3e3; color: #9b6a12; border: 1px solid #f0dda2; }
-    /* Status toggle (On hold ⇄ Ongoing) in the Details tab. */
-    .tk-holdform { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    /* Details tab: the client note leads as plain content; one quiet Internal marker. */
+    .tkd-note { font-size: 13.5px; color: var(--body); line-height: 1.55; }
+    .tkd-lock { display: inline-block; font-size: 11px; font-weight: 700; color: var(--accent-600); margin-bottom: 8px; }
+    /* Status toggle (On hold ⇄ Ongoing): the put-on-hold form hides behind a link until needed. */
+    .tk-holdrow { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+    .tk-ongoing { font-size: 12.5px; font-weight: 700; color: var(--brand-700); }
+    .tk-linkish { border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 700; color: var(--muted);
+      cursor: pointer; padding: 2px 4px; border-radius: 6px; text-decoration: underline; text-underline-offset: 2px; }
+    .tk-linkish:hover { color: var(--ink); background: var(--canvas); }
+    .tk-holdform { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    /* display:flex beats the [hidden] UA style — restore it, or the collapsed form leaks through. */
+    .tk-holdrow[hidden], .tk-holdform[hidden] { display: none; }
     .tk-holdform input[type=text] { flex: 1; min-width: 140px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 12.5px; }
     .tk-holdform .btn, .tk-holdform .btn-ghost { margin: 0; }
     /* Detail overlay: Details / Tasks / Comments tabs (summary above stays persistent) */
@@ -727,18 +756,22 @@
 
         <!-- ---------- CLIENTS ---------- -->
         <section class="pane" data-pane="clients">
-          <p class="eyebrow">Atrium Admin &middot; Workspaces</p>
-          <h1 class="page">Clients</h1>
-          <p class="lead">Your home base for every Agora client. Click a client to open their workspace
-            and edit it in place, or add a new one below &mdash; we'll create the login and a blank
-            workspace and drop you straight into it.</p>
-
-          <div class="panel" id="sync-panel" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          {#- Sync is a utility, not a feature: it lives compactly in the page head (timestamp +
+              ghost button) instead of its own full-width panel. Same header rhythm as Delivery. -#}
+          <div class="tk-pagehead">
             <div>
-              <h2 class="section" style="margin:0 0 4px">Live data sync</h2>
-              <p class="meta" id="sync-when" data-iso="" style="margin:0">Last synced: checking&hellip;</p>
+              <p class="eyebrow">Atrium Admin &middot; Workspaces</p>
+              <h1 class="page">Clients</h1>
+              <p class="lead">Your home base for every Agora client &mdash; click one to open its workspace and edit it in place.</p>
             </div>
-            <button type="button" class="btn" id="sync-btn">&#8635;&nbsp; Sync all dashboards</button>
+            <div class="sync-inline">
+              <span class="meta" id="sync-when" data-iso="">Last synced: checking&hellip;</span>
+              <button type="button" class="btn-ghost" id="sync-btn" title="Re-run every client's dashboard export now">&#8635;&nbsp; Sync all dashboards</button>
+              <button type="button" class="btn" id="nc-new-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg>
+                New client
+              </button>
+            </div>
           </div>
 
           {% if clients %}
@@ -778,14 +811,8 @@
           <div class="panel">No clients yet. Create your first one from <b>Accounts &rarr; Add new</b>.</div>
           {% endif %}
 
-          <h2 class="section">Add a new client</h2>
-          <form class="panel" method="post" action="/admin/atrium/new">
-            <p class="meta">Just enter a name. We create the client, a portal login (auto-generated
-            password), and a <strong>blank Atrium workspace</strong>, then drop you straight into it.</p>
-            <label>Display name</label>
-            <input type="text" name="name" placeholder="Honey Tribe Resort" required>
-            <button class="btn violet" type="submit">Create client</button>
-          </form>
+          {#- Creation moved to the page-head "New client" button -> a small overlay (below in
+              #tk-store): one rarely-used action shouldn't hold a permanent panel under the grid. -#}
         </section>
 
         <!-- ---------- ACCOUNTS (merged: Requests · People · Add new) ---------- -->
@@ -1153,9 +1180,7 @@
             <div>
               <p class="eyebrow">Atrium Admin &middot; Delivery</p>
               <h1 class="page">Task Board</h1>
-              <p class="lead">Every client deliverable across every workspace. Drag a card to move its
-                stage; open one for the sub-tasks, people, and the comment thread. Client-facing tasks
-                mirror (client-safe fields only) onto that client's Progress tab.</p>
+              <p class="lead">Every client deliverable across every workspace &mdash; drag to move, click to open.</p>
             </div>
             <div class="tk-head-actions">
               <button type="button" class="btn-ghost tk-hbtn" data-section="trash" title="Deleted tasks live in the Bin, restorable for {{ trash_ttl_days }} days">
@@ -1264,15 +1289,17 @@
                 {#- Persistent summary (sandbox design): labels, title, then the glance chips. -#}
                 {% if t.labels %}<div class="tk-pills" style="margin-bottom:9px">{% for l in t.labels %}<span class="tk-pill {{ {'Paid Media': 'lb-paid', 'Organic': 'lb-organic', 'Website': 'lb-web'}.get(l, 'lb-other') }}">{{ l }}</span>{% endfor %}</div>{% endif %}
                 <h2 class="tkd-title" style="margin:0;font-size:20px">{{ t.title }}</h2>
+                {#- Glance diet: priority + dates + charge + trouble flags only. No decorative
+                    icons (the priority dot / ⚑ / ⏸ are the meaningful marks), and no sub-task
+                    chip — the Tasks tab badge right below already carries that count. -#}
                 <div class="tkd-glance">
                   <span class="tkd-stat prio p-{{ t.priority }}"><span class="pdot tk-pdot p-{{ t.priority }}"></span>{{ t.priority }}</span>
                   {% if t.on_hold %}<span class="tkd-stat hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>{% endif %}
-                  {% if t.start_date %}<span class="tkd-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="k">Start</span> {{ (t.start_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
-                  {% if t.due_date %}<span class="tkd-stat {{ 'due-over' if t.due_cls == 'over' else ('due-soon' if t.due_cls == 'soon' else '') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span class="k">Launch</span> {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}{{ ' · overdue' if t.due_cls == 'over' else (' · soon' if t.due_cls == 'soon' else '') }}</span>{% endif %}
-                  {% if t.service_charge_label %}<span class="tkd-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>{{ t.service_charge_label }}</span>{% endif %}
-                  {% if t.subs_total %}<span class="tkd-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{{ t.subs_done }}/{{ t.subs_total }} sub-tasks</span>{% endif %}
+                  {% if t.start_date %}<span class="tkd-stat"><span class="k">Start</span> {{ (t.start_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
+                  {% if t.due_date %}<span class="tkd-stat {{ 'due-over' if t.due_cls == 'over' else ('due-soon' if t.due_cls == 'soon' else '') }}"><span class="k">Launch</span> {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}{{ ' · overdue' if t.due_cls == 'over' else (' · soon' if t.due_cls == 'soon' else '') }}</span>{% endif %}
+                  {% if t.service_charge_label %}<span class="tkd-stat">{{ t.service_charge_label }}</span>{% endif %}
                   {% if t.open_changes %}<span class="tkd-stat due-over">⚑ {{ t.open_changes }} open change request{{ 's' if t.open_changes != 1 else '' }}</span>{% endif %}
-                  {% if t.client_facing %}<span class="tkd-stat sync-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Syncs to Atrium</span>
+                  {% if t.client_facing %}<span class="tkd-stat sync-on">Syncs to Atrium</span>
                   {% else %}<span class="tkd-stat"><span class="k">Internal only</span></span>{% endif %}
                 </div>
                 {#- On-hold banner (orthogonal to stage — shows above it). -#}
@@ -1287,37 +1314,45 @@
                   <button type="button" class="tkd-tab" role="tab" aria-selected="false" data-tktab="tasks">Tasks{% if t.subs_total %} <span class="tcount tnum">{{ t.subs_done }}/{{ t.subs_total }}</span>{% endif %}</button>
                   <button type="button" class="tkd-tab" role="tab" aria-selected="false" data-tktab="comments">Comments{% if t.comment_count %} <span class="tcount tnum">{{ t.comment_count }}</span>{% endif %}</button>
                 </div>
+                {#- Details reads as content, not a form: the client note leads (no label — it's
+                    the human summary), the deliverable button explains itself, one quiet
+                    "Internal" marker splits the halves, and the hold control stays collapsed
+                    behind a link until it's needed. -#}
                 <div class="tkd-panel is-active" role="tabpanel" data-tkpanel="details">
-                  {% if t.client_note %}<div class="tkd-sl" style="margin-top:0">Client-facing notes</div>
-                  <div style="font-size:13.5px;color:var(--body);line-height:1.55">{{ t.client_note }}</div>{% endif %}
-                  {% if t.deliverable_url %}<div class="tkd-sl">Deliverable</div>
-                  <a class="btn-ghost" style="display:inline-flex;text-decoration:none" href="{{ t.deliverable_url }}" target="_blank" rel="noopener">Open deliverable →</a>{% endif %}
+                  {% if t.client_note %}<div class="tkd-note">{{ t.client_note }}</div>{% endif %}
+                  {% if t.deliverable_url %}<a class="btn-ghost" style="display:inline-flex;text-decoration:none;{{ 'margin-top:10px' if t.client_note else '' }}" href="{{ t.deliverable_url }}" target="_blank" rel="noopener">Open deliverable →</a>{% endif %}
                   <div class="tkd-internal" {% if not t.client_note and not t.deliverable_url %}style="margin-top:0;padding-top:0;border-top:0"{% endif %}>
-                    <div class="tkd-sl lock" style="margin-top:0">🔒 Internal — not visible to the client</div>
-                    <div class="tkd-sl">Lead &amp; support</div>
+                    <span class="tkd-lock" title="Everything below stays on this board — the client never sees it.">🔒 Internal</span>
                     <div class="tk-chiprow">
                       {% if t.lead_name %}<span class="tk-personchip"><span class="tk-av" style="background: {{ t.lead_color }}">{{ t.lead_name[:1]|upper }}</span>{{ t.lead_name }} <span class="tk-leadtag">LEAD</span></span>
                       {% else %}<span style="font-size:12.5px;color:var(--muted)">No lead assigned</span>{% endif %}
                       {% for s in t.support_people %}<span class="tk-personchip"><span class="tk-av sup" style="margin:0;background: {{ s.color }}">{{ s.name[:1]|upper }}</span>{{ s.name }}</span>{% endfor %}
                     </div>
-                    {% if t.internal_notes %}<div class="tkd-sl">Internal notes</div><div style="font-size:13px;color:var(--body);line-height:1.55">{{ t.internal_notes }}</div>{% endif %}
-                    {#- Status: On hold ⇄ Ongoing. A held task's reason is internal; a client-facing
-                        held task shows the client a plain "Paused". -#}
-                    <div class="tkd-sl">Status</div>
+                    {% if t.internal_notes %}<div class="tkd-sl">Notes</div><div style="font-size:13px;color:var(--body);line-height:1.55">{{ t.internal_notes }}</div>{% endif %}
+                    {#- On hold ⇄ Ongoing. The put-on-hold form stays hidden behind a link — a
+                        rarely-used action shouldn't hold a permanent input field. -#}
+                    {% if t.on_hold %}
                     <form class="tk-holdform" method="post" action="/w/{{ t.client_key }}/admin/task/hold">
                       <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
                       {{ tk_back(t, 'details') }}
-                      {% if t.on_hold %}
-                        <span class="tk-hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>
-                        <input type="hidden" name="on_hold" value="0">
-                        <button type="submit" class="btn small">Set ongoing →</button>
-                      {% else %}
-                        <span style="font-size:12.5px;font-weight:700;color:var(--brand-700)">● Ongoing</span>
-                        <input type="text" name="hold_reason" placeholder="Reason (optional, internal)">
-                        <input type="hidden" name="on_hold" value="1">
-                        <button type="submit" class="btn-ghost">Put on hold</button>
-                      {% endif %}
+                      <span class="tk-hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>
+                      <input type="hidden" name="on_hold" value="0">
+                      <button type="submit" class="btn small">Set ongoing →</button>
                     </form>
+                    {% else %}
+                    <div class="tk-holdrow">
+                      <span class="tk-ongoing">● Ongoing</span>
+                      <button type="button" class="tk-linkish" data-holdreveal>Put on hold…</button>
+                    </div>
+                    <form class="tk-holdform" method="post" action="/w/{{ t.client_key }}/admin/task/hold" hidden>
+                      <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
+                      {{ tk_back(t, 'details') }}
+                      <input type="text" name="hold_reason" aria-label="Hold reason" placeholder="Reason (optional, internal)">
+                      <input type="hidden" name="on_hold" value="1">
+                      <button type="submit" class="btn-ghost">Put on hold</button>
+                      <button type="button" class="tk-linkish" data-holdcancel>Cancel</button>
+                    </form>
+                    {% endif %}
                   </div>
                 </div>
                 <div class="tkd-panel" role="tabpanel" data-tkpanel="tasks">
@@ -1485,6 +1520,28 @@
               </form>
             </div>
             {% endfor %}{% endfor %}
+            {#- New CLIENT overlay (opened from the Clients page head; reuses the same veil). -#}
+            <div class="tkd narrow" data-ncnew hidden>
+              <form method="post" action="/admin/atrium/new">
+                <div class="tkd-head">
+                  <div><div class="tkd-eyebrow">Workspaces &middot; New client</div>
+                    <div class="tkd-title">Add a client</div></div>
+                  <button type="button" class="tkd-x" data-tkclose aria-label="Close">&times;</button>
+                </div>
+                <div class="tkd-body">
+                  <div class="tk-formgrid">
+                    <div class="full"><div class="tk-hint">Just enter a name. We create the client, a portal login
+                      (auto-generated password), and a <b>blank Atrium workspace</b>, then drop you straight into it.</div></div>
+                    <div class="full"><label>Display name</label>
+                      <input type="text" name="name" placeholder="Honey Tribe Resort" required></div>
+                  </div>
+                </div>
+                <div class="tkd-foot"><span class="spacer"></span>
+                  <button type="button" class="btn-ghost" data-tkclose>Cancel</button>
+                  <button type="submit" class="btn small violet">Create client</button>
+                </div>
+              </form>
+            </div>
             <div class="tkd" data-tknew hidden>
               <form method="post" action="" id="tk-new-form">
                 <div class="tkd-head">
@@ -1523,8 +1580,7 @@
             <div>
               <p class="eyebrow">Atrium Admin &middot; Delivery</p>
               <h1 class="page">Delivery Calendar</h1>
-              <p class="lead">Every client's services plotted on their launch date. Click any service to open it.
-                Services with no launch date yet don't appear here.</p>
+              <p class="lead">Every client's services plotted on their launch date &mdash; click any to open it.</p>
             </div>
           </div>
           <div class="cal-bar">
@@ -1831,6 +1887,14 @@
         }, 60000);
         syncBtn.addEventListener("click", function () {
           var orig = syncBtn.innerHTML;
+          var origTitle = syncBtn.getAttribute("title") || "";
+          function restoreSync(delay) {
+            setTimeout(function () {
+              syncBtn.innerHTML = orig; syncBtn.disabled = false;
+              syncBtn.classList.remove("warn");
+              syncBtn.setAttribute("title", origTitle);
+            }, delay);
+          }
           syncBtn.disabled = true;
           syncBtn.textContent = "Syncing…";
           fetch("/admin/atrium/sync-all", { method: "POST", credentials: "same-origin" })
@@ -1839,13 +1903,25 @@
               setWhen(j.last_sync);
               var n = (j.triggered || []).length;
               var nf = (j.failed || []).length;
-              syncBtn.textContent = "✓ Synced " + n + " dashboard" + (n === 1 ? "" : "s")
-                + (nf ? " (" + nf + " failed)" : "");
-              setTimeout(function () { syncBtn.innerHTML = orig; syncBtn.disabled = false; }, 4500);
+              var firstErr = (nf && j.failed[0] && j.failed[0].error) ? j.failed[0].error : "";
+              // Truthful states: a failure never wears a green check.
+              if (nf && !n) {
+                syncBtn.textContent = "⚠ Sync failed (" + nf + ")";
+                syncBtn.classList.add("warn");
+                if (firstErr) { syncBtn.setAttribute("title", firstErr); }
+              } else if (nf) {
+                syncBtn.textContent = "⚠ Synced " + n + " · " + nf + " failed";
+                syncBtn.classList.add("warn");
+                if (firstErr) { syncBtn.setAttribute("title", firstErr); }
+              } else {
+                syncBtn.textContent = "✓ Synced " + n + " dashboard" + (n === 1 ? "" : "s");
+              }
+              restoreSync(5200);
             })
             .catch(function () {
-              syncBtn.textContent = "Sync failed — try again";
-              setTimeout(function () { syncBtn.innerHTML = orig; syncBtn.disabled = false; }, 4500);
+              syncBtn.textContent = "⚠ Sync failed — try again";
+              syncBtn.classList.add("warn");
+              restoreSync(5200);
             });
         });
       }
@@ -1894,6 +1970,17 @@
           tkOpen(findNode("data-tkd", card.getAttribute("data-open")));
         });
       });
+
+      // ---- New client: the Clients page-head button opens the small create overlay. ----
+      var ncBtn = document.getElementById("nc-new-btn");
+      if (ncBtn) {
+        ncBtn.addEventListener("click", function () {
+          var node = document.querySelector("[data-ncnew]");
+          tkOpen(node);
+          var inp = node ? node.querySelector('input[name="name"]') : null;
+          if (inp) { setTimeout(function () { inp.focus(); }, 40); }
+        });
+      }
 
       // ---- New task: pick the client first; the form posts to that client's task route. ----
       var newBtn = document.getElementById("tk-new-btn");
@@ -1947,6 +2034,28 @@
           qsa(".tkd-panel", body).forEach(function (p) {
             p.classList.toggle("is-active", p.getAttribute("data-tkpanel") === key);
           });
+        });
+      });
+
+      // ---- "Put on hold…" stays a link until clicked; then the reason form appears. ----
+      qsa("[data-holdreveal]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var row = b.parentNode;                 // .tk-holdrow
+          var form = row.nextElementSibling;      // the hidden .tk-holdform
+          if (form) {
+            row.hidden = true;
+            form.hidden = false;
+            var inp = form.querySelector('input[name="hold_reason"]');
+            if (inp) { inp.focus(); }
+          }
+        });
+      });
+      qsa("[data-holdcancel]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var form = b.parentNode;                // .tk-holdform
+          var row = form.previousElementSibling;  // .tk-holdrow
+          form.hidden = true;
+          if (row) { row.hidden = false; }
         });
       });
 

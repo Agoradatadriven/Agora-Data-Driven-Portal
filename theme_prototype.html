@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Theme Match &middot; Atrium (Sandbox)</title>
+  <style>
+    /* ==========================================================================
+       THEME-MATCH prototype. Two decisions on one page:
+         A) The CLIENT workspace restyled to the official brand theme
+            (current look vs proposed, side by side).
+         B) Console polish concepts (before/after component pairs).
+       Brand tokens verbatim from the console; "old" tokens verbatim from the
+       client workspace (atrium.html). Self-contained, esprima-safe.
+       ========================================================================== */
+    :root {
+      /* Official brand system (the console / website design system) */
+      --brand-100:#ddeedc; --brand-200:#bee0bc; --brand-400:#6cb968; --brand-500:#4fa84a;
+      --brand-600:#3f8b3b; --brand-700:#346f31; --emerald:#2f7a3a;
+      --accent-100:#ececfb; --accent-500:#6a6aea; --accent-600:#5a54dd;
+      --ink:#121212; --body:#353535; --muted:#6b6f6c;
+      --canvas:#f7f7f8; --surface:#ffffff; --line:#e6e6e9; --tint:#eef6ed;
+      --danger:#c0453b; --danger-bg:#fbeceb;
+      --r-md:.625rem; --r-lg:1rem;
+      --font-sans:'Lato',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      --font-display:'Archivo','Lato',ui-sans-serif,system-ui,sans-serif;
+      /* The client workspace's CURRENT (old) tokens, for the "before" column */
+      --ax-green:#4CAC4C; --ax-green-d:#3E8C3B; --ax-green-bg:#EAF6E9;
+      --ax-blue:#2575FC; --ax-blue-d:#1856C9; --ax-blue-bg:#E7F0FE;
+      --ax-ink:#0C1022; --ax-sub:#6B7280; --ax-line:#E9EAEE;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-sans); color: var(--body); background: var(--canvas);
+      -webkit-font-smoothing: antialiased; line-height: 1.5; padding: 36px 28px 80px; }
+    h1 { font-family: var(--font-display); color: var(--ink); font-weight: 700; letter-spacing: -.02em; font-size: 26px; margin: 0 0 6px; }
+    .lede { color: var(--muted); font-size: 14px; max-width: 76ch; margin: 0 0 30px; }
+    h2.sec { font-family: var(--font-display); color: var(--ink); font-size: 18px; margin: 44px 0 4px; }
+    .sec-sub { color: var(--muted); font-size: 13.5px; margin: 0 0 16px; max-width: 76ch; }
+    .duo { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+    .colwrap { flex: 1 1 430px; min-width: 380px; max-width: 560px; }
+    .tag { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 10px; }
+    .tag.cur { color: var(--muted); }
+    .tag.pro { color: var(--brand-700); }
+
+    /* ================= A) CLIENT WORKSPACE MOCKS ================= */
+    .shot { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff;
+      box-shadow: 0 1px 2px rgba(18,18,18,.05), 0 14px 34px -18px rgba(18,18,18,.18); }
+    .app { display: flex; min-height: 470px; }
+    .rail { width: 148px; flex: 0 0 148px; border-right: 1px solid; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
+    .rail .wordmark { font-weight: 800; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; text-align: center; margin: 2px 0 12px; }
+    .rail .nv { font-size: 11.5px; font-weight: 600; padding: 7px 9px; border-radius: 9px; }
+    .rail .crest { margin-top: auto; border: 1px solid; border-radius: 9px; padding: 10px 8px; text-align: center; }
+    .rail .crest .cm { width: 40px; height: 26px; border-radius: 6px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 12px; }
+    .rail .crest b { display: block; font-size: 10.5px; }
+    .rail .crest em { font-style: normal; font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; }
+    .mainc { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+    .tbar { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; border-bottom: 1px solid; }
+    .tbar .tt { font-weight: 800; font-size: 13.5px; }
+    .tbar .av { width: 24px; height: 24px; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+    .cont { padding: 16px; }
+    .greet { font-weight: 900; font-size: 16.5px; margin: 0 0 2px; }
+    .gsub { font-size: 11.5px; margin: 0 0 12px; }
+    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .tile { border: 1px solid; border-radius: 9px; padding: 9px 10px; }
+    .tile .n { font-size: 17px; font-weight: 900; }
+    .tile .l { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-top: 2px; }
+    .pcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pcard { border: 1px solid; border-radius: 10px; padding: 11px 12px; }
+    .pchip { display: inline-block; font-size: 8.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; margin-bottom: 6px; }
+    .pt { font-weight: 800; font-size: 12px; line-height: 1.35; margin-bottom: 8px; }
+    .pbar { height: 5px; border-radius: 999px; overflow: hidden; margin-bottom: 6px; }
+    .pbar i { display: block; height: 100%; width: 60%; }
+    .pfoot { font-size: 10px; font-weight: 700; }
+    .btnrow { display: flex; gap: 8px; margin-top: 12px; }
+    .bt { font-size: 11px; font-weight: 800; border-radius: 8px; padding: 7px 13px; border: 1px solid transparent; }
+
+    /* ---- CURRENT client look (old tokens: Roboto feel, green #4CAC4C + blue #2575FC) ---- */
+    .cur-shot { font-family: Roboto,'Segoe UI',Arial,sans-serif; color: #353535; }
+    .cur-shot .rail { background: linear-gradient(180deg,#fff, #FCFCFE); border-color: var(--ax-line); }
+    .cur-shot .wordmark { background: linear-gradient(120deg,var(--ax-green) 0%,var(--ax-green) 42%,var(--ax-blue) 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+    .cur-shot .nv { color: var(--ax-sub); }
+    .cur-shot .nv.on { background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .cur-shot .crest { border-color: var(--ax-line); }
+    .cur-shot .crest .cm { background: var(--ax-blue); }
+    .cur-shot .crest b { color: var(--ax-ink); }
+    .cur-shot .crest em { color: var(--ax-blue-d); }
+    .cur-shot .tbar { border-color: var(--ax-line); background: rgba(255,255,255,.8); }
+    .cur-shot .tbar .tt { color: var(--ax-ink); }
+    .cur-shot .tbar .av { background: var(--ax-blue-d); }
+    .cur-shot .greet { color: var(--ax-ink); }
+    .cur-shot .gsub { color: var(--ax-sub); }
+    .cur-shot .tile { border-color: var(--ax-line); }
+    .cur-shot .tile.hi { border-color: #BBD4FB; background: linear-gradient(180deg,var(--ax-blue-bg),#fff 62%); }
+    .cur-shot .tile .n { color: var(--ax-ink); }
+    .cur-shot .tile .l { color: var(--ax-sub); }
+    .cur-shot .pcard { border-color: var(--ax-line); }
+    .cur-shot .pchip { background: var(--ax-blue-bg); color: var(--ax-blue-d); }
+    .cur-shot .pt { color: var(--ax-ink); }
+    .cur-shot .pbar { background: var(--ax-line); }
+    .cur-shot .pbar i { background: linear-gradient(135deg,#5BC257,#3E8C3B); }
+    .cur-shot .pfoot { color: var(--ax-sub); }
+    .cur-shot .bt.p { background: linear-gradient(135deg,var(--ax-blue),var(--ax-blue-d)); color: #fff; }
+    .cur-shot .bt.g { border-color: var(--ax-line); color: #353535; background: #fff; }
+
+    /* ---- PROPOSED client look (brand system: green #4FA84A + purple #6A6AEA, display type) ---- */
+    .pro-shot { color: var(--body); }
+    .pro-shot .rail { background: var(--surface); border-color: var(--line); }
+    .pro-shot .wordmark { font-family: var(--font-display); color: var(--ink); }
+    .pro-shot .wordmark .dotg { color: var(--brand-600); }
+    .pro-shot .nv { color: var(--body); }
+    .pro-shot .nv.on { background: var(--tint); color: var(--brand-700); font-weight: 700; }
+    .pro-shot .crest { border-color: var(--line); background: var(--canvas); }
+    .pro-shot .crest .cm { background: linear-gradient(150deg,var(--brand-500),var(--emerald)); }
+    .pro-shot .crest b { color: var(--ink); }
+    .pro-shot .crest em { color: var(--accent-600); }
+    .pro-shot .tbar { border-color: var(--line); background: var(--surface); }
+    .pro-shot .tbar .tt { font-family: var(--font-display); color: var(--ink); }
+    .pro-shot .tbar .av { background: var(--brand-500); }
+    .pro-shot .greet { font-family: var(--font-display); color: var(--ink); letter-spacing: -.01em; }
+    .pro-shot .gsub { color: var(--muted); }
+    .pro-shot .tile { border-color: var(--line); background: var(--surface); border-radius: var(--r-md); }
+    .pro-shot .tile.hi { border-color: var(--accent-500); background: linear-gradient(180deg,var(--accent-100),#fff 62%); }
+    .pro-shot .tile .n { font-family: var(--font-display); color: var(--ink); }
+    .pro-shot .tile .l { color: var(--muted); }
+    .pro-shot .pcard { border-color: var(--line); border-radius: var(--r-md); background: var(--surface); }
+    .pro-shot .pchip { background: var(--accent-100); color: var(--accent-600); }
+    .pro-shot .pt { color: var(--ink); }
+    .pro-shot .pbar { background: var(--line); }
+    .pro-shot .pbar i { background: linear-gradient(90deg,var(--brand-500),var(--brand-400)); }
+    .pro-shot .pfoot { color: var(--muted); }
+    .pro-shot .bt.p { background: var(--brand-500); color: #fff; box-shadow: 0 8px 22px -10px rgba(79,168,74,.5); }
+    .pro-shot .bt.g { border-color: var(--line); color: var(--body); background: var(--surface); }
+
+    /* ================= B) CONSOLE POLISH PAIRS ================= */
+    .pairs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+    .pair { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; }
+    .pair h3 { font-family: var(--font-display); font-size: 13.5px; color: var(--ink); margin: 0 0 12px; }
+    .mini-tag { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+    .mini-tag.after { color: var(--brand-700); margin-top: 14px; }
+    .pair .note { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.55; }
+    /* pair 1: client card */
+    .ccard { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+    .ccard .cm2 { width: 34px; height: 34px; border-radius: 8px; background: var(--canvas); border: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: var(--muted); }
+    .ccard b { font-size: 13px; color: var(--ink); display: block; }
+    .ccard .chipA { font-size: 10px; font-weight: 800; border-radius: 999px; padding: 2px 9px; margin-left: auto; }
+    .ccard .chipA.busy { color: var(--accent-600); background: var(--accent-100); }
+    .ccard .chipA.ok { color: var(--brand-700); background: var(--tint); }
+    .ccard.after { box-shadow: 0 1px 2px rgba(18,18,18,.04), 0 10px 24px -16px rgba(18,18,18,.14); border-radius: var(--r-lg); }
+    .ccard.after .cm2 { background: linear-gradient(150deg,var(--brand-100),var(--tint)); color: var(--brand-700); border-color: var(--brand-200); }
+    /* pair 2: section header rhythm */
+    .hdr { padding: 6px 0; }
+    .hdr .eb { font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--brand-600); }
+    .hdr h4 { font-family: var(--font-display); color: var(--ink); margin: 2px 0 4px; }
+    .hdr.before h4 { font-size: 22px; }
+    .hdr.before p { font-size: 13px; color: var(--muted); margin: 0; }
+    .hdr.after h4 { font-size: 19px; letter-spacing: -.01em; }
+    .hdr.after p { font-size: 12.5px; color: var(--muted); margin: 0; max-width: 52ch; }
+    .hdr.after { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+    /* pair 3: buttons */
+    .btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .b1 { font-size: 12.5px; font-weight: 700; border-radius: var(--r-md); padding: 9px 15px; border: 1px solid transparent; }
+    .b1.solid { background: var(--brand-500); color: #fff; }
+    .b1.glow { background: var(--brand-500); color: #fff; box-shadow: 0 10px 30px -12px rgba(79,168,74,.6); }
+    .b1.ghost { background: var(--surface); border-color: var(--line); color: var(--body); }
+    .b1.violet { background: var(--accent-600); color: #fff; }
+    .b1.sm { font-size: 11.5px; padding: 7px 12px; }
+
+    /* ---- mapping table ---- */
+    .map { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; margin-top: 14px; }
+    .map th, .map td { text-align: left; font-size: 12.5px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+    .map th { font-family: var(--font-display); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--canvas); }
+    .map td b { color: var(--ink); }
+    .sw { display: inline-block; width: 12px; height: 12px; border-radius: 4px; vertical-align: -1px; margin-right: 6px; border: 1px solid rgba(0,0,0,.08); }
+  </style>
+</head>
+<body>
+  <h1>Theme match — one design language everywhere</h1>
+  <p class="lede">Two decisions on one page. <b>A:</b> the client workspace restyled onto the official brand system
+    (it's the last surface still running the old green/blue look). <b>B:</b> three small polish pairs for the console
+    itself. Nothing new is invented — every proposed value is an existing brand token.</p>
+
+  <!-- ================= A ================= -->
+  <h2 class="sec">A &middot; Client workspace, brand-matched</h2>
+  <p class="sec-sub">Same layout, same components, same information — only the design language changes:
+    Data Green #4FA84A replaces #4CAC4C, Accent Purple #6A6AEA replaces the blue #2575FC, display-type headings
+    replace Roboto, and the blue-gradient wordmark becomes the clean brand mark.</p>
+
+  <div class="duo">
+    <div class="colwrap">
+      <p class="tag cur">Current (old look)</p>
+      <div class="shot cur-shot">
+        <div class="app">
+          <div class="rail">
+            <div class="wordmark">Agora Atrium</div>
+            <div class="nv">Dashboard</div>
+            <div class="nv on">Campaigns</div>
+            <div class="nv">Progress</div>
+            <div class="nv">Calendar</div>
+            <div class="crest"><span class="cm">RV</span><b>Riverdance RV</b><em>Client workspace</em></div>
+          </div>
+          <div class="mainc">
+            <div class="tbar"><span class="tt">Campaigns</span><span class="av">S</span></div>
+            <div class="cont">
+              <p class="greet">Good morning, Sarah</p>
+              <p class="gsub">Here's where everything stands today.</p>
+              <div class="tiles">
+                <div class="tile"><div class="n">214</div><div class="l">Leads</div></div>
+                <div class="tile hi"><div class="n">3</div><div class="l">Awaiting you</div></div>
+                <div class="tile"><div class="n">$1.9k</div><div class="l">Spend</div></div>
+              </div>
+              <div class="pcards">
+                <div class="pcard"><span class="pchip">Paid Media</span><div class="pt">Park &amp; Porch — Lead-Gen Funnel</div>
+                  <div class="pbar"><i></i></div><div class="pfoot">3 of 5 steps · Launching Jul 20</div></div>
+                <div class="pcard"><span class="pchip">Organic</span><div class="pt">New Arrivals — Social Video</div>
+                  <div class="pbar"><i style="width:85%"></i></div><div class="pfoot">Ready for your review</div></div>
+              </div>
+              <div class="btnrow"><span class="bt p">Approve</span><span class="bt g">Request changes</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="colwrap">
+      <p class="tag pro">Proposed (brand system)</p>
+      <div class="shot pro-shot">
+        <div class="app">
+          <div class="rail">
+            <div class="wordmark">Agora <span class="dotg">Atrium</span></div>
+            <div class="nv">Dashboard</div>
+            <div class="nv on">Campaigns</div>
+            <div class="nv">Progress</div>
+            <div class="nv">Calendar</div>
+            <div class="crest"><span class="cm">RV</span><b>Riverdance RV</b><em>Client workspace</em></div>
+          </div>
+          <div class="mainc">
+            <div class="tbar"><span class="tt">Campaigns</span><span class="av">S</span></div>
+            <div class="cont">
+              <p class="greet">Good morning, Sarah</p>
+              <p class="gsub">Here's where everything stands today.</p>
+              <div class="tiles">
+                <div class="tile"><div class="n">214</div><div class="l">Leads</div></div>
+                <div class="tile hi"><div class="n">3</div><div class="l">Awaiting you</div></div>
+                <div class="tile"><div class="n">$1.9k</div><div class="l">Spend</div></div>
+              </div>
+              <div class="pcards">
+                <div class="pcard"><span class="pchip">Paid Media</span><div class="pt">Park &amp; Porch — Lead-Gen Funnel</div>
+                  <div class="pbar"><i></i></div><div class="pfoot">3 of 5 steps · Launching Jul 20</div></div>
+                <div class="pcard"><span class="pchip">Organic</span><div class="pt">New Arrivals — Social Video</div>
+                  <div class="pbar"><i style="width:85%"></i></div><div class="pfoot">Ready for your review</div></div>
+              </div>
+              <div class="btnrow"><span class="bt p">Approve</span><span class="bt g">Request changes</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table class="map">
+    <tr><th>Element</th><th>Current (client workspace)</th><th>Proposed (brand token)</th></tr>
+    <tr><td><b>Primary green</b> — CTAs, progress, active nav</td>
+      <td><span class="sw" style="background:#4CAC4C"></span>#4CAC4C</td>
+      <td><span class="sw" style="background:#4FA84A"></span>Data Green #4FA84A</td></tr>
+    <tr><td><b>Informational accent</b> — chips, awaiting counts</td>
+      <td><span class="sw" style="background:#2575FC"></span>Blue #2575FC</td>
+      <td><span class="sw" style="background:#6A6AEA"></span>Accent Purple #6A6AEA</td></tr>
+    <tr><td><b>Headings</b></td><td>Roboto 800–900</td><td><b>Display family (Archivo-style)</b>, tight tracking — same voice as the console</td></tr>
+    <tr><td><b>Wordmark</b></td><td>Green→blue gradient text</td><td>Clean ink wordmark, green accent — matches the console mark</td></tr>
+    <tr><td><b>Radius / depth</b></td><td>5px, mixed shadows</td><td>10–16px scale, one soft card shadow — the console's system</td></tr>
+    <tr><td><b>Kept as-is</b></td><td colspan="2">Layout, nav structure, client crest card, stat tiles, progress cards, approve flow — this is a re-skin, not a redesign.</td></tr>
+  </table>
+
+  <!-- ================= B ================= -->
+  <h2 class="sec">B &middot; Console polish (same theme, finer execution)</h2>
+  <p class="sec-sub">Three small before/after pairs — no new colors, just tightening how the existing theme is applied.</p>
+
+  <div class="pairs">
+    <div class="pair">
+      <h3>1 · Client cards: give the crest a brand seat</h3>
+      <p class="mini-tag">Before</p>
+      <div class="ccard"><span class="cm2">RV</span><span><b>Riverdance RV</b><span style="font-size:11px;color:var(--muted)">riverdance</span></span><span class="chipA busy">3 awaiting</span></div>
+      <p class="mini-tag after">After</p>
+      <div class="ccard after"><span class="cm2">RV</span><span><b>Riverdance RV</b><span style="font-size:11px;color:var(--muted)">riverdance</span></span><span class="chipA busy">3 awaiting</span></div>
+      <p class="note">Monogram gets a soft green-tinted plate and the card picks up the standard elevation +
+        the larger radius — client rows read as branded objects instead of grey boxes. Attention chips unchanged.</p>
+    </div>
+
+    <div class="pair">
+      <h3>2 · Pane headers: one rhythm everywhere</h3>
+      <p class="mini-tag">Before</p>
+      <div class="hdr before"><div class="eb">Atrium Admin · Delivery</div><h4>Task Board</h4><p>Every client deliverable across every workspace. Drag a card to move its stage; open one for the sub-tasks, people, and the comment thread.</p></div>
+      <p class="mini-tag after">After</p>
+      <div class="hdr after"><div class="eb">Atrium Admin · Delivery</div><h4>Task Board</h4><p>Every client deliverable across every workspace — drag to move, click to open.</p></div>
+      <p class="note">Slightly smaller title, lede capped at one line of purpose (details live in the UI itself),
+        and a hairline under the header so every pane starts with the same beat.</p>
+    </div>
+
+    <div class="pair">
+      <h3>3 · Buttons: one scale, glow only on the page's primary</h3>
+      <p class="mini-tag">Before</p>
+      <div class="btns"><span class="b1 glow">New Service</span><span class="b1 sm violet">Create service</span><span class="b1 ghost">Export</span><span class="b1 sm solid">Add</span><span class="b1 sm solid">Move →</span></div>
+      <p class="mini-tag after">After</p>
+      <div class="btns"><span class="b1 glow">New Service</span><span class="b1 ghost">Export</span><span class="b1 sm solid">Add</span><span class="b1 sm violet">Create service</span><span class="b1 sm solid">Move →</span></div>
+      <p class="note">Rule of one: the page's single primary action keeps the green glow; every other solid button is
+        flat green or violet at the small size. Violet stays reserved for create/save inside overlays. (Mostly true
+        today — this pins it as a rule so future buttons don't drift.)</p>
+    </div>
+  </div>
+</body>
+</html>

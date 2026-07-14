@@ -741,6 +741,9 @@ def run():
            'data-section="tasks"' in console and "Park &amp; Porch funnel" in console)
     _check("console has the Delivery Calendar tab + pane",
            'data-section="calendar"' in console and 'data-pane="calendar"' in console)
+    _check("client creation = page-head button + overlay (inline panel gone)",
+           'id="nc-new-btn"' in console and "data-ncnew" in console
+           and "Add a new client" not in console)
     _check("scheduled (dated) service becomes a calendar event",
            '<div class="cal-ev" data-date="2026-07-20"' in console
            and 'data-open="%s:%s"' % (CLIENT, task_id) in console)

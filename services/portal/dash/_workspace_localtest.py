@@ -238,6 +238,15 @@ def run():
     _check("normalize is idempotent",
            workspace.normalize_task(legacy)["maintasks"][0]["subs"][0]["text"] == "Old sub")
 
+    # Every service has a start date: created-without-one defaults to today; legacy tasks
+    # backfill theirs from the creation day.
+    dated = workspace.add_task(CLIENT, {"title": "No start given"})
+    _check("new task defaults start_date to its creation day",
+           dated["start_date"] == dated["created_at"][:10])
+    old = workspace.normalize_task({"id": "tk_old", "title": "Pre-start-date task",
+                                    "created_at": "2026-07-01T09:00:00Z"})
+    _check("legacy task backfills start_date from created_at", old["start_date"] == "2026-07-01")
+
     # On hold <-> ongoing: a plain boolean + internal reason, with a hold/resume history entry.
     workspace.set_task_hold(CLIENT, task["id"], True, "Client asked to pause", actor="info@agoradatadriven.com")
     th = workspace._find_task(workspace.load_workspace(CLIENT), task["id"])
