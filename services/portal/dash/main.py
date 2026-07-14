@@ -2677,6 +2677,7 @@ def _mail_view(ws):
         "digest": state.get("digest") or {},
         "last_sync": state.get("last_sync", ""),
         "last_error": state.get("last_error", ""),
+        "backlog": int(state.get("backlog") or 0),
         # Drives the pane's setup hints ("connect a mailbox first" vs "add contacts").
         "mailbox_count": len(workspace.mail_mailboxes()),
     }
@@ -2711,13 +2712,23 @@ def atrium_admin_mail(client):
                                 "None of those look like an email address or domain."))
 
     if op == "sync":
-        result = mailroom.sync_client(client, ws=ws)
+        # Save the contacts textarea first if it came along, so "Sync now" works even when the
+        # operator typed addresses but didn't click Save first (a common footgun).
+        if "contacts" in request.form:
+            workspace.set_mail_contacts(client, request.form.get("contacts", ""))
+            ws = workspace.load_workspace(client) or ws
+        # Archive-only by default: pull + store every matching email FAST, no AI calls. The hourly
+        # job (summarize=True) writes the summaries/digest/Communications recaps later. Pass
+        # summarize=1 to force a summarizing sync from the button.
+        summarize = _bool_field("summarize")
+        result = mailroom.sync_client(client, ws=ws, summarize=summarize)
         _audit(client, "synced client mail",
                "%d new message(s), %d thread(s)" % (result["new_messages"], result["new_threads"]))
         fresh = workspace.load_workspace(client) or ws
         state = workspace.mail_state(fresh)
         return jsonify(ok=result["ok"], new_messages=result["new_messages"],
                        new_threads=result["new_threads"], summarized=result["summarized"],
+                       backlog=result.get("backlog", 0),
                        errors=result["errors"], last_sync=state.get("last_sync", ""),
                        digest=(state.get("digest") or {}).get("body", ""))
 

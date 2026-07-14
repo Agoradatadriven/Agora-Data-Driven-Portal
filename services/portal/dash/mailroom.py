@@ -45,9 +45,11 @@ MAILBOX_KINDS = ("dwd", "imap")
 # Per-run safety caps: one sync request must stay comfortably inside the web service's 300s cap
 # (the hourly job has 900s). Dedup by message id makes re-runs cheap, so a capped first backfill
 # simply finishes over the next few runs.
-MAX_THREADS_PER_RUN = 60        # per mailbox, per client, per sync
+MAX_THREADS_PER_RUN = 60        # full-thread fetches per mailbox, per client, per sync
 MAX_MESSAGES_PER_THREAD = 50
-MAX_IMAP_MESSAGES = 300         # UIDs fetched per mailbox per sync
+MAX_IMAP_MESSAGES = 300         # message BODIES fetched per mailbox per sync
+MAX_LIST_IDS = 1000             # thread ids listed per run (the cheap pass that finds the backlog)
+MAX_IMAP_SCAN = 2000            # UIDs scanned per run for their thread id (cheap batched pass)
 _BODY_MAX_CHARS = 12000         # one message's stored body cap
 _PARTICIPANT_CAP = 12
 _TIMEOUT = 30
@@ -192,41 +194,50 @@ def _safe_json(resp):
 
 
 # --- DWD: Gmail API pull ---------------------------------------------------------------------------
-def gmail_pull(token, query, getter=None, max_threads=MAX_THREADS_PER_RUN):
-    """All matching threads via the Gmail API, normalized. Returns (threads, error).
+def gmail_pull(token, query, getter=None, max_threads=MAX_THREADS_PER_RUN, known=None):
+    """All matching threads via the Gmail API, normalized. Returns (threads, error, backlog).
 
     Each thread: {id, subject, participants[], last_date, messages:[{id, from, to, date, body}]}.
-    Pages threads.list, then threads.get(format=full) each -- newest first, capped."""
+    The LISTING pass is cheap and wide (up to MAX_LIST_IDS ids); full fetches are capped at
+    `max_threads`. `known` = thread ids already archived for this mailbox: UNARCHIVED threads are
+    fetched first (so repeated runs drain a big backfill window instead of refetching the same
+    newest ones), then known threads with the remaining budget (to catch new replies). `backlog` =
+    matching unarchived threads left unfetched this run -- 0 means the window is fully drained."""
     fn = getter or _requests_get
     headers = {"Authorization": "Bearer " + token}
+    known = known or set()
     ids, page = [], ""
     try:
-        while len(ids) < max_threads:
-            params = {"q": query, "maxResults": min(100, max_threads)}
+        while len(ids) < MAX_LIST_IDS:
+            params = {"q": query, "maxResults": 100}
             if page:
                 params["pageToken"] = page
             resp = fn(GMAIL_API + "/threads", headers, params, _TIMEOUT)
             if getattr(resp, "status_code", 0) >= 400:
-                return None, _gmail_error(resp)
+                return None, _gmail_error(resp), 0
             data = _safe_json(resp) or {}
             ids += [t.get("id") for t in data.get("threads") or [] if t.get("id")]
             page = data.get("nextPageToken") or ""
             if not page:
                 break
     except Exception as exc:
-        return None, "could not reach the Gmail API (%s)" % type(exc).__name__
+        return None, "could not reach the Gmail API (%s)" % type(exc).__name__, 0
+    fresh = [t for t in ids if t not in known]
+    order = fresh[:max_threads]
+    order += [t for t in ids if t in known][:max_threads - len(order)]
+    backlog = max(0, len(fresh) - max_threads)
     threads = []
-    for tid in ids[:max_threads]:
+    for tid in order:
         try:
             resp = fn(GMAIL_API + "/threads/" + tid, headers, {"format": "full"}, _TIMEOUT)
         except Exception as exc:
-            return threads, "thread fetch failed (%s)" % type(exc).__name__
+            return threads, "thread fetch failed (%s)" % type(exc).__name__, backlog
         if getattr(resp, "status_code", 0) >= 400:
             continue  # one unreadable thread must not sink the run
         t = _normalize_api_thread(_safe_json(resp) or {})
         if t:
             threads.append(t)
-    return threads, ""
+    return threads, "", backlog
 
 
 def _gmail_error(resp):
@@ -354,51 +365,97 @@ def _imap_connect(mb):
     return conn
 
 
-def imap_pull(mb, query, imap_factory=None, max_threads=MAX_THREADS_PER_RUN):
-    """All matching threads over IMAP (Gmail X-GM-RAW search), normalized. Returns (threads, error).
+def _imap_thrid_scan(conn, uids):
+    """Cheap batched pass: {uid_bytes: hex_thread_id} for `uids` WITHOUT downloading bodies.
 
-    Same output shape as gmail_pull. Thread identity is Gmail's X-GM-THRID (hex-normalized so it
-    matches the API's thread ids). Message identity is the Message-ID header (UID fallback)."""
+    One FETCH per 100 UIDs asking only for X-GM-THRID -- this is what lets a big backfill window
+    be mapped in seconds so the expensive body fetches go to unarchived threads first."""
+    out = {}
+    for i in range(0, len(uids), 100):
+        batch = b",".join(uids[i:i + 100])
+        try:
+            typ, fetched = conn.uid("FETCH", batch, "(X-GM-THRID)")
+        except Exception:
+            continue
+        if typ != "OK" or not fetched:
+            continue
+        for item in fetched:
+            blob = item[0] if isinstance(item, tuple) else item
+            if not isinstance(blob, bytes):
+                continue
+            mt = re.search(rb"X-GM-THRID\s+(\d+)", blob)
+            mu = re.search(rb"UID\s+(\d+)", blob)
+            if mt:
+                uid = (mu.group(1) if mu else blob.split(b" ", 1)[0])
+                out[uid] = _hex_thrid(mt.group(1).decode("ascii"))
+    return out
+
+
+def imap_pull(mb, query, imap_factory=None, max_threads=MAX_THREADS_PER_RUN, known=None):
+    """All matching threads over IMAP (Gmail X-GM-RAW search), normalized.
+    Returns (threads, error, backlog) -- the same contract as gmail_pull.
+
+    Thread identity is Gmail's X-GM-THRID (hex-normalized so it matches the API's thread ids);
+    message identity is the Message-ID header (UID fallback). A cheap batched X-GM-THRID scan maps
+    the whole window first; message bodies are then fetched for UNARCHIVED (`known`) threads
+    first, newest first, within the body budget -- so repeated runs drain a backfill window."""
     factory = imap_factory or _imap_connect
+    known = known or set()
     try:
         conn = factory(mb)
     except Exception as exc:
         friendly = _imap_friendly(exc, mb.get("email"))
         if friendly:
-            return None, friendly
+            return None, friendly, 0
         return None, "could not connect to %s (%s: %s)" % (
             mb.get("host") or "imap.gmail.com", type(exc).__name__,
-            _imap_error_text(exc)[:140] or "no detail")
+            _imap_error_text(exc)[:140] or "no detail"), 0
     try:
         try:
             typ, data = conn.uid("SEARCH", "X-GM-RAW", '"%s"' % query.replace('"', ""))
         except Exception:
             typ, data = "NO", None
         if typ != "OK":
-            return None, "the mailbox refused the search (X-GM-RAW needs a Gmail-backed account)"
-        uids = (data[0].split() if data and data[0] else [])[-MAX_IMAP_MESSAGES:]
-        by_thread = {}
-        for uid in uids:
-            try:
-                typ, fetched = conn.uid("FETCH", uid, "(X-GM-THRID RFC822)")
-            except Exception:
+            return None, "the mailbox refused the search (X-GM-RAW needs a Gmail-backed account)", 0
+        uids = (data[0].split() if data and data[0] else [])[-MAX_IMAP_SCAN:]
+        thrid_by_uid = _imap_thrid_scan(conn, uids)
+        uids_by_thread = {}
+        for uid in uids:  # search order is oldest->newest; keep that within each thread
+            key = thrid_by_uid.get(uid) or ("uid-%s" % uid.decode("ascii", "replace"))
+            uids_by_thread.setdefault(key, []).append(uid)
+        # Newest threads first (by their newest UID); unarchived threads before known ones.
+        ordered = sorted(uids_by_thread, key=lambda k: -max(int(u) for u in uids_by_thread[k]))
+        ordered = ([k for k in ordered if k not in known] + [k for k in ordered if k in known])
+        fresh_total = sum(1 for k in uids_by_thread if k not in known)
+        threads, body_budget, fetched_fresh = [], MAX_IMAP_MESSAGES, 0
+        for key in ordered:
+            if len(threads) >= max_threads or body_budget <= 0:
+                break
+            msgs = []
+            for uid in uids_by_thread[key][-MAX_MESSAGES_PER_THREAD:]:
+                if body_budget <= 0:
+                    break
+                try:
+                    typ, fetched = conn.uid("FETCH", uid, "(X-GM-THRID RFC822)")
+                except Exception:
+                    continue
+                if typ != "OK" or not fetched:
+                    continue
+                body_budget -= 1
+                _thrid, raw = _imap_parts(fetched)
+                if raw is None:
+                    continue
+                msg = _parse_rfc822(raw, fallback_id="uid-%s" % uid.decode("ascii", "replace"))
+                if msg is not None:
+                    msgs.append(msg)
+            if not msgs:
                 continue
-            if typ != "OK" or not fetched:
-                continue
-            thrid, raw = _imap_parts(fetched)
-            if raw is None:
-                continue
-            msg = _parse_rfc822(raw, fallback_id="uid-%s" % uid.decode("ascii", "replace"))
-            if msg is None:
-                continue
-            key = _hex_thrid(thrid) or ("uid-%s" % uid.decode("ascii", "replace"))
-            by_thread.setdefault(key, []).append(msg)
-        threads = []
-        for key, msgs in by_thread.items():
             msgs.sort(key=lambda m: m.get("date") or "")
-            threads.append(_finish_thread(key, msgs[:MAX_MESSAGES_PER_THREAD]))
+            threads.append(_finish_thread(key, msgs))
+            if key not in known:
+                fetched_fresh += 1
         threads.sort(key=lambda t: t.get("last_date") or "", reverse=True)
-        return threads[:max_threads], ""
+        return threads, "", max(0, fresh_total - fetched_fresh)
     finally:
         try:
             conn.logout()
@@ -786,13 +843,15 @@ def build_digest(client_name, entries, model, ai_fetcher=None, token_fetcher=Non
 
 # --- The sync (what the hourly job AND the tab's Sync-now button run) ---------------------------------
 def sync_client(client, ws=None, mailboxes=None, days=None, poster=None, getter=None,
-                token_fetcher=None, imap_factory=None, ai_fetcher=None):
-    """Pull + archive + summarize one client's mail across every connected mailbox.
+                token_fetcher=None, imap_factory=None, ai_fetcher=None, summarize=True):
+    """Pull + archive (+ optionally AI-summarize) one client's mail across every connected mailbox.
 
-    Returns {ok, new_messages, new_threads, summarized, errors:[...]} and never raises. Writes:
-    per-thread objects (workspace.write_mail_thread), the small index in ws['mail']['threads'],
-    per-thread summaries, the rolling digest, and the last_sync/last_error stamps. AI spend is
-    folded into the client's existing Assistant tally (one cost pill for all workspace AI)."""
+    Returns {ok, new_messages, new_threads, summarized, backlog, errors:[...]} and never raises.
+    Always writes the per-thread archive objects + the small index + the last_sync stamp. When
+    `summarize` is True it ALSO writes per-thread summaries, the rolling digest, the client-facing
+    Communications mirror, and folds AI spend into the Assistant tally. `summarize=False` is the
+    fast, free "just pull the mail" path (the Sync-now button) -- archiving only, no AI calls; the
+    hourly job (summarize=True) fills the summaries later."""
     import intel_ai
     import workspace
     result = {"ok": True, "new_messages": 0, "new_threads": 0, "summarized": 0, "errors": []}
@@ -814,9 +873,15 @@ def sync_client(client, ws=None, mailboxes=None, days=None, poster=None, getter=
         return {"ok": False, "new_messages": 0, "new_threads": 0, "summarized": 0,
                 "errors": ["no mailboxes connected"]}
 
-    first = not ((ws.get("mail") or {}).get("last_sync") or "")
-    query = gmail_query(contacts, days=days or (first_sync_days() if first else sync_days()))
+    # The look-back window: the WIDE first-sync window stays in force until a run drains it
+    # completely (backlog 0 across every mailbox -> the `backfilled` flag latches); only then do
+    # runs drop to the short overlap window. So "scrape all of it" is a promise kept across runs,
+    # not just a first attempt.
+    mail_prev = ws.get("mail") or {}
+    backfilled = bool(mail_prev.get("backfilled"))
+    query = gmail_query(contacts, days=days or (sync_days() if backfilled else first_sync_days()))
     changed = []   # (key, thread_dict) for every thread that gained messages this run
+    backlog_total = 0
     # Who counts as "us" for the response stats: every connected mailbox address, plus the whole
     # domain of a Workspace (dwd) mailbox -- so a VA answering from info@ is agency-side.
     agency_addrs = {(m.get("email") or "").lower() for m in active}
@@ -824,15 +889,20 @@ def sync_client(client, ws=None, mailboxes=None, days=None, poster=None, getter=
                       for m in active if m.get("kind") == "dwd" and "@" in (m.get("email") or "")}
 
     for mb in active:
+        prefix = (mb.get("id") or "mb") + "_"
+        already = {str(t.get("id", ""))[len(prefix):]
+                   for t in (mail_prev.get("threads") or [])
+                   if str(t.get("id", "")).startswith(prefix)}
         if mb.get("kind") == "dwd":
             token, err = dwd_access_token(mb.get("email", ""), poster=poster,
                                           token_fetcher=token_fetcher)
             if err:
                 result["errors"].append("%s: %s" % (mb.get("email", "?"), err))
                 continue
-            threads, err = gmail_pull(token, query, getter=getter)
+            threads, err, backlog = gmail_pull(token, query, getter=getter, known=already)
         else:
-            threads, err = imap_pull(mb, query, imap_factory=imap_factory)
+            threads, err, backlog = imap_pull(mb, query, imap_factory=imap_factory, known=already)
+        backlog_total += backlog or 0
         if err:
             result["errors"].append("%s: %s" % (mb.get("email", "?"), err))
         for t in threads or []:
@@ -867,8 +937,8 @@ def sync_client(client, ws=None, mailboxes=None, days=None, poster=None, getter=
     # One model call per thread yields BOTH voices: the internal summary (Mail tab + digest) and
     # the client-facing recap, which is mirrored onto the client-visible Communications tab's
     # Email Summary feed under a stable 'mail_<key>' id (re-summarizing UPDATES the entry).
-    model = _mail_model(ws)
-    if changed and model:
+    model = _mail_model(ws) if summarize else ""
+    if changed and summarize and model:
         name = ws.get("display_name") or client
         for key, thread in changed:
             usage = {}
@@ -901,11 +971,20 @@ def sync_client(client, ws=None, mailboxes=None, days=None, poster=None, getter=
             workspace.set_mail_digest(client, digest)
         elif err and "no summarized threads" not in err:
             result["errors"].append("digest: %s" % err)
-    elif changed and not model:
+    elif changed and summarize and not model:
         result["errors"].append("no AI provider configured -- threads archived without summaries")
 
-    workspace.mark_mail_sync(client, error="; ".join(dict.fromkeys(result["errors"]))[:400])
+    workspace.mark_mail_sync(client, error="; ".join(dict.fromkeys(result["errors"]))[:400],
+                             backlog=backlog_total)
+    # Latch the backfill flag only when the wide window came back fully drained AND clean --
+    # after that, runs use the short overlap window.
+    if not backfilled and backlog_total == 0 and not result["errors"]:
+        try:
+            workspace.set_mail_backfilled(client)
+        except Exception:
+            pass
     result["ok"] = not result["errors"]
+    result["backlog"] = backlog_total
     return result
 
 

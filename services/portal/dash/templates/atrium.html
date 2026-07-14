@@ -3267,7 +3267,7 @@
             <div class="ax-ml-actions">
               <button class="ax-btn" type="button" id="ax-ml-savecontacts">Save contacts</button>
               <button class="ax-btn violet" type="button" id="ax-ml-sync">Sync now</button>
-              <span class="ax-ml-status" id="ax-ml-status">{% if mail.last_sync %}Last sync {{ mail.last_sync|atrium_dt }}{% if mail.last_error %} &middot; {{ mail.last_error }}{% endif %}{% else %}Never synced yet &mdash; the hourly job also syncs automatically once it's deployed.{% endif %}</span>
+              <span class="ax-ml-status" id="ax-ml-status">{% if mail.last_sync %}Last sync {{ mail.last_sync|atrium_dt }}{% if mail.backlog %} &middot; {{ mail.backlog }} older conversation{{ '' if mail.backlog == 1 else 's' }} still queued &mdash; sync again (or let the hourly job drain them){% endif %}{% if mail.last_error %} &middot; {{ mail.last_error }}{% endif %}{% else %}Never synced yet &mdash; the hourly job also syncs automatically once it's deployed.{% endif %}</span>
             </div>
           </div>
 
@@ -4260,9 +4260,12 @@
     var syncBtn = document.getElementById("ax-ml-sync");
     if (syncBtn) {
       syncBtn.addEventListener("click", function () {
+        var box = document.getElementById("ax-ml-contacts");
         syncBtn.setAttribute("disabled", "disabled");
-        mlStatus("Syncing — pulling mail from every connected mailbox, then summarizing…");
-        post("/admin/mail", { op: "sync" })
+        mlStatus("Syncing — pulling every matching email from the connected mailboxes…");
+        // Send the contacts box along so Sync works even if Save wasn't clicked first; archive-only
+        // (no AI) so it's fast and free — summaries fill in later via the hourly job.
+        post("/admin/mail", { op: "sync", contacts: box ? box.value : "" })
           .then(function (data) {
             if (!data) { throw new Error("no data"); }
             if (data.ok === false && !(data.new_messages > 0)) {

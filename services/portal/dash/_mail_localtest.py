@@ -142,6 +142,7 @@ _RFC822 = (b"Message-ID: <msg-77@mail.gmail.com>\r\n"
 
 
 class _FakeImap:
+    """One UID (11), thread id 415904. Handles the cheap batched THRID scan AND the body fetch."""
     def __init__(self):
         self.logged_out = False
 
@@ -150,6 +151,9 @@ class _FakeImap:
             assert args[0] == "X-GM-RAW" and "from:" in args[1]
             return "OK", [b"11"]
         if cmd == "FETCH":
+            spec = args[-1]
+            if "RFC822" not in spec:                      # the cheap thread-id-only scan pass
+                return "OK", [b"11 (UID 11 X-GM-THRID 415904)"]
             return "OK", [(b"11 (X-GM-THRID 415904 RFC822 {%d}" % len(_RFC822), _RFC822), b")"]
         return "NO", None
 
@@ -224,10 +228,16 @@ def run():
     tok, err = mailroom.dwd_access_token("info@agoradatadriven.com", poster=_dwd_poster,
                                          token_fetcher=lambda: "gcp-token")
     _check("dwd token mints via signJwt + exchange", tok == "delegated-token" and err == "")
-    threads, err = mailroom.gmail_pull(tok, q, getter=_gmail_getter)
+    threads, err, backlog = mailroom.gmail_pull(tok, q, getter=_gmail_getter)
     _check("gmail_pull normalizes the thread AND drops the all-machine thread",
-           err == "" and len(threads) == 1
+           err == "" and len(threads) == 1 and backlog == 0
            and threads[0]["subject"] == "June budget" and len(threads[0]["messages"]) == 2)
+    # Backfill: with the real thread already 'known', a second pull refetches nothing new but the
+    # listing still sees it (backlog stays 0 because it's known, not unfetched).
+    threads2, err2, backlog2 = mailroom.gmail_pull(tok, q, getter=_gmail_getter,
+                                                   known={"18c9aa01"})
+    _check("gmail_pull skips known threads first (backfill drains, doesn't refetch)",
+           err2 == "" and backlog2 == 0)
     _check("api reply lost its quoted tail", "old" not in threads[0]["messages"][1]["body"]
            and "confirming $4k" in threads[0]["messages"][1]["body"])
     _check("participants collected", "maya@riverdanceresort.com" in threads[0]["participants"])
@@ -253,23 +263,25 @@ def run():
            "domain-wide-delegation" in err and "propagate" in err)
 
     # --- mailroom: IMAP pull (fake connection) ------------------------------------------------------
-    threads, err = mailroom.imap_pull({"email": "projects@gmail.com", "kind": "imap"},
-                                      q, imap_factory=lambda mb: _FakeImap())
+    threads, err, backlog = mailroom.imap_pull({"email": "projects@gmail.com", "kind": "imap"},
+                                               q, imap_factory=lambda mb: _FakeImap())
     _check("imap_pull normalizes to the same shape", err == "" and len(threads) == 1
-           and threads[0]["id"] == "658a0" and threads[0]["subject"] == "Landing page copy"
+           and backlog == 0 and threads[0]["id"] == "658a0"
+           and threads[0]["subject"] == "Landing page copy"
            and threads[0]["messages"][0]["id"] == "<msg-77@mail.gmail.com>"
            and threads[0]["messages"][0]["date"].startswith("2026-07-08"))
 
     def _badlogin(mb):
         raise RuntimeError("[AUTHENTICATIONFAILED] Invalid credentials (Failure)")
-    _thr, err = mailroom.imap_pull({"email": "x@gmail.com", "kind": "imap"}, q, imap_factory=_badlogin)
+    _thr, err, _bk = mailroom.imap_pull({"email": "x@gmail.com", "kind": "imap"}, q,
+                                        imap_factory=_badlogin)
     _check("a rejected app password reads as a friendly error", "app password" in err)
 
     def _normalpw(mb):
         raise RuntimeError(b"[ALERT] Application-specific password required: "
                            b"https://support.google.com/accounts/answer/185833 (Failure)")
-    _thr, err = mailroom.imap_pull({"email": "gab@meloyelo.nz", "kind": "imap"},
-                                   q, imap_factory=_normalpw)
+    _thr, err, _bk = mailroom.imap_pull({"email": "gab@meloyelo.nz", "kind": "imap"},
+                                        q, imap_factory=_normalpw)
     _check("a NORMAL password (not an app password) gets step-by-step guidance",
            "APP password" in err and "apppasswords" in err and "b'" not in err)
 
@@ -369,6 +381,23 @@ def run():
     none = mailroom.sync_client("no-such-client")
     _check("a missing workspace degrades", none["ok"] is False)
 
+    # Archive-only sync (the Sync-now button path): pulls + archives with ZERO AI, so a fresh
+    # client's mail lands fast and free. Prove no summaries/digest are written.
+    import store as _store
+    _store.add_client("archivetest", name="Archive Test")
+    import seed_workspace as _sw
+    # Reuse the seeded riverdance workspace shape via a fresh blank workspace.
+    workspace.save_workspace("archivetest", {"display_name": "Archive Test", "mail": {}})
+    workspace.set_mail_contacts("archivetest", "maya@riverdanceresort.com")
+    ar = mailroom.sync_client("archivetest", mailboxes=[{"id": "mbD", "email": "info@agoradatadriven.com", "kind": "dwd"}],
+                              poster=_dwd_poster, getter=_gmail_getter,
+                              token_fetcher=lambda: "gcp-token", summarize=False)
+    aws = workspace.load_workspace("archivetest")
+    _check("archive-only sync pulls mail but writes NO summaries/digest",
+           ar["ok"] and ar["new_threads"] >= 1 and ar["summarized"] == 0
+           and not (aws.get("mail") or {}).get("digest", {}).get("body")
+           and all(not t.get("summary") for t in workspace.mail_threads(aws)))
+
     # --- mail_refresh: the job wrapper -----------------------------------------------------------------
     os.environ["MAIL_SYNC_ENABLED"] = "1"
     import store
@@ -413,10 +442,19 @@ def run():
 
     import mailroom as _mr
     real_sync = _mr.sync_client
-    _mr.sync_client = lambda client, ws=None, **k: {"ok": True, "new_messages": 5, "new_threads": 1,
-                                                    "summarized": 1, "errors": []}
-    r = c.post("/w/%s/admin/mail" % CLIENT, data={"op": "sync"})
-    _check("op=sync reports the counts", r.get_json()["ok"] is True and r.get_json()["new_messages"] == 5)
+    _seen = {}
+    def _fake_sync(client, ws=None, summarize=True, **k):
+        _seen["summarize"] = summarize
+        return {"ok": True, "new_messages": 5, "new_threads": 1, "summarized": 0, "errors": [],
+                "backlog": 2}
+    _mr.sync_client = _fake_sync
+    r = c.post("/w/%s/admin/mail" % CLIENT,
+               data={"op": "sync", "contacts": "newcontact@meloyelo.nz"})
+    _check("op=sync reports counts + is archive-only (summarize False) by default",
+           r.get_json()["ok"] is True and r.get_json()["new_messages"] == 5
+           and r.get_json()["backlog"] == 2 and _seen["summarize"] is False)
+    _check("op=sync saved the contacts sent with it (no separate Save needed)",
+           "newcontact@meloyelo.nz" in workspace.mail_contacts(workspace.load_workspace(CLIENT)))
     _mr.sync_client = real_sync
 
     key = workspace.mail_threads(workspace.load_workspace(CLIENT))[0]["id"]

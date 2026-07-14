@@ -456,6 +456,8 @@ def mail_state(ws):
     m.setdefault("digest", {})
     m.setdefault("last_sync", "")
     m.setdefault("last_error", "")
+    m.setdefault("backlog", 0)
+    m.setdefault("backfilled", False)
     return m
 
 
@@ -571,17 +573,34 @@ def set_mail_digest(client, body):
     return _mutate(client, fn)
 
 
-def mark_mail_sync(client, error=""):
-    """Stamp the last sync attempt (and its error, "" on success). Best-effort, never raises."""
+def mark_mail_sync(client, error="", backlog=None):
+    """Stamp the last sync attempt: its error ("" on success) and, when given, the remaining
+    backfill `backlog` (older conversations found but not yet fetched -- the Mail tab shows it).
+    Best-effort, never raises."""
     def fn(ws):
         m = ws.setdefault("mail", {})
         m["last_sync"] = now_iso()
         m["last_error"] = error or ""
+        if backlog is not None:
+            try:
+                m["backlog"] = max(0, int(backlog))
+            except (TypeError, ValueError):
+                pass
         return m
     try:
         return _mutate(client, fn)
     except Exception:
         return None
+
+
+def set_mail_backfilled(client):
+    """Latch the one-way backfill-complete flag: the wide first-sync window came back fully
+    drained, so future syncs use the short overlap window. Returns the mail block."""
+    def fn(ws):
+        m = ws.setdefault("mail", {})
+        m["backfilled"] = True
+        return m
+    return _mutate(client, fn)
 
 
 # --- Uploaded creatives (binary objects in the SAME private bucket) -----------------------------
