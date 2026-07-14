@@ -1192,9 +1192,19 @@ def _progress_tasks(ws):
     for t in (ws or {}).get("tasks") or []:
         if not t.get("client_facing"):
             continue
+        t = workspace.normalize_task(dict(t))
         stage = t.get("stage") or "in_process"
-        subs = [{"text": s.get("text", ""), "done": bool(s.get("done"))}
-                for s in t.get("subtasks") or []]
+        # The two-level breakdown, stripped to client-safe "phases": a name + its steps.
+        # Owners (main-task AND sub-task assignees) never reach this shape.
+        phases = []
+        for m in t.get("maintasks") or []:
+            steps = [{"text": s.get("text", ""), "done": bool(s.get("done"))}
+                     for s in m.get("subs") or []]
+            pdone = len([s for s in steps if s["done"]])
+            phases.append({"name": m.get("text", ""), "steps": steps,
+                           "done": pdone, "total": len(steps),
+                           "all_done": bool(steps) and pdone == len(steps)})
+        subs = [s for ph in phases for s in ph["steps"]]
         done = len([s for s in subs if s["done"]])
         comments = [{"id": c.get("id", ""), "sender": c.get("sender", ""),
                      "sender_name": c.get("sender_name", ""), "body": c.get("body", ""),
@@ -1202,21 +1212,33 @@ def _progress_tasks(ws):
                      "created_at": c.get("created_at", "")}
                     for c in t.get("comments") or []]
         due = t.get("due_date") or ""
+        _disc_pair = _discipline(t.get("labels"))
         view = {
             "id": t.get("id", ""), "title": t.get("title", ""),
             "stage": stage,
             "campaign": t.get("campaign", ""), "content_type": t.get("content_type", ""),
+            # The discipline (auto label) is the client-safe categorization + shared color language.
+            # Campaign-as-title merged the old campaign into `title`, so this chip carries the
+            # discipline instead. It's the ONLY department-derived value the client sees (a generic
+            # discipline word, never the internal slug/owners/charge). Text + tint from ONE label.
+            "discipline": _disc_pair[0], "disc_class": _disc_pair[1],
+            # On hold -> the client sees a plain "Paused" (never the internal reason).
+            "on_hold": bool(t.get("on_hold")),
+            "start_date": t.get("start_date", ""),
             "due_date": due,
             "due_soon": bool(due and today <= due <= soon and stage != "closed"),
             "client_note": t.get("client_note", ""),
             "deliverable_url": t.get("deliverable_url", ""),
-            "subtasks": subs, "subs_done": done, "subs_total": len(subs),
+            "phases": phases, "subs_done": done, "subs_total": len(subs),
             "pct": (int(round(100.0 * done / len(subs))) if subs else 0),
             "open_changes": len(workspace.task_open_changes(t)),
             "comments": comments, "comment_count": len(comments),
             "in_review": stage == "for_launch",
         }
         (by_key.get(stage) or cols[0])["tasks"].append(view)
+    for col in cols:
+        # Soonest launch first (undated work sinks to the bottom of its column).
+        col["tasks"].sort(key=lambda v: v.get("due_date") or "9999-99-99")
     return cols
 
 
@@ -2933,7 +2955,26 @@ def atrium_admin_reply_inline(client):
 TASK_DEPARTMENTS = (("acquisition", "Acquisition"), ("lifecycle", "Lifecycle"),
                     ("data", "Data Analyst"), ("development", "Development"),
                     ("bidbrain", "Bidbrain"))
-TASK_LABELS = ("Paid Media", "Organic", "Creative", "Strategy", "Reporting", "Website")
+# The label is AUTO-derived from the department (the team = the discipline) -- there is no manual
+# label picker on the form. Acquisition -> Paid Media, Lifecycle -> Organic, the rest -> Website.
+TASK_DEPT_LABEL = {"acquisition": "Paid Media", "lifecycle": "Organic",
+                   "data": "Website", "development": "Website", "bidbrain": "Website"}
+# Within-column ordering: urgent work floats to the top, ties broken by the sooner launch date.
+TASK_PRIORITY_RANK = {"Urgent": 0, "High": 1, "Medium": 2, "Low": 3}
+# Discipline tint class (shared color language across the admin board AND the client Progress tab).
+# Only the COLOR crosses to the client -- the department name itself stays internal.
+TASK_DISC_CLASS = {"Paid Media": "lb-paid", "Organic": "lb-organic", "Website": "lb-web"}
+
+
+def _discipline(labels):
+    """(label, tint_class) for the FIRST recognized discipline, or ('', '') if none.
+
+    Text and color come from the SAME label, so a legacy multi-label task can't show one
+    discipline's word in another's color."""
+    for lbl in labels or []:
+        if lbl in TASK_DISC_CLASS:
+            return lbl, TASK_DISC_CLASS[lbl]
+    return "", ""
 TASK_STAGE_META = (("in_process", "In Process"), ("for_launch", "For Launch"),
                    ("launched", "Launched"), ("closed", "Closed"))
 TASK_STAGE_LABELS = dict(TASK_STAGE_META)
@@ -2964,6 +3005,19 @@ def _person_name(names, pid):
     return names.get(pid) or pid.split("@")[0].split(".")[0].title()
 
 
+# Avatar colors (the prototype look): each person gets a STABLE color derived from their id, so
+# the same face is the same color on every card, chip, and owner select across the whole board.
+_PERSON_COLORS = ("#4fa84a", "#0d9488", "#2f6ecc", "#5a54dd", "#c2410c",
+                  "#0f766e", "#6a6aea", "#3f8b3b", "#b45309", "#14857a")
+
+
+def _person_color(pid):
+    """A deterministic avatar color for a person id (email); grey for unassigned."""
+    if not pid:
+        return "#8b8f8c"
+    return _PERSON_COLORS[sum(ord(ch) for ch in pid) % len(_PERSON_COLORS)]
+
+
 def _task_next_stage(stage):
     """The (key, label) after `stage` on the board, or (None, None) at the end."""
     keys = [k for k, _l in TASK_STAGE_META]
@@ -2989,8 +3043,21 @@ def _task_board(clients_tasks, roster):
     cols = [{"key": k, "name": lbl, "tasks": []} for k, lbl in TASK_STAGE_META]
     by_key = {c["key"]: c for c in cols}
     for ckey, cname, t in clients_tasks:
-        subs = [dict(s, owner_name=_person_name(names, s.get("assignee_id") or ""))
-                for s in (t.get("subtasks") or [])]
+        t = workspace.normalize_task(dict(t))
+        # Two-level breakdown: shape each main task (owner name + its own done count) and keep a
+        # flattened view for the totals/progress bar.
+        mains = []
+        for m in t.get("maintasks") or []:
+            msubs = [dict(s, owner_name=_person_name(names, s.get("assignee_id") or ""),
+                          owner_color=_person_color(s.get("assignee_id") or ""))
+                     for s in (m.get("subs") or [])]
+            mdone = len([s for s in msubs if s.get("done")])
+            mains.append(dict(m, subs=msubs,
+                              owner_name=_person_name(names, m.get("assignee_id") or ""),
+                              owner_color=_person_color(m.get("assignee_id") or ""),
+                              subs_done=mdone, subs_total=len(msubs),
+                              all_done=bool(msubs) and mdone == len(msubs)))
+        subs = [s for m in mains for s in m["subs"]]
         done = len([s for s in subs if s.get("done")])
         due = t.get("due_date") or ""
         due_cls = ""
@@ -3002,14 +3069,19 @@ def _task_board(clients_tasks, roster):
         view = dict(t)
         view.update({
             "client_key": ckey, "client_name": cname,
-            "subtasks": subs,
+            "maintasks": mains,
             "department_label": dept_label.get(t.get("department", ""), t.get("department", "") or "—"),
             "lead_name": _person_name(names, lead),
-            "support_people": [{"id": s, "name": _person_name(names, s)} for s in support],
+            "lead_color": _person_color(lead),
+            "support_people": [{"id": s, "name": _person_name(names, s),
+                                "color": _person_color(s)} for s in support],
             "subs_done": done, "subs_total": len(subs),
             "subs_unassigned": len([s for s in subs if not s.get("done") and not s.get("assignee_id")]),
             "open_changes": len(workspace.task_open_changes(t)),
             "due_cls": due_cls,
+            "service_charge_label": _money_label(t.get("service_charge")),
+            "disc_class": _discipline(t.get("labels"))[1] or "lb-other",
+            "on_hold": bool(t.get("on_hold")), "hold_reason": t.get("hold_reason") or "",
             # For the person filter: one space-joined haystack of everyone on the task.
             "people": " ".join([lead] + support).strip(),
             "comment_count": len(t.get("comments") or []),
@@ -3019,37 +3091,81 @@ def _task_board(clients_tasks, roster):
         col = by_key.get(t.get("stage") or "in_process") or cols[0]
         col["tasks"].append(view)
     for col in cols:
-        col["tasks"].sort(key=lambda v: (v.get("due_date") or "9999-99-99", v.get("created_at") or ""))
+        # Urgent on top; within a priority, ACTIVE work before on-hold; then sooner launch, then age.
+        col["tasks"].sort(key=lambda v: (TASK_PRIORITY_RANK.get(v.get("priority"), 9),
+                                         1 if v.get("on_hold") else 0,
+                                         v.get("due_date") or "9999-99-99",
+                                         v.get("created_at") or ""))
     return cols
+
+
+def _money_label(val):
+    """A display money string ("$4,200") from a stored service charge; "" for empty/zero/junk."""
+    s = str(val if val is not None else "").strip().replace("$", "").replace(",", "")
+    if not s:
+        return ""
+    try:
+        n = float(s)
+    except ValueError:
+        return ""
+    if not n:
+        return ""
+    if n == int(n):
+        return "${:,}".format(int(n))
+    return "${:,.2f}".format(n)
 
 
 def _task_reply(msg, err=False, **extra):
     """Answer a task-route POST: console forms redirect back to the Tasks pane with a flash;
-    anything else (fetch/API) gets JSON. Keeps the console on plain <form> posts (no JS state)."""
+    anything else (fetch/API) gets JSON. Keeps the console on plain <form> posts (no JS state).
+
+    Overlay forms also carry `back_task` ("<client>:<task_id>") + `back_tab` — the redirect
+    forwards them as ?task=&tab= so the console script REOPENS the same detail overlay on the
+    same tab after the reload (instead of dumping the user back on the bare board)."""
     if request.form.get("redirect") == "console":
-        return _atrium_redirect_list(msg, section="tasks", err=err)
+        back = request.form.get("back_task", "").strip()
+        tab = request.form.get("back_tab", "").strip()
+        return redirect(url_for("admin_atrium", msg=msg, section="tasks",
+                                err=(1 if err else None),
+                                task=(back or None), tab=(tab or None)))
     if err:
         return jsonify(ok=False, error=msg)
     return jsonify(ok=True, **extra)
 
 
 def _task_fields_from_form():
-    """The editable task fields from the posted form (shared by op=add and op=edit)."""
-    return {
+    """The editable task fields from the posted form (shared by op=add and op=edit).
+
+    The form's one name field is LABELED "Campaign" (tasks are mostly campaigns) but stores as
+    `title` -- the canonical display name everywhere. Labels are AUTO-derived from the department
+    (TASK_DEPT_LABEL), so there is no label input to read. The support picker only renders on the
+    Edit form; op=add posts none and the new task starts with no support people."""
+    dept = request.form.get("department", "").strip()
+    lbl = TASK_DEPT_LABEL.get(dept)
+    fields = {
         "title": request.form.get("title", "").strip(),
-        "department": request.form.get("department", "").strip(),
+        "department": dept,
         "lead_id": request.form.get("lead_id", "").strip(),
-        "support_ids": [s for s in request.form.getlist("support_ids") if s],
         "priority": request.form.get("priority", "Medium"),
-        "labels": [l for l in request.form.getlist("labels") if l],
-        "campaign": request.form.get("campaign", "").strip(),
-        "content_type": request.form.get("content_type", "").strip(),
-        "due_date": request.form.get("due_date", "").strip(),
+        "labels": [lbl] if lbl else [],
         "client_facing": _bool_field("client_facing"),
         "client_note": request.form.get("client_note", "").strip(),
         "deliverable_url": request.form.get("deliverable_url", "").strip(),
         "internal_notes": request.form.get("internal_notes", "").strip(),
     }
+    # Dates + charge are patched ONLY when the form actually carried them, so a partial/programmatic
+    # POST can't silently wipe a launch date or charge (the real add/edit forms always include them).
+    if "start_date" in request.form:
+        fields["start_date"] = request.form.get("start_date", "").strip()
+    if "due_date" in request.form:
+        fields["due_date"] = request.form.get("due_date", "").strip()
+    if "service_charge" in request.form:
+        fields["service_charge"] = request.form.get("service_charge", "").strip().replace("$", "").replace(",", "")
+    # Support people are assigned AFTER the service exists (Edit form / detail overlay) -- only
+    # patch them when the form actually carried the field, so op=add never clears anything.
+    if "has_support" in request.form:
+        fields["support_ids"] = [s for s in request.form.getlist("support_ids") if s]
+    return fields
 
 
 @app.route("/w/<client>/admin/task", methods=["POST"])
@@ -3068,17 +3184,35 @@ def atrium_admin_task(client):
         except KeyError:
             return _task_reply("That task no longer exists.", err=True)
         _audit(client, "edited task", task.get("title", ""))
-        return _task_reply("Task updated.", task_id=task["id"])
+        return _task_reply("Service updated.", task_id=task["id"])
     if not fields["title"]:
-        return _task_reply("A task needs a title.", err=True)
-    stage = request.form.get("stage", "in_process").strip()
-    fields["stage"] = stage if stage in workspace.TASK_STAGES else "in_process"
+        return _task_reply("A service needs a campaign name.", err=True)
+    # New services always start In Process; they're moved along the board from there.
+    fields["stage"] = "in_process"
     try:
         task = workspace.add_task(client, fields, actor=actor)
     except KeyError:
         return _task_reply("No workspace exists for that client yet.", err=True)
     _audit(client, "added task", task["title"])
-    return _task_reply("Task added.", task_id=task["id"])
+    return _task_reply("Service added.", task_id=task["id"])
+
+
+@app.route("/w/<client>/admin/task/hold", methods=["POST"])
+def atrium_admin_task_hold(client):
+    """Put a service on hold or resume it (TEAM only). `on_hold` is a plain boolean; the reason is
+    internal. A client-facing held task shows the client a plain 'Paused' (reason never crosses)."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    task_id = request.form.get("task_id", "").strip()
+    held = _bool_field("on_hold")
+    reason = request.form.get("hold_reason", "").strip()
+    try:
+        task = workspace.set_task_hold(client, task_id, held, reason, actor=current_user() or "")
+    except KeyError:
+        return _task_reply("That task no longer exists.", err=True)
+    _audit(client, "put task on hold" if held else "resumed task", task.get("title", ""))
+    return _task_reply("Put on hold." if held else "Resumed.", on_hold=task["on_hold"])
 
 
 @app.route("/w/<client>/admin/task/move", methods=["POST"])
@@ -3131,7 +3265,8 @@ def atrium_admin_task_subtask(client):
             if not text:
                 return _task_reply("A sub-task needs a description.", err=True)
             workspace.add_subtask(client, task_id, text,
-                                  request.form.get("assignee_id", "").strip())
+                                  request.form.get("assignee_id", "").strip(),
+                                  maintask_id=request.form.get("maintask_id", "").strip())
             msg = "Sub-task added."
         elif op == "toggle":
             workspace.set_subtask_done(client, task_id, subtask_id, _bool_field("done"))
@@ -3147,6 +3282,46 @@ def atrium_admin_task_subtask(client):
             return _task_reply("Unknown sub-task action.", err=True)
     except KeyError:
         return _task_reply("That task or sub-task no longer exists.", err=True)
+    return _task_reply(msg)
+
+
+@app.route("/w/<client>/admin/task/maintask", methods=["POST"])
+def atrium_admin_task_maintask(client):
+    """Main-task ops on a service (op=add|assign|delete; TEAM only).
+
+    A main task is a named group of sub-tasks with its own owner -- the two-level work
+    breakdown's parent row. Deleting one removes its sub-tasks with it."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    op = request.form.get("op", "").strip()
+    task_id = request.form.get("task_id", "").strip()
+    maintask_id = request.form.get("maintask_id", "").strip()
+    try:
+        if op == "add":
+            text = request.form.get("text", "").strip()
+            if not text:
+                return _task_reply("A main task needs a name.", err=True)
+            workspace.add_maintask(client, task_id, text,
+                                   request.form.get("assignee_id", "").strip())
+            msg = "Main task added."
+        elif op == "assign":
+            workspace.set_maintask_owner(client, task_id, maintask_id,
+                                         request.form.get("assignee_id", "").strip())
+            msg = "Main-task owner updated."
+        elif op == "rename":
+            text = request.form.get("text", "").strip()
+            if not text:
+                return _task_reply("A main task needs a name.", err=True)
+            workspace.rename_maintask(client, task_id, maintask_id, text)
+            msg = "Main task renamed."
+        elif op == "delete":
+            workspace.delete_maintask(client, task_id, maintask_id)
+            msg = "Main task removed."
+        else:
+            return _task_reply("Unknown main-task action.", err=True)
+    except KeyError:
+        return _task_reply("That task or main task no longer exists.", err=True)
     return _task_reply(msg)
 
 
@@ -3360,7 +3535,7 @@ def admin_atrium():
         sentinel_url=SENTINEL_URL,
         # Delivery -> Task Board: stage columns of every client's tasks + the pickers' vocabularies.
         task_cols=task_cols, task_roster=task_roster,
-        task_departments=TASK_DEPARTMENTS, task_labels=TASK_LABELS,
+        task_departments=TASK_DEPARTMENTS,
         # Nav badge = every task on the board (matches the prototype's total count).
         task_open_total=sum(len(col["tasks"]) for col in task_cols),
         task_trash_count=len([t for t in trash if t.get("kind") == "task"]),

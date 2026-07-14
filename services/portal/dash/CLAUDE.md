@@ -32,9 +32,12 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   (Agora logo + greeting + the suite as cards: Atrium Admin · Skill Mastery · Website Editor ·
   Sentinel); **Atrium Admin** enters the console, **← All apps** returns. The switch is client-side
   view state only (`data-view` divs; a `?section=`/flash redirect opens the console directly, so every
-  deep-link and POST redirect still lands on its pane). Inside: grouped rail **Workspaces** (Clients ·
-  Activity · **Bin**, restorable soft-deletes) / **People & access** (**Accounts** — one pane with
-  inner subtabs Requests · People · Add new), and the operator account block at the bottom (opens
+  deep-link and POST redirect still lands on its pane). Inside: the rail is ordered by frequency of
+  use (2026-07-14 IA pass) — **Workspaces** (Clients) / **Delivery** (Task Board · Calendar) /
+  **People & access** (**Accounts** — one pane with inner subtabs Requests · People · Add new) /
+  **System** (Activity · Mailboxes · **Bin**, restorable soft-deletes; utility items render muted
+  via `.nav-item.util`, and the Bin count uses the neutral `.count.quiet` — purple badges are
+  reserved for ACTIONABLE counts) — and the operator account block at the bottom (opens
   Profile; themed sign-out confirm). Client cards carry an attention chip — purple **"N awaiting
   approval"** (count computed in `admin_atrium()` from each already-loaded workspace, cards needing
   attention sorted first; total shown on the hub's Atrium Admin card) or green **"All caught up"**.
@@ -154,18 +157,49 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   added/edited ones are preserved). Deploy: `deploy_intel_refresh.ps1`. Test: `_intel_feed_localtest.py`.
 - **Task tracker (Delivery board + client Progress tab):** `ws["tasks"]` per client, helpers in
   `workspace.py` (stages `in_process|for_launch|launched|closed` — keys canonical; lead +
-  `support_ids` never overlap; sub-tasks carry their own `assignee_id`; `move_task_stage` blocks
-  `closed` while sub-tasks/change-requests are open). Team board = the console's Delivery → Task
-  Board pane in `admin_atrium.html` (tasks collected in `admin_atrium()` from the workspaces it
-  already loads; overlays server-rendered into `#tk-store`, forms post `redirect=console`). Team
-  routes `POST /w/<c>/admin/task{,/move,/delete,/subtask,/comment}` (`is_superadmin()`; delete →
-  Bin `kind:"task"` → `workspace.insert_task` on restore). Client side: the `progress` tab renders
-  `main._progress_tasks(ws)` (client_facing + client-safe fields ONLY — owners/priority/internal
-  notes never reach the client HTML; client stage labels In progress / In review / Live /
-  Completed); the one client write is `POST /w/<c>/task-comment` (comment / request-changes;
-  resolve is team-only). Notifications: `notify.client_task_commented/client_task_changes/
-  team_task_commented/team_task_resolved`. Spec: `/TASK_TRACKER_INTEGRATION.md`; tests live in
-  `_workspace_localtest.py` (helpers) + `_atrium_smoketest.py` (routes, gating, no-leak render).
+  `support_ids` never overlap; `move_task_stage` blocks `closed` while sub-tasks/change-requests
+  are open). Work is TWO-LEVEL: `maintasks[]` (named groups, each with an `assignee_id` + its own
+  `subs[]` of owner-carrying sub-tasks); legacy flat `subtasks[]` migrates in place via
+  `normalize_task` (called by `_find_task`) and `task_subtasks()` flattens for counts/guards.
+  Tasks also carry `start_date` + `due_date` (LAUNCH date — UI says "Launch date"), an
+  internal-only `service_charge`, a boolean **`on_hold`** + internal `hold_reason`
+  (`workspace.set_task_hold`, ongoing = not held; `POST /w/<c>/admin/task/hold`; a held
+  client-facing task shows the client a plain "Paused", reason never crosses), and ONE label
+  auto-derived from the department (`main.TASK_DEPT_LABEL` — no label picker; the form's name field
+  is LABELED "Campaign" but stores as `title`). Support people are Edit-only (`has_support` guard,
+  so op=add never clears). Team board = the console's Delivery → Task Board pane in
+  `admin_atrium.html` (tasks collected in `admin_atrium()` from the workspaces it already loads;
+  columns sort Urgent-first, active-before-held, then launch date; filter+sort persist in
+  localStorage `agora.tkprefs`; overlays server-rendered into `#tk-store`, forms post
+  `redirect=console` + `back_task`/`back_tab` so the overlay REOPENS on the same tab after the
+  reload). The detail overlay is TABBED: persistent glance chips (priority/hold/start/launch/charge/progress) above
+  Details | Tasks | Comments panels (`data-tktab`); the New/Edit form's optional fields live in a
+  collapsible `<details class="tk-extra">`. Team routes
+  `POST /w/<c>/admin/task{,/move,/delete,/maintask,/subtask,/comment}` (`is_superadmin()`;
+  `/maintask` op=add|assign|rename|delete — rename = the overlay's edit-in-place title input
+  (`.tk-main-rename`); `/subtask` op=add takes `maintask_id`; delete →
+  Bin `kind:"task"` → `workspace.insert_task` on restore). Overlay forms carry
+  `back_task`/`back_tab` and `_task_reply` forwards them as `?task=<c>:<id>&tab=` so the console
+  script REOPENS the same detail overlay on the same tab after the redirect (params scrubbed via
+  replaceState; the Delete form deliberately carries none). The filter bar has a client-side
+  **sort selector** (`#tk-f-sort` Priority / Launch date / Client, reordering cards via
+  `data-priority/data-due/data-cname`; the default matches the server order). Client side: the `progress` tab renders
+  `main._progress_tasks(ws)` (client_facing + client-safe fields ONLY — owners/priority/charge/
+  internal notes never reach the client HTML; the breakdown arrives as owner-less **phases**;
+  the modal shows a Started → Going live timeline; cards say "Launching <date>" / "Live"; columns
+  sort by soonest launch; client stage labels In progress / In review / Live / Completed); the one
+  client write is `POST /w/<c>/task-comment` (comment / request-changes; resolve is team-only).
+  Notifications: `notify.client_task_commented/client_task_changes/
+  team_task_commented/team_task_resolved`. **Delivery Calendar** = a 2nd Delivery nav pane
+  (`data-section/pane="calendar"`) in `admin_atrium.html`: a month grid built CLIENT-SIDE from a
+  hidden `#cal-store` of `.cal-ev` nodes (one per service WITH a `due_date`, server-rendered from
+  `task_cols`), plotting each service on its **launch date**, discipline-tinted, ⏸ for on-hold;
+  prev/next/today + a client filter; clicking an event reuses the Task Board's `tkOpen` to open the
+  SAME detail overlay (undated services simply don't appear). New services always start In Process
+  (no stage picker on the New form; add route hardcodes `in_process`). `_task_fields_from_form`
+  patches dates/charge/support ONLY when the form carried them (a partial POST can't wipe them).
+  Spec: `/TASK_TRACKER_INTEGRATION.md`; tests live in
+  `_workspace_localtest.py` (helpers) + `_atrium_smoketest.py` (routes, gating, no-leak render, calendar).
 - **`audit.py`** — super-admin activity feed + restorable Trash; ONE private `audit.json` in the
   registry bucket (no new infra). `main.py` calls `_audit()`/`_trash()` from the mutation/delete
   routes; the console **Activity**/**Trash** tabs read it; deletes are restorable for 30 days (lazy

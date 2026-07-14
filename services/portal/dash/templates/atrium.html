@@ -1537,6 +1537,12 @@
     .ax-pg-card:hover { transform: translateY(-3px); box-shadow: var(--ax-shadow-lg); border-color: #d4d6df; }
     .ax-pg-chip { display: inline-flex; align-items: center; font-size: 10px; font-weight: 800; border-radius: var(--ax-pill);
       padding: 2px 9px; letter-spacing: .03em; text-transform: uppercase; background: var(--ax-violet-bg); color: var(--ax-violet-d); }
+    /* Discipline tint on the campaign chip — the SAME color language as the admin board
+       (Paid Media purple, Organic green, Website blue); legacy/none stays neutral. */
+    .ax-pg-chip.lb-paid { background: #ECECFB; color: #5A54DD; }
+    .ax-pg-chip.lb-organic { background: var(--ax-green-bg); color: var(--ax-green-d); }
+    .ax-pg-chip.lb-web { background: var(--ax-violet-bg); color: var(--ax-violet-d); }
+    .ax-pg-chip.lb-other { background: #EEF0F3; color: #5B6472; }
     .ax-pg-title { font-weight: 800; font-size: 14px; color: var(--ax-ink); line-height: 1.4; margin: 8px 0 0; }
     .ax-pg-type { font-size: 12px; color: var(--ax-sub); margin-top: 3px; }
     .ax-pg-prog { margin-top: 11px; }
@@ -1549,6 +1555,11 @@
     .ax-pg-tag { font-size: 10px; font-weight: 800; border-radius: var(--ax-pill); padding: 2px 9px; text-transform: uppercase; letter-spacing: .03em; }
     .ax-pg-tag.review { color: var(--ax-violet-d); background: var(--ax-violet-bg); }
     .ax-pg-tag.changes { color: var(--ax-bad); background: #FDECEC; }
+    .ax-pg-tag.paused { color: #B4610A; background: #FDF0E1; }
+    .ax-pg-card.paused { opacity: .74; }
+    .ax-pg-card.paused:hover { opacity: 1; }
+    .ax-pg-paused { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; background: #FDF0E1; color: #B4610A;
+      border: 1px solid #F6D9B0; border-radius: 10px; padding: 10px 13px; font-size: 13px; font-weight: 600; margin-bottom: 12px; }
     .ax-pg-tag.cmt { color: var(--ax-sub); background: var(--ax-canvas); border: 1px solid var(--ax-line); text-transform: none; letter-spacing: 0; }
     /* Stage tones keyed by the CANONICAL stage keys (labels stay client-friendly). */
     .ax-pg-stage { font-size: 10px; font-weight: 800; border-radius: var(--ax-pill); padding: 3px 10px; letter-spacing: .03em; text-transform: uppercase; }
@@ -1576,6 +1587,25 @@
     .ax-pg-sl { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--ax-sub); margin: 16px 0 8px; }
     .ax-pg-note { background: var(--ax-green-bg); border: 1px solid #cdeccf; border-radius: 10px; padding: 11px 13px; font-size: 13.5px;
       color: var(--ax-green-d); line-height: 1.5; }
+    /* Start → Launch timeline strip (replaces the old Type/Target key-value grid) */
+    .ax-pg-timeline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 6px; }
+    .ax-pg-timeline .tl-type { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--ax-violet-d); background: var(--ax-violet-bg); border-radius: var(--ax-pill); padding: 3px 10px; }
+    .ax-pg-timeline .tl-seg { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ax-charcoal); }
+    .ax-pg-timeline .tl-seg b { font-weight: 800; color: var(--ax-ink); }
+    .ax-pg-timeline .tl-seg.soon b { color: #B4610A; }
+    .ax-pg-timeline .tl-arrow { color: var(--ax-sub); font-weight: 800; }
+    /* Phases: the two-level work breakdown, client-safe (name + steps, no owners) */
+    .ax-pg-phase { border: 1px solid var(--ax-line); border-radius: 10px; padding: 10px 12px; margin-bottom: 9px; }
+    .ax-pg-phase-h { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .ax-pg-phase-ic { width: 17px; height: 17px; flex: 0 0 auto; border-radius: 50%; border: 1.5px solid var(--ax-line);
+      display: flex; align-items: center; justify-content: center; color: #fff; }
+    .ax-pg-phase-ic.done { background: var(--ax-green); border-color: var(--ax-green); }
+    .ax-pg-phase-ic svg { width: 10px; height: 10px; }
+    .ax-pg-phase-n { font-size: 13.5px; font-weight: 800; color: var(--ax-ink); }
+    .ax-pg-phase-c { margin-left: auto; font-size: 11px; font-weight: 800; color: var(--ax-sub); background: var(--ax-canvas);
+      border: 1px solid var(--ax-line); border-radius: var(--ax-pill); padding: 1px 8px; }
+    .ax-pg-phase .ax-pg-steps { gap: 6px; }
     .ax-pg-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
     .ax-pg-steps li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ax-charcoal); }
     .ax-pg-steps li.done span { color: var(--ax-sub); }
@@ -2897,8 +2927,8 @@
                 <span class="t">{{ col.name }}</span><span class="c tnum">{{ col.tasks|length }}</span></div>
               <div class="ax-pg-collist">
                 {% for t in col.tasks %}
-                <button type="button" class="ax-pg-card" data-pgopen="{{ t.id }}">
-                  {% if t.campaign %}<span class="ax-pg-chip">{{ t.campaign }}</span>{% endif %}
+                <button type="button" class="ax-pg-card{{ ' paused' if t.on_hold else '' }}" data-pgopen="{{ t.id }}">
+                  {% if t.discipline or t.campaign %}<span class="ax-pg-chip {{ t.disc_class }}">{{ t.discipline or t.campaign }}</span>{% endif %}
                   <div class="ax-pg-title">{{ t.title }}</div>
                   {% if t.content_type %}<div class="ax-pg-type">{{ t.content_type }}</div>{% endif %}
                   {% if t.subs_total %}
@@ -2906,9 +2936,10 @@
                     <div class="meta"><span>{{ t.subs_done }} of {{ t.subs_total }} steps</span><span class="tnum">{{ t.pct }}%</span></div></div>
                   {% endif %}
                   <div class="ax-pg-foot">
-                    {% if t.open_changes %}<span class="ax-pg-tag changes">Changes requested</span>
+                    {% if t.on_hold %}<span class="ax-pg-tag paused">⏸ Paused</span>
+                    {% elif t.open_changes %}<span class="ax-pg-tag changes">Changes requested</span>
                     {% elif t.in_review %}<span class="ax-pg-tag review">Ready for your review</span>
-                    {% elif t.due_date %}<span class="ax-pg-target {{ 'soon' if t.due_soon else '' }}">Target {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
+                    {% elif t.due_date %}<span class="ax-pg-target {{ 'soon' if t.due_soon else '' }}">{{ 'Live' if t.stage in ('launched', 'closed') else 'Launching' }} {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
                     {% if t.comment_count %}<span class="ax-pg-tag cmt">💬 {{ t.comment_count }}</span>{% endif %}
                   </div>
                 </button>
@@ -2930,26 +2961,39 @@
             <div class="ax-pg-modal" data-pgd="{{ t.id }}" hidden>
               <div class="ax-pg-mhead">
                 <div>
-                  <div class="ax-pg-meyebrow">{% if t.campaign %}{{ t.campaign }} &middot;{% endif %}
+                  <div class="ax-pg-meyebrow">{% if t.discipline or t.campaign %}<span class="ax-pg-chip {{ t.disc_class }}">{{ t.discipline or t.campaign }}</span>{% endif %}
                     <span class="ax-pg-stage {{ t.stage }}">{{ col.name }}</span></div>
                   <h2 class="ax-pg-mtitle">{{ t.title }}</h2>
                 </div>
                 <button type="button" class="ax-pg-mx" data-pgclose aria-label="Close">&times;</button>
               </div>
               <div class="ax-pg-mbody">
-                <div class="ax-pg-kv">
-                  <div><div class="k">Type</div><div class="v">{{ t.content_type or '—' }}</div></div>
-                  <div><div class="k">Target</div><div class="v">{{ (t.due_date ~ 'T00:00:00Z')|atrium_date if t.due_date else '—' }}</div></div>
+                {% if t.on_hold %}<div class="ax-pg-paused"><span class="ax-pg-tag paused">⏸ Paused</span> This piece is on hold for now &mdash; we'll pick it back up and let you know.</div>{% endif %}
+                {#- Start → Launch timeline: when work began and when it goes (or went) live. -#}
+                <div class="ax-pg-timeline">
+                  {% if t.content_type %}<span class="tl-type">{{ t.content_type }}</span>{% endif %}
+                  {% if t.start_date %}<span class="tl-seg">Started <b>{{ (t.start_date ~ 'T00:00:00Z')|atrium_date }}</b></span>{% endif %}
+                  {% if t.due_date %}{% if t.start_date %}<span class="tl-arrow">→</span>{% endif %}
+                    <span class="tl-seg {{ 'soon' if t.due_soon else '' }}">{{ 'Went live' if t.stage in ('launched', 'closed') else 'Going live' }} <b>{{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}</b></span>{% endif %}
                 </div>
                 {% if t.client_note %}<div class="ax-pg-sl">Update from your team</div>
                 <div class="ax-pg-note">{{ t.client_note }}</div>{% endif %}
-                {% if t.subtasks %}
-                <div class="ax-pg-sl">Progress &middot; {{ t.subs_done }} of {{ t.subs_total }}</div>
-                <ul class="ax-pg-steps">
-                  {% for s in t.subtasks %}
-                  <li class="{{ 'done' if s.done else '' }}"><span class="ax-pg-stepic {{ 'done' if s.done else '' }}">{% if s.done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}</span><span>{{ s.text }}</span></li>
-                  {% endfor %}
-                </ul>
+                {% if t.subs_total %}
+                <div class="ax-pg-sl">Progress &middot; {{ t.subs_done }} of {{ t.subs_total }} steps</div>
+                {% for ph in t.phases %}{% if ph.steps or ph.name %}
+                <div class="ax-pg-phase">
+                  <div class="ax-pg-phase-h">
+                    <span class="ax-pg-phase-ic {{ 'done' if ph.all_done else '' }}">{% if ph.all_done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}</span>
+                    <span class="ax-pg-phase-n">{{ ph.name or 'Steps' }}</span>
+                    <span class="ax-pg-phase-c tnum">{{ ph.done }}/{{ ph.total }}</span>
+                  </div>
+                  <ul class="ax-pg-steps">
+                    {% for s in ph.steps %}
+                    <li class="{{ 'done' if s.done else '' }}"><span class="ax-pg-stepic {{ 'done' if s.done else '' }}">{% if s.done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}</span><span>{{ s.text }}</span></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                {% endif %}{% endfor %}
                 {% endif %}
                 {% if t.deliverable_url %}<a class="ax-pg-deliv" href="{{ t.deliverable_url }}" target="_blank" rel="noopener">View deliverable →</a>{% endif %}
                 <div class="ax-pg-comments">

@@ -1423,30 +1423,68 @@ def set_calendar_status(client, index, status):
 # everything; the client Progress tab sees only client_facing tasks, and only their client-safe
 # fields (never lead/support/owners, priority, internal_notes, or account_manager_id).
 #
-# Task shape (spec §3.2):
+# Task shape (spec §3.2, extended 2026-07 with the two-level work breakdown + dates/charge):
 #   id, title, stage, department, lead_id, support_ids[], priority, labels[], campaign,
-#   content_type, due_date, subtasks[] ({id, text, done, assignee_id}),
+#   content_type, start_date, due_date (the LAUNCH date -- key canonical, label "Launch date"),
+#   service_charge (internal only),
+#   maintasks[] ({id, text, assignee_id, subs[] ({id, text, done, assignee_id})}),
 #   comments[] (the content-comment shape incl. kind:"changes" + resolved), history[],
 #   client_facing, client_note, deliverable_url,        <- client-safe
 #   internal_notes, account_manager_id                  <- internal only
+# LEGACY: tasks written before the two-level model carry a flat subtasks[] -- normalize_task()
+# migrates that into one maintask in place (called by _find_task, so every mutation persists it).
 TASK_STAGES = ("in_process", "for_launch", "launched", "closed")
 TASK_PRIORITIES = ("Low", "Medium", "High", "Urgent")
-# The fields update_task will patch (id/comments/subtasks/history have their own helpers).
+# The fields update_task will patch (id/comments/maintasks/history have their own helpers).
 _TASK_FIELDS = ("title", "department", "lead_id", "support_ids", "priority", "labels", "campaign",
-                "content_type", "due_date", "client_facing", "client_note", "deliverable_url",
+                "content_type", "start_date", "due_date", "service_charge",
+                "on_hold", "hold_reason",
+                "client_facing", "client_note", "deliverable_url",
                 "internal_notes", "account_manager_id")
 
 
 def tasks_of(ws):
-    """The workspace's task list (never None)."""
-    return list((ws or {}).get("tasks") or [])
+    """The workspace's task list (never None), each task normalized to the two-level shape."""
+    return [normalize_task(t) for t in (ws or {}).get("tasks") or []]
+
+
+def normalize_task(task):
+    """Migrate a task IN PLACE to the two-level model: maintasks[] each owning subs[].
+
+    A legacy flat subtasks[] becomes one maintask (named after the content type, owned by the
+    lead) so no data is lost; the old key is dropped. Idempotent -- a normalized task passes
+    through untouched."""
+    if task is None:
+        return None
+    if not isinstance(task.get("maintasks"), list):
+        legacy = task.pop("subtasks", None) or []
+        task["maintasks"] = [{
+            "id": _new_id("mt"),
+            "text": task.get("content_type") or "Deliverable",
+            "assignee_id": task.get("lead_id") or "",
+            "subs": legacy,
+        }] if legacy else []
+    else:
+        task.pop("subtasks", None)
+        for m in task["maintasks"]:
+            if not isinstance(m.get("subs"), list):
+                m["subs"] = []
+    return task
+
+
+def task_subtasks(task):
+    """Every sub-task across the task's main tasks, flattened (for counts + the close-guard)."""
+    out = []
+    for m in (task or {}).get("maintasks") or []:
+        out.extend(m.get("subs") or [])
+    return out
 
 
 def _find_task(ws, task_id):
-    """The task dict with id `task_id`, or None."""
+    """The task dict with id `task_id` (normalized in place), or None."""
     for t in ws.get("tasks", []):
         if t.get("id") == task_id:
-            return t
+            return normalize_task(t)
     return None
 
 
@@ -1495,8 +1533,12 @@ def add_task(client, fields, actor=""):
         "labels": list(f.get("labels") or []),
         "campaign": f.get("campaign") or "",
         "content_type": f.get("content_type") or "",
+        "start_date": f.get("start_date") or "",
         "due_date": f.get("due_date") or "",
-        "subtasks": [],
+        "service_charge": f.get("service_charge") or "",
+        "on_hold": bool(f.get("on_hold")),
+        "hold_reason": f.get("hold_reason") or "",
+        "maintasks": [],
         "comments": [],
         "history": [],
         "client_facing": bool(f.get("client_facing")),
@@ -1550,7 +1592,7 @@ def move_task_stage(client, task_id, stage, actor=""):
             return task
         if stage == "closed":
             blockers = ["sub-task: %s" % s.get("text", "")
-                        for s in task.get("subtasks", []) if not s.get("done")]
+                        for s in task_subtasks(task) if not s.get("done")]
             blockers += ["open change request: %s" % (c.get("body", "")[:60])
                          for c in task_open_changes(task)]
             if blockers:
@@ -1648,21 +1690,108 @@ def resolve_task_comment(client, task_id, comment_id):
     return _mutate(client, fn)
 
 
-def add_subtask(client, task_id, text, assignee_id=None):
-    """Append a sub-task ({id, text, done, assignee_id}) to a task. Returns (task, subtask)."""
+def add_maintask(client, task_id, text, assignee_id=""):
+    """Append a main task (a named group of sub-tasks with its own owner). Returns (task, maintask)."""
     def fn(ws):
         task = _find_task(ws, task_id)
         if task is None:
             raise KeyError("no task '%s'" % task_id)
+        main = {"id": _new_id("mt"), "text": text or "", "assignee_id": assignee_id or "", "subs": []}
+        task.setdefault("maintasks", []).append(main)
+        return task, main
+    return _mutate(client, fn)
+
+
+def _find_maintask(task, maintask_id):
+    for m in (task or {}).get("maintasks", []):
+        if m.get("id") == maintask_id:
+            return m
+    return None
+
+
+def set_maintask_owner(client, task_id, maintask_id, assignee_id):
+    """Assign (or clear, with "") the owner of one main task. Returns (task, maintask)."""
+    def fn(ws):
+        task = _find_task(ws, task_id)
+        if task is None:
+            raise KeyError("no task '%s'" % task_id)
+        main = _find_maintask(task, maintask_id)
+        if main is None:
+            raise KeyError("no maintask '%s'" % maintask_id)
+        main["assignee_id"] = assignee_id or ""
+        return task, main
+    return _mutate(client, fn)
+
+
+def rename_maintask(client, task_id, maintask_id, text):
+    """Rename one main task (its sub-tasks stay put). Returns (task, maintask)."""
+    def fn(ws):
+        task = _find_task(ws, task_id)
+        if task is None:
+            raise KeyError("no task '%s'" % task_id)
+        main = _find_maintask(task, maintask_id)
+        if main is None:
+            raise KeyError("no maintask '%s'" % maintask_id)
+        main["text"] = text or main.get("text") or ""
+        return task, main
+    return _mutate(client, fn)
+
+
+def set_task_hold(client, task_id, on_hold, reason="", actor=""):
+    """Put a task on hold or resume it (ongoing). `on_hold` is a plain boolean -- no dates. The
+    reason is internal (never shown to the client). Stamps a hold/resume history entry. Returns
+    the task."""
+    def fn(ws):
+        task = _find_task(ws, task_id)
+        if task is None:
+            raise KeyError("no task '%s'" % task_id)
+        held = bool(on_hold)
+        task["on_hold"] = held
+        task["hold_reason"] = (reason or "") if held else ""
+        _task_history(task, actor, "hold", "", "on hold" if held else "resumed")
+        return task
+    return _mutate(client, fn)
+
+
+def delete_maintask(client, task_id, maintask_id):
+    """Remove one main task (and its sub-tasks) from a task. Returns the task."""
+    def fn(ws):
+        task = _find_task(ws, task_id)
+        if task is None:
+            raise KeyError("no task '%s'" % task_id)
+        task["maintasks"] = [m for m in task.get("maintasks", []) if m.get("id") != maintask_id]
+        return task
+    return _mutate(client, fn)
+
+
+def add_subtask(client, task_id, text, assignee_id=None, maintask_id=""):
+    """Append a sub-task ({id, text, done, assignee_id}) under a main task. Returns (task, subtask).
+
+    `maintask_id` picks the group; without one the sub-task lands in the LAST main task, and a
+    task with no main tasks yet grows a "Deliverable" group first (so legacy callers still work)."""
+    def fn(ws):
+        task = _find_task(ws, task_id)
+        if task is None:
+            raise KeyError("no task '%s'" % task_id)
+        mains = task.setdefault("maintasks", [])
+        main = _find_maintask(task, maintask_id) if maintask_id else None
+        if main is None:
+            if maintask_id:
+                raise KeyError("no maintask '%s'" % maintask_id)
+            if not mains:
+                mains.append({"id": _new_id("mt"), "text": task.get("content_type") or "Deliverable",
+                              "assignee_id": task.get("lead_id") or "", "subs": []})
+            main = mains[-1]
         sub = {"id": _new_id("st"), "text": text or "", "done": False,
                "assignee_id": assignee_id or ""}
-        task.setdefault("subtasks", []).append(sub)
+        main.setdefault("subs", []).append(sub)
         return task, sub
     return _mutate(client, fn)
 
 
 def _find_subtask(task, subtask_id):
-    for s in (task or {}).get("subtasks", []):
+    """The sub-task with `subtask_id`, searched across every main task (ids are unique)."""
+    for s in task_subtasks(task):
         if s.get("id") == subtask_id:
             return s
     return None
@@ -1697,12 +1826,13 @@ def set_subtask_owner(client, task_id, subtask_id, assignee_id):
 
 
 def delete_subtask(client, task_id, subtask_id):
-    """Remove one sub-task from a task. Returns the task."""
+    """Remove one sub-task from whichever main task holds it. Returns the task."""
     def fn(ws):
         task = _find_task(ws, task_id)
         if task is None:
             raise KeyError("no task '%s'" % task_id)
-        task["subtasks"] = [s for s in task.get("subtasks", []) if s.get("id") != subtask_id]
+        for m in task.get("maintasks", []):
+            m["subs"] = [s for s in m.get("subs", []) if s.get("id") != subtask_id]
         return task
     return _mutate(client, fn)
 

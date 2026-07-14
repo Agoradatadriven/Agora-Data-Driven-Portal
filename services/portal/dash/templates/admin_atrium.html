@@ -51,10 +51,20 @@
 
     .view { display: none; } .view.is-view { display: block; }
 
-    /* ---- Shared flash ---- */
-    .flash { background: var(--tint); border: 1px solid var(--brand-200); color: var(--brand-700);
-      border-radius: var(--r-md); padding: 12px 16px; margin-bottom: 20px; font-size: 13.5px; font-weight: 600; word-break: break-word; }
-    .flash.err { background: var(--danger-bg); border-color: rgba(192,69,59,.35); color: #9b2c2a; }
+    /* ---- Shared flash: a transient TOAST (auto-dismissed by JS), not a banner that sticks at the
+       top of the content. Fixed + floating so it never pushes layout; the console script removes it
+       after a few seconds and strips ?msg/?err from the URL so a reload/pane-switch can't re-show it. */
+    .flash { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 400;
+      max-width: min(90vw, 460px); background: var(--ink); color: #fff; border: 0; border-radius: 999px;
+      padding: 12px 20px; font-size: 13.5px; font-weight: 600; box-shadow: var(--shadow-pop);
+      display: flex; align-items: center; gap: 9px; word-break: break-word;
+      animation: flash-in .28s cubic-bezier(.22,1,.36,1); }
+    .flash::before { content: "\2713"; font-weight: 800; color: var(--brand-400); }
+    .flash.err { background: #9b2c2a; }
+    .flash.err::before { content: "!"; color: #ffd9d6; }
+    .flash.flash-out { opacity: 0; transform: translate(-50%, 12px); transition: opacity .3s, transform .3s; }
+    @keyframes flash-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
 
     /* ============ HOME HUB (the landing / first screen) ============ */
     .hub { position: relative; min-height: 100vh; overflow: hidden; }
@@ -127,6 +137,13 @@
     .nav-item .count { margin-left: auto; font-size: 11px; font-weight: 800; color: var(--accent-600); background: var(--accent-100);
       border-radius: 999px; padding: 1px 8px; min-width: 20px; text-align: center; }
     .nav-item.is-active .count { color: var(--brand-700); background: #dcefdb; }
+    /* System utilities (Activity / Mailboxes / Bin): one step quieter than primary nav, and the
+       Bin's count is informational (not actionable), so it renders neutral instead of purple. */
+    .nav-item.util { color: var(--muted); }
+    .nav-item.util:hover { color: var(--ink); }
+    .nav-item.util .ic { opacity: .6; }
+    .nav-item .count.quiet { color: var(--muted); background: var(--canvas); border: 1px solid var(--line); }
+    .nav-item.is-active .count.quiet { color: var(--brand-700); background: #dcefdb; border-color: transparent; }
     .side-foot { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
     .acct-btn { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer; border: 0; background: transparent;
       font: inherit; padding: 8px; border-radius: var(--r-md); transition: background .13s; }
@@ -289,9 +306,28 @@
       box-shadow: var(--shadow-card); transition: transform .18s, box-shadow .18s, border-color .18s; }
     .tk-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-pop); border-color: var(--brand-300); }
     .tk-card.dragging { opacity: .55; }
+    /* On hold: dim the card + an amber ⏸ chip so paused work reads at a glance (it also sinks
+       below active work in the sort). "Ongoing" is just the absence of this. */
+    .tk-card.held { opacity: .72; }
+    .tk-card.held:hover { opacity: 1; }
+    .tk-hold { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 800; letter-spacing: .03em;
+      text-transform: uppercase; color: #9b6a12; background: #fdf3e3; border: 1px solid #f0dda2; border-radius: 999px; padding: 1px 7px; }
+    .tk-hold svg { width: 10px; height: 10px; }
+    /* Card top line: the CLIENT leads (display caps, ink), pills sit right — hierarchy, not color. */
+    .tk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-width: 0; }
+    .tk-client { font-family: var(--font-display); font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .tk-top .tk-pills { margin-bottom: 0; flex: 0 0 auto; justify-content: flex-end; }
     .tk-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
     .tk-pill { font-family: var(--font-display); font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
       padding: 2px 8px; border-radius: 999px; background: var(--accent-100); color: var(--accent-600); }
+    /* Discipline tints (label follows the department): purple = Paid Media, green = Organic,
+       blue = Website; anything legacy stays neutral. Same tint/text pairs the console already
+       uses elsewhere, so contrast + palette stay consistent. */
+    .tk-pill.lb-paid { background: var(--accent-100); color: var(--accent-600); }
+    .tk-pill.lb-organic { background: var(--tint); color: var(--brand-700); }
+    .tk-pill.lb-web { background: #eaf1fb; color: #1c4f9c; }
+    .tk-pill.lb-other { background: #eef0ee; color: #5b615c; }
     .tk-title { font-weight: 700; font-size: 13.5px; color: var(--ink); line-height: 1.35; }
     .tk-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 7px; font-size: 11.5px; color: var(--muted); }
     .tk-pdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
@@ -315,6 +351,7 @@
     .tk-veil[hidden] { display: none; }
     .tkd { width: 100%; max-width: 920px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
       box-shadow: var(--shadow-pop); animation: rise .25s cubic-bezier(.22,1,.36,1); }
+    .tkd.narrow { max-width: 720px; }   /* the tabbed detail view (sandbox design); forms stay wide */
     .tkd-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 14px; border-bottom: 1px solid var(--line); }
     .tkd-eyebrow { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
       color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -337,10 +374,6 @@
     .tk-personchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink);
       background: var(--canvas); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px 2px 3px; }
     .tk-leadtag { font-size: 8.5px; font-weight: 800; color: var(--brand-700); background: var(--tint); border-radius: 4px; padding: 1px 5px; letter-spacing: .04em; }
-    .tk-movebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--canvas); border: 1px solid var(--line);
-      border-radius: var(--r-md); padding: 9px 11px; margin-bottom: 14px; }
-    .tk-movebar form { display: flex; align-items: center; gap: 8px; margin: 0; flex-wrap: wrap; }
-    .tk-movebar select { padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r-sm); font: inherit; font-size: 12.5px; font-weight: 700; background: var(--surface); }
     .tk-nudge { display: flex; align-items: center; gap: 8px; background: var(--tint); border: 1px solid var(--brand-200); color: var(--brand-700);
       border-radius: var(--r-md); padding: 8px 11px; font-size: 12px; font-weight: 700; margin-top: 10px; }
     .tk-nudge form { margin: 0; }
@@ -372,6 +405,15 @@
     .tk-comform input[type=text] { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 12.5px; }
     .tk-activity { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--muted); }
     .tk-activity b { color: var(--body); }
+    /* Collapsible disclosure inside the overlay (Activity) — matches the prototype's ▸ sections. */
+    details.tk-disc { margin-top: 14px; }
+    details.tk-disc > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; font-size: 10.5px;
+      font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 4px 0; }
+    details.tk-disc > summary::-webkit-details-marker { display: none; }
+    details.tk-disc > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+      transform: rotate(-45deg); transition: transform .15s; margin-left: 2px; opacity: .7; }
+    details.tk-disc[open] > summary::after { transform: rotate(45deg); }
+    details.tk-disc > summary:hover { color: var(--brand-700); }
     .tkd-foot { display: flex; align-items: center; gap: 9px; padding: 13px 22px; border-top: 1px solid var(--line); flex-wrap: wrap; }
     .tkd-foot form { margin: 0; }
     .tkd-foot .spacer { margin-left: auto; }
@@ -392,6 +434,141 @@
     .tk-flagchip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; border-radius: 999px; padding: 2px 9px; }
     .tk-flagchip.ok { background: var(--tint); color: var(--brand-700); }
     .tk-flagchip.no { background: var(--accent-100); color: var(--accent-600); }
+    /* Detail overlay: at-a-glance chip strip (priority / start / launch / charge / progress / sync)
+       -- the approved task_board_sandbox.html design, on the console tokens. */
+    .tkd-glance { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 14px; }
+    .tkd-stat { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line);
+      background: var(--surface); font-size: 12.5px; font-weight: 700; color: var(--ink); line-height: 1; }
+    .tkd-stat svg { width: 14px; height: 14px; opacity: .8; flex: 0 0 auto; }
+    .tkd-stat .k { color: var(--muted); font-weight: 600; }
+    .tkd-stat .pdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+    .tkd-stat.prio { border-color: transparent; }
+    .tkd-stat.prio.p-Low { color: #5b615c; box-shadow: inset 0 0 0 1.5px #8b8f8c; }
+    .tkd-stat.prio.p-Medium { color: #2f6ecc; box-shadow: inset 0 0 0 1.5px #2f6ecc; }
+    .tkd-stat.prio.p-High { color: #c77d16; box-shadow: inset 0 0 0 1.5px #c77d16; }
+    .tkd-stat.prio.p-Urgent { color: var(--danger); box-shadow: inset 0 0 0 1.5px var(--danger); }
+    .tkd-stat.due-over { color: var(--danger); border-color: rgba(192,69,59,.35); background: var(--danger-bg); }
+    .tkd-stat.due-soon { color: #9b6a12; border-color: #f0dda2; background: #fdf3e3; }
+    .tkd-stat.sync-on { color: var(--brand-700); background: var(--tint); border-color: var(--brand-200); }
+    .tkd-stat.hold { color: #9b6a12; background: #fdf3e3; border-color: #f0dda2; }
+    /* Detail overlay: header status pill (dot + stage name, tinted) */
+    .tkd-status { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 11px; font-weight: 800;
+      letter-spacing: .06em; text-transform: uppercase; color: var(--ink); padding: 4px 11px; border-radius: 999px; white-space: nowrap; background: var(--canvas); }
+    .tkd-status .pdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+    /* Detail overlay: stage context banner (In review / Live / Completed) */
+    .tkd-ctx { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border-radius: var(--r-md); font-size: 12.5px; font-weight: 700; margin: 0 0 14px; }
+    .tkd-ctx svg { width: 15px; height: 15px; flex: 0 0 auto; }
+    .tkd-ctx.review { background: var(--accent-100); color: var(--accent-600); }
+    .tkd-ctx.live { background: var(--tint); color: var(--brand-700); }
+    .tkd-ctx.done { background: var(--canvas); color: var(--muted); border: 1px solid var(--line); }
+    .tkd-ctx.hold { background: #fdf3e3; color: #9b6a12; border: 1px solid #f0dda2; }
+    /* Status toggle (On hold ⇄ Ongoing) in the Details tab. */
+    .tk-holdform { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .tk-holdform input[type=text] { flex: 1; min-width: 140px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 12.5px; }
+    .tk-holdform .btn, .tk-holdform .btn-ghost { margin: 0; }
+    /* Detail overlay: Details / Tasks / Comments tabs (summary above stays persistent) */
+    .tkd-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 2px 0 0; }
+    .tkd-tab { appearance: none; border: 0; background: transparent; font: inherit; font-weight: 700; font-size: 12.5px; color: var(--muted);
+      padding: 9px 13px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 6px; }
+    .tkd-tab:hover { color: var(--ink); }
+    .tkd-tab.is-active { color: var(--brand-700); border-bottom-color: var(--brand-500); }
+    .tkd-tab .tcount { font-size: 10.5px; font-weight: 800; background: var(--canvas); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; color: var(--muted); }
+    .tkd-tab.is-active .tcount { background: var(--tint); border-color: var(--brand-200); color: var(--brand-700); }
+    .tkd-panel { display: none; padding-top: 15px; }
+    .tkd-panel.is-active { display: block; }
+    /* Two-level work breakdown: main-task groups, each owning its sub-task rows */
+    .tk-main { border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; margin-bottom: 10px; background: var(--surface); }
+    .tk-main.done { background: var(--tint); border-color: var(--brand-200); }
+    .tk-main-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .tk-main-head form { margin: 0; display: flex; align-items: center; }
+    .tk-main-check { width: 16px; height: 16px; flex: 0 0 auto; color: var(--brand-600); display: inline-flex; align-items: center; justify-content: center; }
+    .tk-main-check svg { width: 14px; height: 14px; }
+    .tk-main-title { font-weight: 700; font-size: 13.5px; color: var(--ink); }
+    /* Rename-in-place: the main-task title is an input that looks like plain text until focused. */
+    .tk-main-rename { flex: 1 1 auto; min-width: 80px; }
+    .tk-main-rename input[type=text] { width: 100%; border: 1px solid transparent; background: transparent; font: inherit;
+      font-weight: 700; font-size: 13.5px; color: var(--ink); padding: 2px 6px; border-radius: 6px; }
+    .tk-main-rename input[type=text]:hover { border-color: var(--line); }
+    .tk-main-rename input[type=text]:focus { border-color: var(--brand-500); background: var(--surface); outline: none;
+      box-shadow: 0 0 0 3px rgba(79,168,74,.14); }
+    .tk-main-count { font-size: 10.5px; font-weight: 800; color: var(--muted); background: var(--canvas); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+    .tk-main-head select { max-width: 118px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 11px; background: var(--surface); color: var(--body); }
+    /* The group owner reads like the prototype (avatar + bold name): a borderless select that
+       only reveals it's a control on hover — clicking it reassigns in one step. */
+    .tk-main-head select.tk-ownersel { border-color: transparent; background: transparent; font-size: 12px; font-weight: 800;
+      color: var(--ink); cursor: pointer; padding: 3px 2px; max-width: 128px; }
+    .tk-main-head select.tk-ownersel:hover, .tk-main-head select.tk-ownersel:focus { border-color: var(--line); background: var(--surface); }
+    .tk-main-head .rm { border: 0; background: transparent; color: #c2c7c2; font-size: 15px; cursor: pointer; padding: 1px 6px; border-radius: 6px; }
+    .tk-main-head .rm:hover { color: var(--danger); background: var(--danger-bg); }
+    .tk-main .tk-addsub { margin-top: 6px; }
+    .tk-addmain { display: flex; gap: 7px; margin-top: 10px; }
+    .tk-addmain input[type=text] { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 12.5px; }
+    .tk-addmain select { max-width: 118px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 11.5px; background: var(--surface); }
+    /* Form: the collapsible "Additional details" section + hints */
+    details.tk-extra { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 6px; }
+    details.tk-extra > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; font-size: 10.5px;
+      font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 6px 0; }
+    details.tk-extra > summary::-webkit-details-marker { display: none; }
+    details.tk-extra > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+      transform: rotate(-45deg); transition: transform .15s; margin-left: 2px; opacity: .7; }
+    details.tk-extra[open] > summary::after { transform: rotate(45deg); }
+    details.tk-extra > summary:hover { color: var(--brand-700); }
+    details.tk-extra .tk-formgrid { margin-top: 10px; }
+    .tk-hint { font-size: 11.5px; color: var(--muted); line-height: 1.5; background: var(--canvas); border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px 11px; font-weight: 600; }
+    .tk-hint b { color: var(--brand-700); }
+    .tk-titletag { font-size: 8.5px; font-weight: 800; color: var(--brand-700); background: var(--tint); border-radius: 4px; padding: 1px 5px; letter-spacing: .04em; }
+
+    /* ---- Delivery Calendar ---- */
+    .cal-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 16px; }
+    .cal-nav { display: flex; align-items: center; gap: 8px; }
+    .cal-nav .btn-ghost { min-width: 34px; height: 34px; padding: 0 11px; justify-content: center; font-size: 15px; font-weight: 800; }
+    .cal-title { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -.01em; min-width: 150px; }
+    .cal-bar select { padding: 8px 11px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 13px; font-weight: 600; }
+    .cal-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; font-size: 11px; font-weight: 700; }
+    .cal-lg { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+    .cal-lg::before { content: ""; width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .cal-lg.lb-paid::before { background: var(--accent-500); } .cal-lg.lb-organic::before { background: var(--brand-500); }
+    .cal-lg.lb-web::before { background: #2f6ecc; } .cal-lg.lb-other::before { background: #8b8f8c; }
+    .cal-lg-hold { color: #9b6a12; font-weight: 800; }
+    .cal-lg-dot { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+    .cal-lg-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .cal-lg-dot.p-Urgent::before { background: var(--danger); }
+    .cal-lg-dot.p-High::before { background: #c77d16; }
+    .cal-lg-mark.ok { color: var(--brand-700); font-weight: 800; }
+    .cal-lg-mark.bad { color: var(--danger); font-weight: 800; }
+    /* Chip states: priority dot (Urgent/High only), launched ✓ muted, overdue ⚠ red. */
+    .cal-pdot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: 1px; }
+    .cal-pdot.p-Urgent { background: var(--danger); }
+    .cal-pdot.p-High { background: #c77d16; }
+    .cal-chip.done { opacity: .62; }
+    .cal-chip.done .cc { text-decoration: none; }
+    .cal-chip.over { background: var(--danger-bg); border-left-color: var(--danger); color: #9b2c2a; }
+    .cal-chip.over .cc { color: #b3706b; }
+    .cal-overjump { margin-left: 12px; border: 1px solid rgba(192,69,59,.35); background: var(--danger-bg); color: #9b2c2a;
+      font: inherit; font-size: 12px; font-weight: 800; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+    .cal-overjump:hover { filter: brightness(.97); }
+    .cal-grid-wrap { overflow-x: auto; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(112px, 1fr)); gap: 1px; background: var(--line);
+      border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+    .cal-dow { background: var(--canvas); padding: 8px 10px; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; }
+    .cal-cell { background: var(--surface); min-height: 96px; padding: 6px 7px; display: flex; flex-direction: column; gap: 4px; }
+    .cal-cell.pad { background: var(--canvas); }
+    .cal-cell.weekend { background: #fcfcfd; }
+    .cal-daynum { font-size: 11.5px; font-weight: 700; color: var(--muted); align-self: flex-start; }
+    .cal-cell.today .cal-daynum { background: var(--brand-500); color: #fff; border-radius: 999px; width: 21px; height: 21px; display: flex; align-items: center; justify-content: center; }
+    .cal-chip { display: block; width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700;
+      border-radius: 6px; padding: 3px 7px; color: var(--ink); background: var(--canvas); border-left: 3px solid var(--muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter .12s; }
+    .cal-chip:hover { filter: brightness(.96); }
+    .cal-chip .cc { color: var(--muted); font-weight: 600; }
+    .cal-chip.lb-paid { background: var(--accent-100); border-left-color: var(--accent-500); }
+    .cal-chip.lb-organic { background: var(--tint); border-left-color: var(--brand-500); }
+    .cal-chip.lb-web { background: #eaf1fb; border-left-color: #2f6ecc; }
+    .cal-chip.lb-other { background: #eef0ee; border-left-color: #8b8f8c; }
+    .cal-chip.held { opacity: .7; border-left-style: dashed; }
+    .cal-more { font-size: 10.5px; font-weight: 700; color: var(--accent-600); background: transparent; border: 0; cursor: pointer; padding: 1px 4px; text-align: left; }
+    .cal-foot { margin-top: 12px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+    .cal-foot b { color: var(--ink); }
 
     /* ---- Responsive ---- */
     @media (max-width: 1000px) { .content { padding: 28px 22px 56px; } }
@@ -493,19 +670,14 @@
           <span class="ag-logo">{{ agora_logo|safe }}</span>
         </div>
         <nav class="nav" id="side-nav">
+          {#- Rail ordered by frequency of use: daily work on top (Clients, Task Board, Calendar),
+              people next, and SYSTEM utilities (audit/plumbing/recovery) muted at the bottom.
+              Purple badges = actionable counts only (pending requests, board total); the Bin
+              count is informational, so it renders quiet. -#}
           <div class="nav-group first">Workspaces</div>
           <button type="button" class="nav-item" data-section="clients">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
             <span>Clients</span>
-          </button>
-          <button type="button" class="nav-item" data-section="activity">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            <span>Activity</span>
-          </button>
-          <button type="button" class="nav-item" data-section="trash">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-            <span>Bin</span>
-            {% if trash %}<span class="count">{{ trash|length }}</span>{% endif %}
           </button>
           <div class="nav-group">Delivery</div>
           <button type="button" class="nav-item" data-section="tasks">
@@ -513,15 +685,29 @@
             <span>Task Board</span>
             {% if task_open_total %}<span class="count">{{ task_open_total }}</span>{% endif %}
           </button>
+          <button type="button" class="nav-item" data-section="calendar">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span>Calendar</span>
+          </button>
           <div class="nav-group">People &amp; access</div>
           <button type="button" class="nav-item" data-section="accounts">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Accounts</span>
             {% if pending %}<span class="count">{{ pending|length }}</span>{% endif %}
           </button>
-          <button type="button" class="nav-item" data-section="mailboxes">
+          <div class="nav-group">System</div>
+          <button type="button" class="nav-item util" data-section="activity">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <span>Activity</span>
+          </button>
+          <button type="button" class="nav-item util" data-section="mailboxes">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>
             <span>Mailboxes</span>
+          </button>
+          <button type="button" class="nav-item util" data-section="trash">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <span>Bin</span>
+            {% if trash %}<span class="count quiet">{{ trash|length }}</span>{% endif %}
           </button>
         </nav>
         <div class="side-foot">
@@ -915,33 +1101,52 @@
           <option value="">{{ blank|default('—', true) }}</option>
           {%- for p in task_roster %}<option value="{{ p.id }}" {{ 'selected' if p.id == sel else '' }}>{{ p.name }}</option>{% endfor %}
         {%- endmacro %}
-        {#- The full add/edit field set, pre-filled from `t` (empty dict for the New form). -#}
-        {% macro tk_fields(t) -%}
+        {#- Reopen-after-action: overlay forms carry these so the redirect lands back INSIDE this
+            task's detail overlay, on the same tab (the console script reads ?task=&tab=). -#}
+        {% macro tk_back(t, tab) -%}
+          <input type="hidden" name="back_task" value="{{ t.client_key }}:{{ t.id }}"><input type="hidden" name="back_tab" value="{{ tab }}">
+        {%- endmacro %}
+        {#- The full add/edit field set, pre-filled from `t` (empty dict for the New form).
+            The one name field is LABELED Campaign but stores as `title` (tasks are mostly
+            campaigns); the label auto-follows the department; optional fields live in a
+            collapsible "Additional details" section, auto-open when an edited task uses them.
+            Support people render ONLY on Edit (is_edit) -- they're assigned after creation. -#}
+        {% macro tk_fields(t, is_edit) -%}
           <div class="tk-formgrid">
-            <div class="full"><label>Title</label><input type="text" name="title" value="{{ t.title|default('', true) }}" placeholder="What are we delivering?" required></div>
+            <div class="full"><label>Campaign <span class="tk-titletag">TITLE</span></label><input type="text" name="title" value="{{ t.title|default('', true) }}" placeholder="Campaign or service name — shown as the title" required></div>
             <div><label>Department</label><select name="department">
               <option value="">—</option>
               {% for dk, dl in task_departments %}<option value="{{ dk }}" {{ 'selected' if t.department|default('') == dk else '' }}>{{ dl }}</option>{% endfor %}
             </select></div>
             <div><label>Lead (main)</label><select name="lead_id">{{ tk_people(t.lead_id|default('', true), 'Unassigned') }}</select></div>
-            <div class="full"><label>Support people</label><div class="tk-pick">
-              {% for p in task_roster %}<label><input type="checkbox" name="support_ids" value="{{ p.id }}" {{ 'checked' if p.id in (t.support_ids|default([], true)) else '' }}> {{ p.name }}</label>{% endfor %}
-            </div></div>
+            <div class="full"><div class="tk-hint">The card label follows the department automatically — Acquisition → <b>Paid Media</b>, Lifecycle → <b>Organic</b>, everything else → <b>Website</b>.</div></div>
             <div><label>Priority</label><select name="priority">
               {% for pr in ['Low','Medium','High','Urgent'] %}<option {{ 'selected' if t.priority|default('Medium') == pr else '' }}>{{ pr }}</option>{% endfor %}
             </select></div>
-            <div><label>Due date</label><input type="date" name="due_date" value="{{ t.due_date|default('', true) }}"></div>
-            <div><label>Campaign</label><input type="text" name="campaign" value="{{ t.campaign|default('', true) }}" placeholder="e.g. Park &amp; Porch | Leads"></div>
-            <div><label>Content type</label><input type="text" name="content_type" value="{{ t.content_type|default('', true) }}" placeholder="e.g. Funnel, Report, Reel batch"></div>
-            <div class="full"><label>Labels</label><div class="tk-pick">
-              {% for l in task_labels %}<label><input type="checkbox" name="labels" value="{{ l }}" {{ 'checked' if l in (t.labels|default([], true)) else '' }}> {{ l }}</label>{% endfor %}
-            </div></div>
-            <div class="full"><label class="tk-cf"><input type="checkbox" name="client_facing" value="1" {{ 'checked' if t.client_facing|default(false) else '' }}>
-              Client-facing &mdash; show this task on the client's Progress tab</label></div>
-            <div><label>Deliverable URL (client-safe)</label><input type="text" name="deliverable_url" value="{{ t.deliverable_url|default('', true) }}" placeholder="https://…"></div>
-            <div><label>Client note (client-safe)</label><input type="text" name="client_note" value="{{ t.client_note|default('', true) }}" placeholder="The update the client reads"></div>
-            <div class="full"><label>🔒 Internal notes (never shown to the client)</label><textarea name="internal_notes">{{ t.internal_notes|default('', true) }}</textarea></div>
+            <div><label>Service charge ($)</label><input type="text" inputmode="decimal" name="service_charge" value="{{ t.service_charge|default('', true) }}" placeholder="0"></div>
+            <div><label>Start date</label><input type="date" name="start_date" value="{{ t.start_date|default('', true) }}"></div>
+            <div><label>Launch date</label><input type="date" name="due_date" value="{{ t.due_date|default('', true) }}"></div>
           </div>
+          {% set has_extra = is_edit and (t.client_facing|default(false) or t.deliverable_url|default('') or t.client_note|default('') or t.internal_notes|default('') or (t.support_ids|default([], true))|length) %}
+          <details class="tk-extra" {{ 'open' if has_extra else '' }}>
+            <summary>Additional details{{ '' if has_extra else ' (optional)' }}</summary>
+            <div class="tk-formgrid">
+              <div class="full"><div class="tk-hint">This board is internal. The service reaches the client's Progress tab only when <b>Client-facing</b> is ticked — and even then only the client-safe fields are shared; support people, the charge, and internal notes stay here.</div></div>
+              <div class="full"><label class="tk-cf"><input type="checkbox" name="client_facing" value="1" {{ 'checked' if t.client_facing|default(false) else '' }}>
+                Client-facing &mdash; show this service on the client's Progress tab</label></div>
+              {% if is_edit %}
+              <input type="hidden" name="has_support" value="1">
+              <div class="full"><label>Support people</label><div class="tk-pick">
+                {% for p in task_roster %}<label><input type="checkbox" name="support_ids" value="{{ p.id }}" {{ 'checked' if p.id in (t.support_ids|default([], true)) else '' }}> {{ p.name }}</label>{% endfor %}
+              </div></div>
+              {% else %}
+              <div class="full"><div class="tk-hint">Support people are added from the service's card once it's created.</div></div>
+              {% endif %}
+              <div><label>Deliverable URL (client-safe)</label><input type="text" name="deliverable_url" value="{{ t.deliverable_url|default('', true) }}" placeholder="https://…"></div>
+              <div><label>Client note (client-safe)</label><input type="text" name="client_note" value="{{ t.client_note|default('', true) }}" placeholder="The update the client reads"></div>
+              <div class="full"><label>🔒 Internal notes (never shown to the client)</label><textarea name="internal_notes">{{ t.internal_notes|default('', true) }}</textarea></div>
+            </div>
+          </details>
         {%- endmacro %}
         <section class="pane" data-pane="tasks">
           <div class="tk-pagehead">
@@ -988,6 +1193,11 @@
             <select id="tk-f-priority" aria-label="Filter by priority"><option value="">All priority</option>
               {% for pr in ['Low','Medium','High','Urgent'] %}<option>{{ pr }}</option>{% endfor %}
             </select>
+            <select id="tk-f-sort" aria-label="Order cards within each column" title="Order cards within each column">
+              <option value="priority">Sort: Priority (urgent first)</option>
+              <option value="due">Sort: Launch date</option>
+              <option value="client">Sort: Client</option>
+            </select>
             <button type="button" class="clear" id="tk-f-clear">Clear filters</button>
           </div>
 
@@ -1000,20 +1210,26 @@
               </div>
               <div class="tk-list" data-stage="{{ col.key }}">
                 {% for t in col.tasks %}
-                <div class="tk-card" draggable="true" data-open="{{ t.client_key }}:{{ t.id }}"
+                <div class="tk-card{{ ' held' if t.on_hold else '' }}" draggable="true" data-open="{{ t.client_key }}:{{ t.id }}"
                      data-client="{{ t.client_key }}" data-dept="{{ t.department }}"
-                     data-people="{{ t.people }}" data-priority="{{ t.priority }}">
-                  {% if t.labels %}<div class="tk-pills">{% for l in t.labels %}<span class="tk-pill">{{ l }}</span>{% endfor %}</div>{% endif %}
+                     data-people="{{ t.people }}" data-priority="{{ t.priority }}"
+                     data-due="{{ t.due_date or '9999-99-99' }}" data-cname="{{ t.client_name }}" data-hold="{{ '1' if t.on_hold else '0' }}">
+                  {#- The client leads the card (an agency scans by client first): its own top
+                      line in display caps, pills on the right — no extra color, just hierarchy. -#}
+                  <div class="tk-top">
+                    <span class="tk-client" title="{{ t.client_name }}">{{ t.client_name }}</span>
+                    {% if t.labels or t.on_hold %}<div class="tk-pills">{% for l in t.labels %}<span class="tk-pill {{ {'Paid Media': 'lb-paid', 'Organic': 'lb-organic', 'Website': 'lb-web'}.get(l, 'lb-other') }}">{{ l }}</span>{% endfor %}{% if t.on_hold %}<span class="tk-hold" title="On hold{{ ' — ' ~ t.hold_reason if t.hold_reason else '' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>{% endif %}</div>{% endif %}
+                  </div>
                   <div class="tk-title">{{ t.title }}</div>
                   <div class="tk-meta">
                     <span class="tk-pdot p-{{ t.priority }}"></span><span>{{ t.priority }}</span>
                     {% if t.due_date %}<span class="tk-due {{ t.due_cls }}">&middot; {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
-                    <span>&middot; {{ t.client_name }}</span>
                   </div>
                   <div class="tk-foot">
+                    {#- Lead only on the card — support people live in the detail modal
+                        (and still power the person filter via data-people). -#}
                     <span class="tk-people">
-                      {% if t.lead_name %}<span class="tk-av" title="{{ t.lead_name }} (lead)">{{ t.lead_name[:1]|upper }}</span>
-                        {%- for s in t.support_people %}<span class="tk-av sup" title="{{ s.name }} (support)">{{ s.name[:1]|upper }}</span>{% endfor %}
+                      {% if t.lead_name %}<span class="tk-av" title="{{ t.lead_name }} (lead)" style="background: {{ t.lead_color }}">{{ t.lead_name[:1]|upper }}</span>
                         <span class="tk-lead-nm">{{ t.lead_name }}</span>
                       {% else %}<span class="tk-lead-nm" style="color:var(--muted)">Unassigned</span>{% endif %}
                     </span>
@@ -1036,52 +1252,191 @@
                JS moves one node into the veil to show it (server-rendered; no JSON, no Jinja-in-JS). -->
           <div id="tk-store" hidden>
             {% for col in task_cols %}{% for t in col.tasks %}
-            <div class="tkd" data-tkd="{{ t.client_key }}:{{ t.id }}" hidden>
+            <div class="tkd narrow" data-tkd="{{ t.client_key }}:{{ t.id }}" hidden>
               <div class="tkd-head">
-                <div>
-                  <div class="tkd-eyebrow">{{ t.client_name }} <span class="tk-stagepill {{ t.stage }}">{{ col.name }}</span>
-                    {% if t.client_facing %}<span class="tk-flagchip ok">✓ On the client's Progress tab</span>
-                    {% else %}<span class="tk-flagchip no">Internal only</span>{% endif %}
-                  </div>
-                  <div class="tkd-title">{{ t.title }}</div>
+                <div style="display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap">
+                  <span class="tkd-status"><span class="pdot" style="background: {{ {'in_process':'#2f6ecc','for_launch':'#c77d16','launched':'#4fa84a','closed':'#8b8f8c'}[t.stage] }}"></span>{{ col.name }}</span>
+                  <span class="tkd-eyebrow">Service &middot; {{ t.client_name }}</span>
                 </div>
                 <button type="button" class="tkd-x" data-tkclose aria-label="Close">&times;</button>
               </div>
               <div class="tkd-body">
-                <div class="tk-movebar">
-                  <form method="post" action="/w/{{ t.client_key }}/admin/task/move">
-                    <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
-                    <span class="tkd-sl" style="margin:0">Stage</span>
-                    <select name="stage">{% for sk, sl in [('in_process','In Process'),('for_launch','For Launch'),('launched','Launched'),('closed','Closed')] %}
-                      <option value="{{ sk }}" {{ 'selected' if t.stage == sk else '' }}>{{ sl }}</option>{% endfor %}</select>
-                    <button type="submit" class="btn small">Move</button>
-                  </form>
+                {#- Persistent summary (sandbox design): labels, title, then the glance chips. -#}
+                {% if t.labels %}<div class="tk-pills" style="margin-bottom:9px">{% for l in t.labels %}<span class="tk-pill {{ {'Paid Media': 'lb-paid', 'Organic': 'lb-organic', 'Website': 'lb-web'}.get(l, 'lb-other') }}">{{ l }}</span>{% endfor %}</div>{% endif %}
+                <h2 class="tkd-title" style="margin:0;font-size:20px">{{ t.title }}</h2>
+                <div class="tkd-glance">
+                  <span class="tkd-stat prio p-{{ t.priority }}"><span class="pdot tk-pdot p-{{ t.priority }}"></span>{{ t.priority }}</span>
+                  {% if t.on_hold %}<span class="tkd-stat hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>{% endif %}
+                  {% if t.start_date %}<span class="tkd-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="k">Start</span> {{ (t.start_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
+                  {% if t.due_date %}<span class="tkd-stat {{ 'due-over' if t.due_cls == 'over' else ('due-soon' if t.due_cls == 'soon' else '') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span class="k">Launch</span> {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}{{ ' · overdue' if t.due_cls == 'over' else (' · soon' if t.due_cls == 'soon' else '') }}</span>{% endif %}
+                  {% if t.service_charge_label %}<span class="tkd-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>{{ t.service_charge_label }}</span>{% endif %}
+                  {% if t.subs_total %}<span class="tkd-stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{{ t.subs_done }}/{{ t.subs_total }} sub-tasks</span>{% endif %}
+                  {% if t.open_changes %}<span class="tkd-stat due-over">⚑ {{ t.open_changes }} open change request{{ 's' if t.open_changes != 1 else '' }}</span>{% endif %}
+                  {% if t.client_facing %}<span class="tkd-stat sync-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Syncs to Atrium</span>
+                  {% else %}<span class="tkd-stat"><span class="k">Internal only</span></span>{% endif %}
                 </div>
-                <div class="tkd-grid">
-                  <div>
-                    <div class="tkd-sl">Client-safe</div>
-                    <div class="tkd-kv">
-                      <div><div class="k">Campaign</div><div class="v">{{ t.campaign or '—' }}</div></div>
-                      <div><div class="k">Content type</div><div class="v">{{ t.content_type or '—' }}</div></div>
-                      <div><div class="k">Due date</div><div class="v">{{ (t.due_date ~ 'T00:00:00Z')|atrium_date if t.due_date else '—' }}</div></div>
-                      <div><div class="k">Deliverable</div><div class="v">{% if t.deliverable_url %}<a href="{{ t.deliverable_url }}" target="_blank" rel="noopener">Open →</a>{% else %}—{% endif %}</div></div>
+                {#- On-hold banner (orthogonal to stage — shows above it). -#}
+                {% if t.on_hold %}<div class="tkd-ctx hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold{% if t.hold_reason %} &middot; {{ t.hold_reason }}{% endif %}</div>{% endif %}
+                {#- Stage context banner (skipped for In Process — that's the default working state). -#}
+                {% if t.stage == 'for_launch' %}<div class="tkd-ctx review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>In review — awaiting sign-off{% if t.subs_total and t.subs_done != t.subs_total %} &middot; {{ t.subs_total - t.subs_done }} sub-task(s) still open{% endif %}</div>
+                {% elif t.stage == 'launched' %}<div class="tkd-ctx live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/></svg>Live</div>
+                {% elif t.stage == 'closed' %}<div class="tkd-ctx done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Completed &amp; archived</div>{% endif %}
+                {#- Details / Tasks / Comments -- heavy content split into tabs, not one long scroll. -#}
+                <div class="tkd-tabs" role="tablist">
+                  <button type="button" class="tkd-tab is-active" role="tab" aria-selected="true" data-tktab="details">Details</button>
+                  <button type="button" class="tkd-tab" role="tab" aria-selected="false" data-tktab="tasks">Tasks{% if t.subs_total %} <span class="tcount tnum">{{ t.subs_done }}/{{ t.subs_total }}</span>{% endif %}</button>
+                  <button type="button" class="tkd-tab" role="tab" aria-selected="false" data-tktab="comments">Comments{% if t.comment_count %} <span class="tcount tnum">{{ t.comment_count }}</span>{% endif %}</button>
+                </div>
+                <div class="tkd-panel is-active" role="tabpanel" data-tkpanel="details">
+                  {% if t.client_note %}<div class="tkd-sl" style="margin-top:0">Client-facing notes</div>
+                  <div style="font-size:13.5px;color:var(--body);line-height:1.55">{{ t.client_note }}</div>{% endif %}
+                  {% if t.deliverable_url %}<div class="tkd-sl">Deliverable</div>
+                  <a class="btn-ghost" style="display:inline-flex;text-decoration:none" href="{{ t.deliverable_url }}" target="_blank" rel="noopener">Open deliverable →</a>{% endif %}
+                  <div class="tkd-internal" {% if not t.client_note and not t.deliverable_url %}style="margin-top:0;padding-top:0;border-top:0"{% endif %}>
+                    <div class="tkd-sl lock" style="margin-top:0">🔒 Internal — not visible to the client</div>
+                    <div class="tkd-sl">Lead &amp; support</div>
+                    <div class="tk-chiprow">
+                      {% if t.lead_name %}<span class="tk-personchip"><span class="tk-av" style="background: {{ t.lead_color }}">{{ t.lead_name[:1]|upper }}</span>{{ t.lead_name }} <span class="tk-leadtag">LEAD</span></span>
+                      {% else %}<span style="font-size:12.5px;color:var(--muted)">No lead assigned</span>{% endif %}
+                      {% for s in t.support_people %}<span class="tk-personchip"><span class="tk-av sup" style="margin:0;background: {{ s.color }}">{{ s.name[:1]|upper }}</span>{{ s.name }}</span>{% endfor %}
                     </div>
-                    {% if t.client_note %}<div class="tkd-sl">Client note</div><div style="font-size:13px;color:var(--body)">{{ t.client_note }}</div>{% endif %}
-                    <div class="tkd-internal">
-                      <div class="tkd-sl lock" style="margin-top:0">🔒 Internal — never shown to the client</div>
-                      <div class="tkd-kv">
-                        <div><div class="k">Department</div><div class="v">{{ t.department_label }}</div></div>
-                        <div><div class="k">Priority</div><div class="v">{{ t.priority }}</div></div>
-                      </div>
-                      <div class="tkd-sl">Lead &amp; support</div>
-                      <div class="tk-chiprow">
-                        {% if t.lead_name %}<span class="tk-personchip"><span class="tk-av">{{ t.lead_name[:1]|upper }}</span>{{ t.lead_name }} <span class="tk-leadtag">LEAD</span></span>
-                        {% else %}<span style="font-size:12.5px;color:var(--muted)">No lead assigned</span>{% endif %}
-                        {% for s in t.support_people %}<span class="tk-personchip"><span class="tk-av sup" style="margin:0">{{ s.name[:1]|upper }}</span>{{ s.name }}</span>{% endfor %}
-                      </div>
-                      {% if t.internal_notes %}<div class="tkd-sl">Internal notes</div><div style="font-size:13px;color:var(--body)">{{ t.internal_notes }}</div>{% endif %}
+                    {% if t.internal_notes %}<div class="tkd-sl">Internal notes</div><div style="font-size:13px;color:var(--body);line-height:1.55">{{ t.internal_notes }}</div>{% endif %}
+                    {#- Status: On hold ⇄ Ongoing. A held task's reason is internal; a client-facing
+                        held task shows the client a plain "Paused". -#}
+                    <div class="tkd-sl">Status</div>
+                    <form class="tk-holdform" method="post" action="/w/{{ t.client_key }}/admin/task/hold">
+                      <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
+                      {{ tk_back(t, 'details') }}
+                      {% if t.on_hold %}
+                        <span class="tk-hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>
+                        <input type="hidden" name="on_hold" value="0">
+                        <button type="submit" class="btn small">Set ongoing →</button>
+                      {% else %}
+                        <span style="font-size:12.5px;font-weight:700;color:var(--brand-700)">● Ongoing</span>
+                        <input type="text" name="hold_reason" placeholder="Reason (optional, internal)">
+                        <input type="hidden" name="on_hold" value="1">
+                        <button type="submit" class="btn-ghost">Put on hold</button>
+                      {% endif %}
+                    </form>
+                  </div>
+                </div>
+                <div class="tkd-panel" role="tabpanel" data-tkpanel="tasks">
+                  <div class="tkd-sl" style="margin-top:0">Main tasks{% if t.subs_total %} &middot; {{ t.subs_done }}/{{ t.subs_total }} sub-tasks{% endif %}</div>
+                  {% if t.subs_total %}<div class="tk-progress"><i style="width: {{ (100 * t.subs_done / t.subs_total)|round|int }}%"></i></div>{% endif %}
+                  {% for m in t.maintasks %}
+                  <div class="tk-main {{ 'done' if m.all_done else '' }}">
+                    <div class="tk-main-head">
+                      <span class="tk-main-check">{% if m.all_done %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}</span>
+                      {#- The title IS the rename control: edit the text, blur, and it saves. -#}
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/maintask" data-autosubmit class="tk-main-rename">
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="rename">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="maintask_id" value="{{ m.id }}">
+                        {{ tk_back(t, 'tasks') }}
+                        <input type="text" name="text" value="{{ m.text }}" aria-label="Main task name (edit to rename)" title="Click to rename">
+                      </form>
+                      <span class="tk-main-count tnum">{{ m.subs_done }}/{{ m.subs_total }}</span>
+                      {#- Owner reads like the prototype: colored avatar + bold name. The name IS
+                          a borderless select, so clicking it still reassigns in one step. -#}
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/maintask" data-autosubmit style="margin-left:auto;gap:6px">
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="assign">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="maintask_id" value="{{ m.id }}">
+                        {{ tk_back(t, 'tasks') }}
+                        {% if m.owner_name %}<span class="tk-av sup" style="margin:0;background: {{ m.owner_color }}" title="{{ m.owner_name }} (owner)">{{ m.owner_name[:1]|upper }}</span>{% endif %}
+                        <select name="assignee_id" class="tk-ownersel" aria-label="Main-task owner" title="Reassign this main task">{{ tk_people(m.assignee_id, 'Assign…') }}</select>
+                      </form>
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/maintask" data-tkmaindel data-tktitle="{{ m.text }}">
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="delete">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="maintask_id" value="{{ m.id }}">
+                        {{ tk_back(t, 'tasks') }}
+                        <button type="submit" class="rm" title="Remove main task (and its sub-tasks)">&times;</button>
+                      </form>
                     </div>
-                    <div class="tkd-sl">Activity</div>
+                    {% for s in m.subs %}
+                    <div class="tk-subrow {{ 'done' if s.done else '' }}">
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask" data-autosubmit>
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="toggle">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
+                        {{ tk_back(t, 'tasks') }}
+                        <input type="checkbox" name="done" value="1" {{ 'checked' if s.done else '' }} aria-label="Done">
+                      </form>
+                      <span class="txt">{{ s.text }}</span>
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask" data-autosubmit>
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="assign">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
+                        {{ tk_back(t, 'tasks') }}
+                        {% if s.owner_name %}<span class="tk-av sup" style="margin:0;background: {{ s.owner_color }}" title="{{ s.owner_name }}">{{ s.owner_name[:1]|upper }}</span>{% endif %}
+                        <select name="assignee_id" aria-label="Sub-task owner">{{ tk_people(s.assignee_id, 'Assign…') }}</select>
+                      </form>
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask">
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="delete">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
+                        {{ tk_back(t, 'tasks') }}
+                        <button type="submit" class="rm" title="Remove sub-task">&times;</button>
+                      </form>
+                    </div>
+                    {% else %}
+                    <div style="font-size:12.5px;color:var(--muted);padding:4px 2px">No sub-tasks yet.</div>
+                    {% endfor %}
+                    <form class="tk-addsub" method="post" action="/w/{{ t.client_key }}/admin/task/subtask">
+                      <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="add">
+                      <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="maintask_id" value="{{ m.id }}">
+                      {{ tk_back(t, 'tasks') }}
+                      <input type="text" name="text" placeholder="Add a sub-task…">
+                      <select name="assignee_id" aria-label="Assign">{{ tk_people('', 'Assign…') }}</select>
+                      <button type="submit" class="btn small">Add</button>
+                    </form>
+                  </div>
+                  {% else %}
+                  <div style="font-size:12.5px;color:var(--muted)">No main tasks yet — add one below, then break it into sub-tasks.</div>
+                  {% endfor %}
+                  <form class="tk-addmain" method="post" action="/w/{{ t.client_key }}/admin/task/maintask">
+                    <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="add">
+                    <input type="hidden" name="task_id" value="{{ t.id }}">
+                    {{ tk_back(t, 'tasks') }}
+                    <input type="text" name="text" placeholder="Add a main task…">
+                    <select name="assignee_id" aria-label="Assign">{{ tk_people('', 'Assign…') }}</select>
+                    <button type="submit" class="btn small">Add main task</button>
+                  </form>
+                  {% if t.all_subs_done and t.next_stage_key and t.stage != 'closed' %}
+                  <div class="tk-nudge">✓ All sub-tasks done —
+                    <form method="post" action="/w/{{ t.client_key }}/admin/task/move">
+                      <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
+                      <input type="hidden" name="stage" value="{{ t.next_stage_key }}">
+                      {{ tk_back(t, 'tasks') }}
+                      <button type="submit" class="btn small">Move to {{ t.next_stage_label }} →</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="tkd-panel" role="tabpanel" data-tkpanel="comments">
+                  <div class="tk-thread">
+                    {% for c in t.comments %}
+                    <div class="tk-com {{ 'client' if c.sender == 'client' else 'agora' }}{{ ' changes' if c.kind == 'changes' else '' }}{{ ' resolved' if c.kind == 'changes' and c.resolved else '' }}">
+                      {% if c.kind == 'changes' %}<span class="flag">⚑ Change request{{ ' · resolved' if c.resolved else '' }}</span>{% endif %}
+                      <span class="who">{{ c.sender_name or ('Client' if c.sender == 'client' else 'AGORA') }}</span>
+                      <div>{{ c.body }}</div>
+                      {% if c.kind == 'changes' and not c.resolved %}
+                      <form method="post" action="/w/{{ t.client_key }}/admin/task/comment">
+                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="resolve">
+                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="comment_id" value="{{ c.id }}">
+                        {{ tk_back(t, 'comments') }}
+                        <button type="submit" class="btn small">Resolve</button>
+                      </form>
+                      {% endif %}
+                    </div>
+                    {% else %}
+                    <div style="font-size:12.5px;color:var(--muted)">No comments yet.</div>
+                    {% endfor %}
+                  </div>
+                  <form class="tk-comform" method="post" action="/w/{{ t.client_key }}/admin/task/comment">
+                    <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="add">
+                    <input type="hidden" name="task_id" value="{{ t.id }}">
+                    {{ tk_back(t, 'comments') }}
+                    <input type="text" name="body" placeholder="Write a comment…">
+                    <button type="submit" class="btn small">Send</button>
+                  </form>
+                  <details class="tk-disc">
+                    <summary>Activity</summary>
                     <ul class="tk-activity">
                       {% for h in t.history[-5:]|reverse %}
                       <li><b>{{ h.actor.split('@')[0].title() if h.actor else 'System' }}</b>
@@ -1089,72 +1444,7 @@
                         &middot; {{ h.at|atrium_dt }}</li>
                       {% endfor %}
                     </ul>
-                  </div>
-                  <div>
-                    <div class="tkd-sl">Sub-tasks{% if t.subs_total %} &middot; {{ t.subs_done }}/{{ t.subs_total }}{% endif %}</div>
-                    {% if t.subs_total %}<div class="tk-progress"><i style="width: {{ (100 * t.subs_done / t.subs_total)|round|int }}%"></i></div>{% endif %}
-                    {% for s in t.subtasks %}
-                    <div class="tk-subrow {{ 'done' if s.done else '' }}">
-                      <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask" data-autosubmit>
-                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="toggle">
-                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
-                        <input type="checkbox" name="done" value="1" {{ 'checked' if s.done else '' }} aria-label="Done">
-                      </form>
-                      <span class="txt">{{ s.text }}</span>
-                      <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask" data-autosubmit>
-                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="assign">
-                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
-                        <select name="assignee_id" aria-label="Sub-task owner">{{ tk_people(s.assignee_id, 'Owner…') }}</select>
-                      </form>
-                      <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask">
-                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="delete">
-                        <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
-                        <button type="submit" class="rm" title="Remove sub-task">&times;</button>
-                      </form>
-                    </div>
-                    {% endfor %}
-                    <form class="tk-addsub" method="post" action="/w/{{ t.client_key }}/admin/task/subtask">
-                      <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="add">
-                      <input type="hidden" name="task_id" value="{{ t.id }}">
-                      <input type="text" name="text" placeholder="Add a sub-task…">
-                      <select name="assignee_id" aria-label="Owner">{{ tk_people('', 'Owner…') }}</select>
-                      <button type="submit" class="btn small">Add</button>
-                    </form>
-                    {% if t.all_subs_done and t.next_stage_key and t.stage != 'closed' %}
-                    <div class="tk-nudge">✓ All sub-tasks done —
-                      <form method="post" action="/w/{{ t.client_key }}/admin/task/move">
-                        <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
-                        <input type="hidden" name="stage" value="{{ t.next_stage_key }}">
-                        <button type="submit" class="btn small">Move to {{ t.next_stage_label }} →</button>
-                      </form>
-                    </div>
-                    {% endif %}
-                    <div class="tkd-sl" style="margin-top:18px">Comments</div>
-                    <div class="tk-thread">
-                      {% for c in t.comments %}
-                      <div class="tk-com {{ 'client' if c.sender == 'client' else 'agora' }}{{ ' changes' if c.kind == 'changes' else '' }}{{ ' resolved' if c.kind == 'changes' and c.resolved else '' }}">
-                        {% if c.kind == 'changes' %}<span class="flag">⚑ Change request{{ ' · resolved' if c.resolved else '' }}</span>{% endif %}
-                        <span class="who">{{ c.sender_name or ('Client' if c.sender == 'client' else 'AGORA') }}</span>
-                        <div>{{ c.body }}</div>
-                        {% if c.kind == 'changes' and not c.resolved %}
-                        <form method="post" action="/w/{{ t.client_key }}/admin/task/comment">
-                          <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="resolve">
-                          <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="comment_id" value="{{ c.id }}">
-                          <button type="submit" class="btn small">Resolve</button>
-                        </form>
-                        {% endif %}
-                      </div>
-                      {% else %}
-                      <div style="font-size:12.5px;color:var(--muted)">No comments yet.</div>
-                      {% endfor %}
-                    </div>
-                    <form class="tk-comform" method="post" action="/w/{{ t.client_key }}/admin/task/comment">
-                      <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="add">
-                      <input type="hidden" name="task_id" value="{{ t.id }}">
-                      <input type="text" name="body" placeholder="Write a comment…">
-                      <button type="submit" class="btn small">Send</button>
-                    </form>
-                  </div>
+                  </details>
                 </div>
               </div>
               <div class="tkd-foot">
@@ -1164,24 +1454,33 @@
                 </form>
                 <span class="spacer"></span>
                 <button type="button" class="btn-ghost" data-tkedit-open="{{ t.client_key }}:{{ t.id }}">Edit</button>
-                <button type="button" class="btn small" data-tkclose>Close</button>
+                {#- The one primary action per stage (sandbox design): advance to the next stage.
+                    Backward moves stay on the board via drag; the close-guard flash covers blocks. -#}
+                {% if t.next_stage_key %}
+                <form method="post" action="/w/{{ t.client_key }}/admin/task/move" style="margin:0">
+                  <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
+                  <input type="hidden" name="stage" value="{{ t.next_stage_key }}">
+                  {{ tk_back(t, 'details') }}
+                  <button type="submit" class="btn small">{{ {'for_launch': 'Move to For Launch', 'launched': 'Mark Launched', 'closed': 'Mark Complete'}[t.next_stage_key] }} →</button>
+                </form>
+                {% endif %}
               </div>
             </div>
             <div class="tkd" data-tkedit="{{ t.client_key }}:{{ t.id }}" hidden>
               <form method="post" action="/w/{{ t.client_key }}/admin/task">
                 <div class="tkd-head">
-                  <div><div class="tkd-eyebrow">{{ t.client_name }} &middot; Edit task</div>
+                  <div><div class="tkd-eyebrow">{{ t.client_name }} &middot; Edit Service</div>
                     <div class="tkd-title">{{ t.title }}</div></div>
                   <button type="button" class="tkd-x" data-tkclose aria-label="Close">&times;</button>
                 </div>
                 <div class="tkd-body">
                   <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="edit">
                   <input type="hidden" name="task_id" value="{{ t.id }}">
-                  {{ tk_fields(t) }}
+                  {{ tk_fields(t, true) }}
                 </div>
                 <div class="tkd-foot"><span class="spacer"></span>
                   <button type="button" class="btn-ghost" data-tkclose>Cancel</button>
-                  <button type="submit" class="btn small">Save changes</button>
+                  <button type="submit" class="btn small violet">Save changes</button>
                 </div>
               </form>
             </div>
@@ -1189,29 +1488,74 @@
             <div class="tkd" data-tknew hidden>
               <form method="post" action="" id="tk-new-form">
                 <div class="tkd-head">
-                  <div><div class="tkd-eyebrow">Delivery &middot; New task</div>
-                    <div class="tkd-title">Add a task</div></div>
+                  <div><div class="tkd-eyebrow">Delivery &middot; New Service</div>
+                    <div class="tkd-title">Add a service</div></div>
                   <button type="button" class="tkd-x" data-tkclose aria-label="Close">&times;</button>
                 </div>
                 <div class="tkd-body">
                   <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="add">
+                  {#- New services always start in In Process (no stage picker); move them along the
+                      board from there. -#}
                   <div class="tk-formgrid" style="margin-bottom:12px">
-                    <div><label>Client</label><select id="tk-new-client" required>
+                    <div class="full"><label>Client</label><select id="tk-new-client" required>
                       <option value="">Choose a client…</option>
                       {% for c in clients %}{% if c.has_workspace %}<option value="{{ c.key }}">{{ c.name|default(c.key, true) }}</option>{% endif %}{% endfor %}
                     </select></div>
-                    <div><label>Stage</label><select name="stage">
-                      {% for sk, sl in [('in_process','In Process'),('for_launch','For Launch'),('launched','Launched'),('closed','Closed')] %}<option value="{{ sk }}">{{ sl }}</option>{% endfor %}
-                    </select></div>
                   </div>
-                  {{ tk_fields({}) }}
+                  {{ tk_fields({}, false) }}
                 </div>
                 <div class="tkd-foot"><span class="spacer"></span>
                   <button type="button" class="btn-ghost" data-tkclose>Cancel</button>
-                  <button type="submit" class="btn small">Create task</button>
+                  <button type="submit" class="btn small violet">Create service</button>
                 </div>
               </form>
             </div>
+          </div>
+        </section>
+
+        <!-- ---------- DELIVERY CALENDAR ---------- -->
+        {#- A month view of every client's services plotted on their LAUNCH date. Same data as the
+            Task Board (task_cols); each event opens the SAME detail overlay (reuses #tk-store via
+            tkOpen). The grid + month nav are built client-side from the hidden #cal-store nodes
+            (no Jinja in the script block; the JS reads the DOM). -#}
+        <section class="pane" data-pane="calendar">
+          <div class="tk-pagehead">
+            <div>
+              <p class="eyebrow">Atrium Admin &middot; Delivery</p>
+              <h1 class="page">Delivery Calendar</h1>
+              <p class="lead">Every client's services plotted on their launch date. Click any service to open it.
+                Services with no launch date yet don't appear here.</p>
+            </div>
+          </div>
+          <div class="cal-bar">
+            <div class="cal-nav">
+              <button type="button" class="btn-ghost" id="cal-prev" aria-label="Previous month">&lsaquo;</button>
+              <span class="cal-title" id="cal-title" aria-live="polite"></span>
+              <button type="button" class="btn-ghost" id="cal-next" aria-label="Next month">&rsaquo;</button>
+              <button type="button" class="btn-ghost" id="cal-today">Today</button>
+            </div>
+            <select id="cal-f-client" aria-label="Filter the calendar by client">
+              <option value="">All clients</option>
+              {% for c in clients %}{% if c.has_workspace %}<option value="{{ c.key }}">{{ c.name|default(c.key, true) }}</option>{% endif %}{% endfor %}
+            </select>
+            <span class="cal-legend">
+              <span class="cal-lg lb-paid">Paid Media</span><span class="cal-lg lb-organic">Organic</span><span class="cal-lg lb-web">Website</span><span class="cal-lg lb-other">Other</span>
+              <span class="cal-lg-dot p-Urgent">Urgent</span><span class="cal-lg-dot p-High">High</span>
+              <span class="cal-lg-mark ok">✓ Launched</span><span class="cal-lg-mark bad">⚠ Overdue</span><span class="cal-lg-hold">⏸ On hold</span>
+            </span>
+          </div>
+          <div class="cal-grid-wrap"><div class="cal-grid" id="cal-grid"></div></div>
+          <div class="cal-foot" id="cal-foot"></div>
+
+          <!-- Hidden event store: one node per SCHEDULED service (has a launch date). JS reads these. -->
+          <div id="cal-store" hidden>
+            {% for col in task_cols %}{% for t in col.tasks %}{% if t.due_date %}
+            <div class="cal-ev" data-date="{{ t.due_date }}" data-start="{{ t.start_date }}"
+                 data-open="{{ t.client_key }}:{{ t.id }}" data-client="{{ t.client_key }}"
+                 data-cname="{{ t.client_name }}" data-title="{{ t.title }}"
+                 data-disc="{{ t.disc_class }}" data-stage="{{ t.stage }}"
+                 data-priority="{{ t.priority }}" data-hold="{{ '1' if t.on_hold else '0' }}"></div>
+            {% endif %}{% endfor %}{% endfor %}
           </div>
         </section>
 
@@ -1362,6 +1706,24 @@
       var hasSection = body.getAttribute("data-has-section") === "1";
       var startConsole = hasMsg || hasSection || (want !== "clients");
       showView(startConsole ? "console" : "hub");
+
+      // ---- Flash = transient toast, NOT a banner stuck at the top. ----
+      // Auto-dismiss the flash, then strip ?msg/?err from the URL so reloading or switching panes
+      // (client-side view state) can never re-surface the same notification. (startConsole above
+      // already read data-has-msg from the server-rendered body, so clearing the URL is safe.)
+      var flashEl = document.querySelector(".flash");
+      if (flashEl) {
+        setTimeout(function () { flashEl.classList.add("flash-out"); }, 3600);
+        setTimeout(function () { if (flashEl.parentNode) { flashEl.parentNode.removeChild(flashEl); } }, 3960);
+      }
+      try {
+        var fu = new URL(window.location.href);
+        if (fu.searchParams.has("msg") || fu.searchParams.has("err")) {
+          fu.searchParams.delete("msg");
+          fu.searchParams.delete("err");
+          window.history.replaceState({}, document.title, fu.pathname + fu.search + fu.hash);
+        }
+      } catch (e) { /* URL/history unsupported -- harmless, the flash still auto-dismisses */ }
 
       // ---- "Upload logo": picking a file auto-submits its form. ----
       qsa("input[data-logo-input]").forEach(function (inp) {
@@ -1571,6 +1933,33 @@
         });
       }
 
+      // ---- Detail overlay tabs (Details / Tasks / Comments): toggle panels in place. ----
+      qsa("[data-tktab]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var bar = b.parentNode;              // .tkd-tabs
+          var body = bar.parentNode;           // .tkd-body
+          var key = b.getAttribute("data-tktab");
+          qsa("[data-tktab]", bar).forEach(function (x) {
+            var on = x === b;
+            x.classList.toggle("is-active", on);
+            x.setAttribute("aria-selected", on ? "true" : "false");
+          });
+          qsa(".tkd-panel", body).forEach(function (p) {
+            p.classList.toggle("is-active", p.getAttribute("data-tkpanel") === key);
+          });
+        });
+      });
+
+      // ---- Confirm before removing a main task (its sub-tasks go with it). ----
+      qsa("form[data-tkmaindel]").forEach(function (f) {
+        f.addEventListener("submit", function (e) {
+          var title = f.getAttribute("data-tktitle") || "this main task";
+          if (!window.confirm("Remove the main task “" + title + "” and its sub-tasks?")) {
+            e.preventDefault();
+          }
+        });
+      });
+
       // ---- Auto-submit mini-forms (sub-task done toggle + owner select). ----
       qsa("form[data-autosubmit]").forEach(function (f) {
         f.addEventListener("change", function () { f.submit(); });
@@ -1611,15 +2000,121 @@
           if (count) { count.textContent = visible; }
         });
       }
+      var fSort = document.getElementById("tk-f-sort");
+      var PRIO_RANK = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
+
+      // Persist filter + sort across the page reloads that every task action triggers, so the
+      // board keeps YOUR context when the modal reopens. localStorage, per-browser.
+      var TK_PREFS = "agora.tkprefs";
+      function savePrefs() {
+        try {
+          window.localStorage.setItem(TK_PREFS, JSON.stringify({
+            c: fClient ? fClient.value : "", d: fDept ? fDept.value : "",
+            p: fPerson ? fPerson.value : "", pr: fPriority ? fPriority.value : "",
+            sort: fSort ? fSort.value : "priority"
+          }));
+        } catch (e) { /* private mode / disabled -- prefs just won't persist */ }
+      }
+      function restorePrefs() {
+        try {
+          var raw = window.localStorage.getItem(TK_PREFS);
+          if (!raw) { return; }
+          var s = JSON.parse(raw);
+          if (fClient) { fClient.value = s.c || ""; }
+          if (fDept) { fDept.value = s.d || ""; }
+          if (fPerson) { fPerson.value = s.p || ""; }
+          if (fPriority) { fPriority.value = s.pr || ""; }
+          if (fSort && s.sort) { fSort.value = s.sort; }
+        } catch (e) { /* ignore malformed prefs */ }
+      }
+
+      function applyFilters() {
+        var c = fClient ? fClient.value : "";
+        var d = fDept ? fDept.value : "";
+        var p = fPerson ? fPerson.value : "";
+        var pr = fPriority ? fPriority.value : "";
+        qsa(".tk-card").forEach(function (card) {
+          var people = " " + (card.getAttribute("data-people") || "") + " ";
+          var show = (!c || card.getAttribute("data-client") === c)
+            && (!d || card.getAttribute("data-dept") === d)
+            && (!p || people.indexOf(" " + p + " ") >= 0)
+            && (!pr || card.getAttribute("data-priority") === pr);
+          card.style.display = show ? "" : "none";
+        });
+        qsa(".tk-col").forEach(function (col) {
+          var visible = qsa(".tk-card", col).filter(function (x) { return x.style.display !== "none"; }).length;
+          var count = col.querySelector("[data-colcount]");
+          if (count) { count.textContent = visible; }
+        });
+      }
       [fClient, fDept, fPerson, fPriority].forEach(function (sel) {
-        if (sel) { sel.addEventListener("change", applyFilters); }
+        if (sel) { sel.addEventListener("change", function () { savePrefs(); applyFilters(); }); }
       });
       if (fClear) {
         fClear.addEventListener("click", function () {
           [fClient, fDept, fPerson, fPriority].forEach(function (sel) { if (sel) { sel.value = ""; } });
-          applyFilters();
+          savePrefs(); applyFilters();
         });
       }
+
+      // ---- Sort selector: reorder cards inside each column, client-side. The default matches the
+      // server render (Urgent first, active before on-hold, then launch date). ----
+      function applySort() {
+        var mode = fSort ? fSort.value : "priority";
+        qsa(".tk-list").forEach(function (list) {
+          var cards = qsa(".tk-card", list);
+          cards.sort(function (a, b) {
+            var pa = PRIO_RANK[a.getAttribute("data-priority")]; if (pa == null) { pa = 9; }
+            var pb = PRIO_RANK[b.getAttribute("data-priority")]; if (pb == null) { pb = 9; }
+            var da = a.getAttribute("data-due") || "9999-99-99";
+            var db = b.getAttribute("data-due") || "9999-99-99";
+            if (mode === "due") {
+              if (da !== db) { return da < db ? -1 : 1; }
+              return pa - pb;
+            }
+            if (mode === "client") {
+              var c = (a.getAttribute("data-cname") || "").localeCompare(b.getAttribute("data-cname") || "");
+              if (c) { return c; }
+              return pa - pb;
+            }
+            if (pa !== pb) { return pa - pb; }               // priority (default)
+            var ha = a.getAttribute("data-hold") === "1" ? 1 : 0;   // active before on-hold
+            var hb = b.getAttribute("data-hold") === "1" ? 1 : 0;
+            if (ha !== hb) { return ha - hb; }
+            if (da !== db) { return da < db ? -1 : 1; }
+            return 0;
+          });
+          cards.forEach(function (c) { list.appendChild(c); });
+        });
+      }
+      if (fSort) { fSort.addEventListener("change", function () { savePrefs(); applySort(); }); }
+
+      // Restore saved filter + sort on load, then apply both.
+      restorePrefs();
+      applyFilters();
+      applySort();
+
+      // ---- Reopen after an action: forms carry back_task/back_tab, the redirect returns
+      // ?task=<client>:<id>&tab=<tab>, and we land the user back INSIDE the same overlay
+      // on the same tab (then scrub the params so a manual reload doesn't re-open it). ----
+      try {
+        var ru = new URL(window.location.href);
+        var reopenKey = ru.searchParams.get("task");
+        var reopenTab = ru.searchParams.get("tab");
+        if (reopenKey) {
+          var reopenNode = findNode("data-tkd", reopenKey);
+          if (reopenNode) {
+            tkOpen(reopenNode);
+            if (reopenTab) {
+              var tabBtn = reopenNode.querySelector('[data-tktab="' + reopenTab + '"]');
+              if (tabBtn) { tabBtn.click(); }
+            }
+          }
+          ru.searchParams.delete("task");
+          ru.searchParams.delete("tab");
+          window.history.replaceState({}, document.title, ru.pathname + ru.search + ru.hash);
+        }
+      } catch (e) { /* URL/history unsupported — harmless, the board still rendered */ }
 
       // ---- Drag a card to another column -> POST the stage move (server re-renders). ----
       var dragKey = null;
@@ -1658,6 +2153,124 @@
           dragKey = null;
         });
       });
+
+      // ---- Delivery Calendar (month grid built from #cal-store; clicks reuse the task overlay). ----
+      (function () {
+        var grid = document.getElementById("cal-grid");
+        var store = document.getElementById("cal-store");
+        if (!grid || !store) { return; }
+        var titleEl = document.getElementById("cal-title");
+        var footEl = document.getElementById("cal-foot");
+        var fCal = document.getElementById("cal-f-client");
+        var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        var events = qsa(".cal-ev", store).map(function (n) {
+          return { date: n.getAttribute("data-date"), start: n.getAttribute("data-start") || "",
+                   key: n.getAttribute("data-open"), client: n.getAttribute("data-client"),
+                   cname: n.getAttribute("data-cname") || "", title: n.getAttribute("data-title") || "",
+                   disc: n.getAttribute("data-disc") || "lb-other", hold: n.getAttribute("data-hold") === "1",
+                   stage: n.getAttribute("data-stage") || "", prio: n.getAttribute("data-priority") || "" };
+        });
+        var now = new Date();
+        var calY = now.getFullYear(), calM = now.getMonth();
+        function pad2(n) { return (n < 10 ? "0" : "") + n; }
+        function ymd(y, m, d) { return y + "-" + pad2(m + 1) + "-" + pad2(d); }
+        var todayStr = ymd(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // Launched = the Launched/Closed stages (a past date is fine); overdue = the launch date
+        // passed while the work is still pre-launch (In Process / For Launch).
+        function isLaunched(ev) { return ev.stage === "launched" || ev.stage === "closed"; }
+        function overdue(ev) { return !isLaunched(ev) && ev.date < todayStr; }
+
+        function chip(ev) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "cal-chip " + ev.disc + (ev.hold ? " held" : "")
+            + (isLaunched(ev) ? " done" : (overdue(ev) ? " over" : ""));
+          b.title = (overdue(ev) ? "Past its launch date · " : "") + (ev.hold ? "On hold · " : "")
+            + ev.cname + " — " + ev.title + " · " + ev.prio + (ev.start ? " (starts " + ev.start + ")" : "");
+          // Priority: dot ONLY for the exceptional (Urgent red / High amber) — the rest stay clean.
+          if (!isLaunched(ev) && (ev.prio === "Urgent" || ev.prio === "High")) {
+            var pd = document.createElement("span");
+            pd.className = "cal-pdot p-" + ev.prio;
+            b.appendChild(pd);
+          }
+          var cc = document.createElement("span");
+          cc.className = "cc"; cc.textContent = ev.cname + " ";
+          b.appendChild(cc);
+          var mark = isLaunched(ev) ? "✓ " : (overdue(ev) ? "⚠ " : (ev.hold ? "⏸ " : ""));
+          b.appendChild(document.createTextNode(mark + ev.title));
+          b.addEventListener("click", function () { tkOpen(findNode("data-tkd", ev.key)); });
+          return b;
+        }
+        function build() {
+          var cf = fCal ? fCal.value : "";
+          grid.innerHTML = "";
+          titleEl.textContent = new Date(calY, calM, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+          DOW.forEach(function (d) { var h = document.createElement("div"); h.className = "cal-dow"; h.textContent = d; grid.appendChild(h); });
+          var startDow = new Date(calY, calM, 1).getDay();
+          var daysInMonth = new Date(calY, calM + 1, 0).getDate();
+          var i;
+          for (i = 0; i < startDow; i++) { var p = document.createElement("div"); p.className = "cal-cell pad"; grid.appendChild(p); }
+          var monthCount = 0;
+          for (var day = 1; day <= daysInMonth; day++) {
+            var cell = document.createElement("div");
+            var dow = new Date(calY, calM, day).getDay();
+            cell.className = "cal-cell" + (dow === 0 || dow === 6 ? " weekend" : "");
+            var ds = ymd(calY, calM, day);
+            if (ds === todayStr) { cell.className += " today"; }
+            var num = document.createElement("div"); num.className = "cal-daynum"; num.textContent = String(day); cell.appendChild(num);
+            var todays = events.filter(function (ev) { return ev.date === ds && (!cf || ev.client === cf); });
+            // Urgent first inside a day (same rank the board uses), launched work last.
+            todays.sort(function (a, b) {
+              var sa = isLaunched(a) ? 1 : 0, sb = isLaunched(b) ? 1 : 0;
+              if (sa !== sb) { return sa - sb; }
+              var pa = PRIO_RANK[a.prio]; if (pa == null) { pa = 9; }
+              var pb = PRIO_RANK[b.prio]; if (pb == null) { pb = 9; }
+              return pa - pb;
+            });
+            monthCount += todays.length;
+            todays.slice(0, 3).forEach(function (ev) { cell.appendChild(chip(ev)); });
+            if (todays.length > 3) {
+              var more = document.createElement("button");
+              more.type = "button"; more.className = "cal-more";
+              more.textContent = "+" + (todays.length - 3) + " more";
+              more.addEventListener("click", function () {
+                more.parentNode.removeChild(more);
+                todays.slice(3).forEach(function (ev) { cell.appendChild(chip(ev)); });
+              });
+              cell.appendChild(more);
+            }
+            grid.appendChild(cell);
+          }
+          var trailing = (7 - ((startDow + daysInMonth) % 7)) % 7;
+          for (i = 0; i < trailing; i++) { var q = document.createElement("div"); q.className = "cal-cell pad"; grid.appendChild(q); }
+          var visible = events.filter(function (ev) { return !cf || ev.client === cf; });
+          footEl.innerHTML = "";
+          var strong = document.createElement("b"); strong.textContent = String(monthCount);
+          footEl.appendChild(strong);
+          footEl.appendChild(document.createTextNode(" service" + (monthCount === 1 ? "" : "s") + " launching this month · " + visible.length + " scheduled in total."));
+          // Overdue rescue: past-launch pre-launch services hide in past months where nobody
+          // scrolls — surface a count that JUMPS the calendar to the earliest one.
+          var lost = visible.filter(overdue).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+          if (lost.length) {
+            var jump = document.createElement("button");
+            jump.type = "button";
+            jump.className = "cal-overjump";
+            jump.textContent = "⚠ " + lost.length + " past " + (lost.length === 1 ? "its" : "their") + " launch date — show";
+            jump.addEventListener("click", function () {
+              calY = Number(lost[0].date.slice(0, 4));
+              calM = Number(lost[0].date.slice(5, 7)) - 1;
+              build();
+            });
+            footEl.appendChild(jump);
+          }
+        }
+        document.getElementById("cal-prev").addEventListener("click", function () { calM--; if (calM < 0) { calM = 11; calY--; } build(); });
+        document.getElementById("cal-next").addEventListener("click", function () { calM++; if (calM > 11) { calM = 0; calY++; } build(); });
+        document.getElementById("cal-today").addEventListener("click", function () { calY = now.getFullYear(); calM = now.getMonth(); build(); });
+        if (fCal) { fCal.addEventListener("change", build); }
+        build();
+      })();
     })();
   </script>
 </body>

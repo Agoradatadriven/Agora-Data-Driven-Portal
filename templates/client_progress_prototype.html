@@ -124,6 +124,11 @@
     .ax-pcard{background:var(--ax-white);border:1px solid var(--ax-line);border-radius:var(--ax-radius);padding:15px;box-shadow:var(--ax-shadow);cursor:pointer;transition:transform .18s ease,box-shadow .18s,border-color .18s}
     .ax-pcard:hover{transform:translateY(-3px);box-shadow:var(--ax-shadow-lg);border-color:#d4d6df}
     .ax-chip{display:inline-flex;align-items:center;font-size:10px;font-weight:800;border-radius:var(--ax-pill);padding:2px 9px;letter-spacing:.03em;text-transform:uppercase;background:var(--ax-violet-bg);color:var(--ax-violet-d)}
+    /* Discipline tint on the campaign chip — same color language as the admin board. */
+    .ax-chip.lb-paid{background:#ECECFB;color:#5A54DD}
+    .ax-chip.lb-organic{background:var(--ax-green-bg);color:var(--ax-green-d)}
+    .ax-chip.lb-web{background:var(--ax-violet-bg);color:var(--ax-violet-d)}
+    .ax-chip.lb-other{background:#EEF0F3;color:#5B6472}
     .ax-ptitle{font-weight:800;font-size:14px;color:var(--ax-ink);line-height:1.4;margin:9px 0 0}
     .ax-ptype{font-size:12px;color:var(--ax-sub);margin-top:3px}
     .ax-prog{margin-top:12px}
@@ -166,6 +171,23 @@
     .ax-stepic.done{background:var(--ax-green);border-color:var(--ax-green);color:#fff}
     .ax-stepic svg{width:11px;height:11px}
     .ax-deliv{display:inline-flex;align-items:center;gap:7px;margin-top:12px;background:var(--ax-grad-green);color:#fff;font-size:13px;font-weight:800;border-radius:8px;padding:9px 15px}
+    /* start → launch timeline */
+    .ax-timeline{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:4px 0 6px}
+    .ax-timeline .tl-type{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ax-violet-d);background:var(--ax-violet-bg);border-radius:var(--ax-pill);padding:3px 10px}
+    .ax-timeline .tl-seg{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ax-charcoal)}
+    .ax-timeline .tl-seg svg{width:13px;height:13px;opacity:.65}
+    .ax-timeline .tl-seg b{font-weight:800;color:var(--ax-ink)}
+    .ax-timeline .tl-seg.soon b{color:var(--s-rev-tx)}
+    .ax-timeline .tl-arrow{color:var(--ax-sub);font-weight:800}
+    /* phases (main task → steps) */
+    .ax-phase{border:1px solid var(--ax-line);border-radius:10px;padding:10px 12px;margin-bottom:9px}
+    .ax-phase-h{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+    .ax-phase-ic{width:17px;height:17px;flex:0 0 auto;border-radius:50%;border:1.5px solid var(--ax-line);display:flex;align-items:center;justify-content:center;color:#fff}
+    .ax-phase-ic.done{background:var(--ax-green);border-color:var(--ax-green)}
+    .ax-phase-ic svg{width:10px;height:10px}
+    .ax-phase-n{font-size:13.5px;font-weight:800;color:var(--ax-ink)}
+    .ax-phase-c{margin-left:auto;font-size:11px;font-weight:800;color:var(--ax-sub);background:var(--ax-canvas);border:1px solid var(--ax-line);border-radius:var(--ax-pill);padding:1px 8px}
+    .ax-phase .ax-steps{gap:6px}
 
     /* ---- comment thread (client can comment / request changes) ---- */
     .ax-comments{margin-top:20px;border-top:1px dashed var(--ax-line);padding-top:14px}
@@ -286,51 +308,97 @@
       function days(n) { var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
 
       // Client-SAFE deliverables. `comments`: who = "agora" | "client", kind "changes" flags a change request.
+      // Work is grouped into client-friendly `phases` (main task → steps), mirroring the
+      // admin board's two-level breakdown but WITHOUT internal owners/notes/priority/charge.
       var ITEMS = [
         { client_id: 1, title: "Park & Porch — lead-gen funnel", stage: "launched", campaign: "Park & Porch", type: "Lead-gen funnel",
-          target: days(-1), link: "https://drive.google.com/…", note: "Your funnel is live — first leads are coming through. We're watching cost-per-lead this week before scaling.",
-          steps: [["Funnel proposed", true], ["Info pack built", true], ["Aligned with launch", true], ["Launched", true]], updated: "2 hours ago",
+          start: days(-14), target: days(-1), link: "https://drive.google.com/…", note: "Your funnel is live — first leads are coming through. We're watching cost-per-lead this week before scaling.",
+          phases: [
+            { name: "Build", steps: [["Funnel proposed", true], ["Info pack built", true]] },
+            { name: "Launch", steps: [["Aligned with launch", true], ["Launched", true]] }
+          ], updated: "2 hours ago",
           comments: [{ who: "agora", body: "Funnel's live and the first leads are in — we'll report back on CPL Friday.", when: "2 hours ago" }] },
         { client_id: 1, title: "Direct booking email series", stage: "in_process", campaign: "Direct Booking (Campspot)", type: "Email sequence",
-          target: days(3), link: "", note: "", steps: [["Sequence mapped", true], ["Copy drafted", false], ["Design + build", false]], updated: "yesterday", comments: [] },
+          start: days(-4), target: days(3), link: "", note: "",
+          phases: [
+            { name: "Plan", steps: [["Sequence mapped", true]] },
+            { name: "Create", steps: [["Copy drafted", false], ["Design + build", false]] }
+          ], updated: "yesterday", comments: [] },
         { client_id: 1, title: "Booking-flow tracking", stage: "in_process", campaign: "Direct Booking (Campspot)", type: "Website tracking",
-          target: days(7), link: "", note: "Waiting on write access to your tag manager — we'll confirm once it's granted.",
-          steps: [["Reviewed setup", true], ["Get tag-manager access", false], ["Verify tracking", false]], updated: "3 days ago", comments: [] },
+          start: days(-6), target: days(7), link: "", note: "Waiting on write access to your tag manager — we'll confirm once it's granted.",
+          phases: [
+            { name: "Access", steps: [["Reviewed setup", true], ["Get tag-manager access", false]] },
+            { name: "Verify", steps: [["Verify tracking", false]] }
+          ], updated: "3 days ago", comments: [] },
 
         { client_id: 2, title: "July reporting refresh", stage: "for_launch", campaign: "Ads Manager", type: "Report", review: true,
-          target: days(1), link: "", note: "Your July report is ready for a look — we'll walk you through it on the next call.",
-          steps: [["July numbers pulled", true], ["Visuals refreshed", true], ["Final check", false]], updated: "5 hours ago",
+          start: days(-5), target: days(1), link: "", note: "Your July report is ready for a look — we'll walk you through it on the next call.",
+          phases: [
+            { name: "Update", steps: [["July numbers pulled", true], ["Visuals refreshed", true]] },
+            { name: "Review", steps: [["Final check", false]] }
+          ], updated: "5 hours ago",
           comments: [{ who: "agora", body: "July report is ready for your review — anything you'd like added before the call?", when: "5 hours ago" }] },
         { client_id: 2, title: "Get Clients (5 Unexpected Ways) — 6 statics", stage: "in_process", campaign: "Get Clients", type: "Ad creative",
-          target: days(6), link: "", note: "", steps: [["Concepts", false], ["Design 6 statics", false], ["Review", false]], updated: "yesterday", comments: [] },
+          start: days(-2), target: days(6), link: "", note: "",
+          phases: [
+            { name: "Concepting", steps: [["Concepts", false]] },
+            { name: "Design", steps: [["Design 6 statics", false]] },
+            { name: "Review", steps: [["Review", false]] }
+          ], updated: "yesterday", comments: [] },
         { client_id: 2, title: "July performance recap", stage: "closed", campaign: "Ads Manager", type: "Report",
-          target: days(-8), link: "https://drive.google.com/…", note: "Signed off and filed — thank you!",
-          steps: [["Delivered", true], ["Your sign-off", true]], updated: "1 week ago",
+          start: days(-24), target: days(-8), link: "https://drive.google.com/…", note: "Signed off and filed — thank you!",
+          phases: [
+            { name: "Delivery", steps: [["Delivered", true], ["Your sign-off", true]] }
+          ], updated: "1 week ago",
           comments: [{ who: "agora", body: "Recap delivered.", when: "1 week ago" }, { who: "client", body: "Looks great, approved!", when: "1 week ago" }] },
 
         { client_id: 3, title: "New Arrivals — social video", stage: "for_launch", campaign: "New Arrivals", type: "Video", review: true,
-          target: days(2), link: "https://drive.google.com/…", note: "First New Arrivals video is in your workspace for approval — let us know if you'd like any tweaks.",
-          steps: [["Video drafted", true], ["Story timeline", true], ["Sent for approval", true], ["Your approval", false]], updated: "3 days ago",
+          start: days(-9), target: days(2), link: "https://drive.google.com/…", note: "First New Arrivals video is in your workspace for approval — let us know if you'd like any tweaks.",
+          phases: [
+            { name: "Produce", steps: [["Video drafted", true], ["Story timeline", true]] },
+            { name: "Approval", steps: [["Sent for approval", true], ["Your approval", false]] }
+          ], updated: "3 days ago",
           comments: [{ who: "agora", body: "First New Arrivals cut is up for your approval. Happy to adjust the opening if you'd like.", when: "3 days ago" }] },
         { client_id: 3, title: "Ambassador program research", stage: "in_process", campaign: "Onboarding", type: "Research",
-          target: days(9), link: "", note: "", steps: [["Scope the program", false], ["Benchmark rates", false], ["Recommend approach", false]], updated: "6 hours ago", comments: [] },
+          start: days(-3), target: days(9), link: "", note: "",
+          phases: [
+            { name: "Scoping", steps: [["Scope the program", false], ["Benchmark rates", false]] },
+            { name: "Recommend", steps: [["Recommend approach", false]] }
+          ], updated: "6 hours ago", comments: [] },
 
         { client_id: 4, title: "Q Card campaign", stage: "in_process", campaign: "Finance Page", type: "Campaign",
-          target: days(13), link: "", note: "On hold until Jul 24 at your request — we'll pick this back up right after.",
-          steps: [["Landing page", false], ["Statics", false], ["Funnel mapped", false]], updated: "yesterday", comments: [] },
+          start: days(-1), target: days(13), link: "", note: "On hold until Jul 24 at your request — we'll pick this back up right after.",
+          phases: [
+            { name: "Assets", steps: [["Landing page", false], ["Statics", false]] },
+            { name: "Funnel", steps: [["Funnel mapped", false]] }
+          ], updated: "yesterday", comments: [] },
         { client_id: 4, title: "Finance page ads", stage: "in_process", campaign: "Finance Page", type: "Paid ads",
-          target: days(5), link: "", note: "", steps: [["2 Meta ads", false], ["1 Google ad", false]], updated: "2 days ago", comments: [] },
+          start: days(-2), target: days(5), link: "", note: "",
+          phases: [
+            { name: "Build ads", steps: [["2 Meta ads", false], ["1 Google ad", false]] }
+          ], updated: "2 days ago", comments: [] },
 
         { client_id: 5, title: "6 blogs — Negative Gearing", stage: "in_process", campaign: "Negative Gearing", type: "Blog batch",
-          target: days(5), link: "https://drive.google.com/…", note: "Anchor blog is drafted and in review — supporting pieces are next.",
-          steps: [["Anchor blog", true], ["5 supporting blogs", false], ["Graphics", false], ["Publish", false]], updated: "8 hours ago",
+          start: days(-5), target: days(5), link: "https://drive.google.com/…", note: "Anchor blog is drafted and in review — supporting pieces are next.",
+          phases: [
+            { name: "Writing", steps: [["Anchor blog", true], ["5 supporting blogs", false]] },
+            { name: "Production", steps: [["Graphics", false]] },
+            { name: "Publish", steps: [["Publish", false]] }
+          ], updated: "8 hours ago",
           comments: [{ who: "agora", body: "Anchor blog is drafted — take a look when you have a moment.", when: "8 hours ago" }] },
         { client_id: 5, title: "3 reel ads — Rent to Rent", stage: "in_process", campaign: "Rent to Rent", type: "Reel ads",
-          target: days(5), link: "", note: "", steps: [["Scripts", false], ["Edits", false], ["Export", false]], updated: "2 days ago", comments: [] },
+          start: days(-2), target: days(5), link: "", note: "",
+          phases: [
+            { name: "Scripts", steps: [["Scripts", false]] },
+            { name: "Edit", steps: [["Edits", false], ["Export", false]] }
+          ], updated: "2 days ago", comments: [] },
 
         { client_id: 6, title: "SEO audit", stage: "in_process", campaign: "Onboarding", type: "SEO audit",
-          target: days(4), link: "", note: "First draft is in internal review — you'll get the prioritized recommendations shortly.",
-          steps: [["Technical crawl", true], ["Recommendations", false], ["Final review", false]], updated: "yesterday", comments: [] }
+          start: days(-1), target: days(4), link: "", note: "First draft is in internal review — you'll get the prioritized recommendations shortly.",
+          phases: [
+            { name: "Audit", steps: [["Technical crawl", true], ["Recommendations", false]] },
+            { name: "Review", steps: [["Final review", false]] }
+          ], updated: "yesterday", comments: [] }
       ];
 
       var $ = function (s) { return document.querySelector(s); };
@@ -344,6 +412,7 @@
       function hasOpenChanges(it) { return (it.comments || []).some(function (c) { return c.kind === "changes"; }); }
       var CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
       var COMMENT_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+      var CAL_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
       function svgIc(name, cls) { return '<svg class="' + (cls || "ax-ic") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[name] + '</svg>'; }
 
       var current = 1;
@@ -383,7 +452,25 @@
       }
 
       function itemsFor(cid) { return ITEMS.filter(function (it) { return it.client_id === cid; }); }
-      function progress(it) { var d = it.steps.filter(function (s) { return s[1]; }).length; return { done: d, total: it.steps.length, pct: it.steps.length ? Math.round(100 * d / it.steps.length) : 0 }; }
+      // Two-level work: phases[] each with steps[]. Progress is across ALL steps.
+      function phasesOf(it) { return it.phases || (it.steps ? [{ name: "Steps", steps: it.steps }] : []); }
+      function allSteps(it) { var out = []; phasesOf(it).forEach(function (ph) { (ph.steps || []).forEach(function (s) { out.push(s); }); }); return out; }
+      function progress(it) { var s = allSteps(it); var d = s.filter(function (x) { return x[1]; }).length; return { done: d, total: s.length, pct: s.length ? Math.round(100 * d / s.length) : 0 }; }
+      // Sort within a column by soonest launch date (undated sink to the bottom).
+      function launchVal(it) { return it.target ? new Date(it.target + "T00:00:00").getTime() : 8.64e15; }
+      // Discipline tint (demo stand-in: the real app derives it from the department). Same color
+      // language as the admin board — purple = paid, green = organic, blue = website.
+      function discOf(it) {
+        var t = (it.type || "").toLowerCase();
+        if (/blog|video|email|social|content|organic/.test(t)) return "lb-organic";
+        if (/website|tracking|seo|report|research|audit/.test(t)) return "lb-web";
+        if (/ad|funnel|campaign|paid|reel|creative/.test(t)) return "lb-paid";
+        return "lb-other";
+      }
+      // The discipline word shown in the chip (matches the real client card since campaign-as-title
+      // merged the campaign into the title — the chip now carries the discipline).
+      var DISC_LABEL = { "lb-paid": "Paid Media", "lb-organic": "Organic", "lb-web": "Website", "lb-other": "" };
+      function discLabel(it) { return DISC_LABEL[discOf(it)] || it.campaign; }
 
       function renderPane() {
         if (pane === "progress") { renderProgress(); return; }
@@ -418,7 +505,7 @@
           boardOrEmpty = '<div class="ax-empty"><h3>Nothing to show yet</h3><div>When your Agora team starts work, your deliverables will appear here.</div></div>';
         } else {
           boardOrEmpty = '<div class="ax-board">' + STAGES.map(function (st) {
-            var list = items.filter(function (it) { return it.stage === st.key; });
+            var list = items.filter(function (it) { return it.stage === st.key; }).sort(function (a, b) { return launchVal(a) - launchVal(b); });
             var body = list.length ? list.map(card).join("") : '<div class="ax-colempty">—</div>';
             return '<div><div class="ax-colhead"><span class="dot" style="background:' + st.dot + '"></span><span class="t">' + esc(st.name) + '</span><span class="c tnum">' + list.length + '</span></div><div class="ax-collist">' + body + '</div></div>';
           }).join("") + '</div>';
@@ -438,9 +525,9 @@
         var cmtN = (it.comments || []).length;
         var tag = changed ? '<span class="ax-tag changes">Changes requested</span>'
           : (it.review ? '<span class="ax-tag review">Ready for your review</span>'
-            : (it.target ? '<span class="ax-target' + (isSoon(it.target) ? " soon" : "") + '">Target ' + fmt(it.target) + '</span>' : ""));
+            : (it.target ? '<span class="ax-target' + (isSoon(it.target) ? " soon" : "") + '">' + ((it.stage === "launched" || it.stage === "closed") ? "Live " : "Launching ") + fmt(it.target) + '</span>' : ""));
         return '<div class="ax-pcard" data-i="' + i + '">' +
-          '<span class="ax-chip">' + esc(it.campaign) + '</span>' +
+          '<span class="ax-chip ' + discOf(it) + '">' + esc(discLabel(it)) + '</span>' +
           '<div class="ax-ptitle">' + esc(it.title) + '</div>' +
           '<div class="ax-ptype">' + esc(it.type) + '</div>' +
           '<div class="ax-prog"><div class="bar"><i style="width:' + p.pct + '%"></i></div><div class="meta"><span>' + p.done + ' of ' + p.total + ' steps</span><span>' + p.pct + '%</span></div></div>' +
@@ -464,12 +551,23 @@
           : '<div class="ax-comempty" id="comlist">No comments yet — start the conversation below.</div>';
         $("#veil").innerHTML =
           '<div class="ax-modal" role="dialog" aria-modal="true">' +
-            '<div class="ax-mhead"><div><div class="ax-meyebrow">' + esc(it.campaign) + ' <span class="ax-stage ' + st.tone + '">' + esc(st.name) + '</span></div><h2 class="ax-mtitle">' + esc(it.title) + '</h2></div><button class="ax-mx" id="x" aria-label="Close">&times;</button></div>' +
+            '<div class="ax-mhead"><div><div class="ax-meyebrow"><span class="ax-chip ' + discOf(it) + '">' + esc(discLabel(it)) + '</span> <span class="ax-stage ' + st.tone + '">' + esc(st.name) + '</span></div><h2 class="ax-mtitle">' + esc(it.title) + '</h2></div><button class="ax-mx" id="x" aria-label="Close">&times;</button></div>' +
             '<div class="ax-mbody">' +
-              '<div class="ax-kv"><div><div class="k">Type</div><div class="v">' + esc(it.type) + '</div></div><div><div class="k">Target</div><div class="v">' + (it.target ? fmt(it.target) : "—") + '</div></div></div>' +
+              '<div class="ax-timeline">' +
+                '<span class="tl-type">' + esc(it.type) + '</span>' +
+                (it.start ? '<span class="tl-seg">' + CAL_IC + 'Started <b>' + fmt(it.start) + '</b></span>' : "") +
+                (it.target ? '<span class="tl-arrow">→</span><span class="tl-seg' + (isSoon(it.target) ? " soon" : "") + '">' + CAL_IC + ((it.stage === "launched" || it.stage === "closed") ? "Went live " : "Going live ") + '<b>' + fmt(it.target) + '</b></span>' : "") +
+              '</div>' +
               (it.note ? '<div class="ax-sl">Update from your team</div><div class="ax-note">' + esc(it.note) + '</div>' : "") +
-              '<div class="ax-sl">Progress · ' + p.done + ' of ' + p.total + '</div>' +
-              '<ul class="ax-steps">' + it.steps.map(function (s) { return '<li class="' + (s[1] ? "done" : "") + '"><span class="ax-stepic' + (s[1] ? " done" : "") + '">' + (s[1] ? CHECK : "") + '</span><span>' + esc(s[0]) + '</span></li>'; }).join("") + '</ul>' +
+              '<div class="ax-sl">Progress · ' + p.done + ' of ' + p.total + ' steps</div>' +
+              phasesOf(it).map(function (ph) {
+                var pd = ph.steps.filter(function (s) { return s[1]; }).length;
+                var pdone = ph.steps.length > 0 && pd === ph.steps.length;
+                return '<div class="ax-phase">' +
+                  '<div class="ax-phase-h"><span class="ax-phase-ic' + (pdone ? " done" : "") + '">' + (pdone ? CHECK : "") + '</span><span class="ax-phase-n">' + esc(ph.name) + '</span><span class="ax-phase-c tnum">' + pd + '/' + ph.steps.length + '</span></div>' +
+                  '<ul class="ax-steps">' + ph.steps.map(function (s) { return '<li class="' + (s[1] ? "done" : "") + '"><span class="ax-stepic' + (s[1] ? " done" : "") + '">' + (s[1] ? CHECK : "") + '</span><span>' + esc(s[0]) + '</span></li>'; }).join("") + '</ul>' +
+                '</div>';
+              }).join("") +
               (it.link ? '<a class="ax-deliv" href="' + esc(it.link) + '" target="_blank" rel="noopener">View deliverable →</a>' : "") +
               '<div class="ax-comments"><div class="ax-sl" style="margin-top:0">Comments</div>' + coms +
                 '<div class="ax-comform"><textarea id="c-input" placeholder="Write a comment to your team…"></textarea>' +

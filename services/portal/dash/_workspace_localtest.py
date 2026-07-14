@@ -201,13 +201,53 @@ def run():
     _check("task edit patched priority", t2["priority"] == "Urgent")
     _check("task edit re-enforced lead-not-in-support", t2["support_ids"] == ["ian@100.digital"])
 
+    # Two-level breakdown: a sub-task with no main task grows a group named after the content
+    # type; explicit main tasks carry their own owner and their own subs.
     _task, sub1 = workspace.add_subtask(CLIENT, task["id"], "Propose funnel", "zhen@100.digital")
     _task, sub2 = workspace.add_subtask(CLIENT, task["id"], "Create info pack")
+    _task, mt_qa = workspace.add_maintask(CLIENT, task["id"], "QA", "ian@100.digital")
+    _task, sub3 = workspace.add_subtask(CLIENT, task["id"], "QA events fire",
+                                        "ian@100.digital", maintask_id=mt_qa["id"])
     workspace.set_subtask_done(CLIENT, task["id"], sub1["id"], True)
     workspace.set_subtask_owner(CLIENT, task["id"], sub2["id"], "ehjay@agoradatadriven.com")
     t3 = workspace._find_task(workspace.load_workspace(CLIENT), task["id"])
-    _check("sub-tasks persisted with done + owner",
-           t3["subtasks"][0]["done"] is True and t3["subtasks"][1]["assignee_id"] == "ehjay@agoradatadriven.com")
+    mains = t3["maintasks"]
+    _check("auto main task named after the content type",
+           len(mains) == 2 and mains[0]["text"] == "Funnel" and mains[1]["text"] == "QA")
+    _check("main task carries its own owner", mains[1]["assignee_id"] == "ian@100.digital")
+    _check("sub-tasks persisted with done + owner across groups",
+           mains[0]["subs"][0]["done"] is True
+           and mains[0]["subs"][1]["assignee_id"] == "ehjay@agoradatadriven.com"
+           and mains[1]["subs"][0]["id"] == sub3["id"])
+    _check("task_subtasks flattens every group",
+           [s["id"] for s in workspace.task_subtasks(t3)] == [sub1["id"], sub2["id"], sub3["id"]])
+    workspace.set_maintask_owner(CLIENT, task["id"], mt_qa["id"], "ehjay@agoradatadriven.com")
+    t3b = workspace._find_task(workspace.load_workspace(CLIENT), task["id"])
+    _check("main-task owner reassigned", t3b["maintasks"][1]["assignee_id"] == "ehjay@agoradatadriven.com")
+
+    # Legacy flat subtasks migrate in place the first time the task is touched.
+    legacy = {"id": "tk_legacy", "title": "Old shape", "stage": "in_process", "lead_id": "zhen@100.digital",
+              "content_type": "Report", "subtasks": [{"id": "st_a", "text": "Old sub", "done": True,
+                                                      "assignee_id": ""}]}
+    workspace.normalize_task(legacy)
+    _check("legacy flat subtasks migrate into one main task",
+           "subtasks" not in legacy and len(legacy["maintasks"]) == 1
+           and legacy["maintasks"][0]["text"] == "Report"
+           and legacy["maintasks"][0]["assignee_id"] == "zhen@100.digital"
+           and legacy["maintasks"][0]["subs"][0]["id"] == "st_a")
+    _check("normalize is idempotent",
+           workspace.normalize_task(legacy)["maintasks"][0]["subs"][0]["text"] == "Old sub")
+
+    # On hold <-> ongoing: a plain boolean + internal reason, with a hold/resume history entry.
+    workspace.set_task_hold(CLIENT, task["id"], True, "Client asked to pause", actor="info@agoradatadriven.com")
+    th = workspace._find_task(workspace.load_workspace(CLIENT), task["id"])
+    _check("task put on hold with reason",
+           th["on_hold"] is True and th["hold_reason"] == "Client asked to pause"
+           and th["history"][-1]["field"] == "hold" and th["history"][-1]["new"] == "on hold")
+    workspace.set_task_hold(CLIENT, task["id"], False, actor="info@agoradatadriven.com")
+    th2 = workspace._find_task(workspace.load_workspace(CLIENT), task["id"])
+    _check("task resumed clears the reason",
+           th2["on_hold"] is False and th2["hold_reason"] == "" and th2["history"][-1]["new"] == "resumed")
 
     # A client change request blocks closing until the team resolves it (and open sub-tasks block too).
     _task, chg = workspace.add_task_comment(CLIENT, task["id"], "client", "Daniela",
@@ -229,13 +269,19 @@ def run():
            and t4["history"][-1]["new"] == "launched")
     workspace.resolve_task_comment(CLIENT, task["id"], chg["id"])
     workspace.set_subtask_done(CLIENT, task["id"], sub2["id"], True)
+    workspace.set_subtask_done(CLIENT, task["id"], sub3["id"], True)
     workspace.move_task_stage(CLIENT, task["id"], "closed")
     _check("close allowed once sub-tasks done + changes resolved",
            workspace._find_task(workspace.load_workspace(CLIENT), task["id"])["stage"] == "closed")
 
     workspace.delete_subtask(CLIENT, task["id"], sub2["id"])
     _check("sub-task deleted",
-           len(workspace._find_task(workspace.load_workspace(CLIENT), task["id"])["subtasks"]) == 1)
+           len(workspace.task_subtasks(
+               workspace._find_task(workspace.load_workspace(CLIENT), task["id"]))) == 2)
+    workspace.delete_maintask(CLIENT, task["id"], mt_qa["id"])
+    t5 = workspace._find_task(workspace.load_workspace(CLIENT), task["id"])
+    _check("main task deleted with its sub-tasks",
+           len(t5["maintasks"]) == 1 and len(workspace.task_subtasks(t5)) == 1)
     removed = workspace.delete_task(CLIENT, task["id"])
     _check("delete_task returns the payload for the Trash", removed["id"] == task["id"])
     _check("task gone after delete",

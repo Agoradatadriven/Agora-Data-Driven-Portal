@@ -657,27 +657,80 @@ def run():
     # Team creates a client-facing task (with internal-only fields) + a purely internal one.
     rt = c.post("/w/%s/admin/task" % CLIENT, data={
         "op": "add", "title": "Park & Porch funnel", "department": "acquisition",
-        "lead_id": "zhen@100.digital", "support_ids": "ehjay@agoradatadriven.com",
-        "priority": "High", "labels": "Paid Media", "campaign": "Park & Porch | Leads",
-        "content_type": "Funnel", "due_date": "2026-07-20", "client_facing": "1",
+        "lead_id": "zhen@100.digital",
+        "priority": "High", "start_date": "2026-07-10", "due_date": "2026-07-20",
+        "service_charge": "4200", "client_facing": "1",
         "client_note": "Funnel is live.", "deliverable_url": "https://drive.google.com/x",
         "internal_notes": "INTERNAL-ONLY-MARKER-XYZ",
     })
     _check("team adds a task", rt.status_code == 200 and rt.get_json().get("ok") is True)
     task_id = rt.get_json()["task_id"]
+    made = workspace._find_task(workspace.load_workspace(CLIENT), task_id)
+    _check("new service always starts In Process", made["stage"] == "in_process")
+    _forced = c.post("/w/%s/admin/task" % CLIENT,
+                     data={"op": "add", "title": "Stage-forced check",
+                           "department": "lifecycle", "stage": "launched"})
+    _forced_task = workspace._find_task(workspace.load_workspace(CLIENT), _forced.get_json()["task_id"])
+    _check("a submitted stage on create is ignored (always In Process)",
+           _forced_task["stage"] == "in_process")
+    _check("label auto-derived from the department", made["labels"] == ["Paid Media"])
+    _check("start date + service charge stored",
+           made["start_date"] == "2026-07-10" and made["service_charge"] == "4200")
+    _check("support people assigned after creation (edit patches them)",
+           made["support_ids"] == [] and
+           c.post("/w/%s/admin/task" % CLIENT,
+                  data={"op": "edit", "task_id": task_id, "title": "Park & Porch funnel",
+                        "department": "acquisition", "lead_id": "zhen@100.digital",
+                        "priority": "High", "client_facing": "1", "has_support": "1",
+                        "support_ids": "ehjay@agoradatadriven.com"}).get_json().get("ok") is True
+           and workspace._find_task(workspace.load_workspace(CLIENT),
+                                    task_id)["support_ids"] == ["ehjay@agoradatadriven.com"])
     _check("internal-only task created",
            c.post("/w/%s/admin/task" % CLIENT,
                   data={"op": "add", "title": "HIDDEN-INTERNAL-TASK"}).get_json().get("ok") is True)
-    # Sub-tasks + a team comment.
-    _check("sub-task added",
+    # Main tasks + sub-tasks + a team comment (the two-level breakdown, via the routes).
+    _check("main task added",
+           c.post("/w/%s/admin/task/maintask" % CLIENT,
+                  data={"op": "add", "task_id": task_id, "text": "SECRET-PHASE-BUILD",
+                        "assignee_id": "zhen@100.digital"}).get_json().get("ok") is True)
+    main_id = workspace._find_task(workspace.load_workspace(CLIENT), task_id)["maintasks"][0]["id"]
+    _check("sub-task added under the main task",
            c.post("/w/%s/admin/task/subtask" % CLIENT,
-                  data={"op": "add", "task_id": task_id, "text": "Create info pack",
+                  data={"op": "add", "task_id": task_id, "maintask_id": main_id,
+                        "text": "Create info pack",
                         "assignee_id": "ehjay@agoradatadriven.com"}).get_json().get("ok") is True)
-    sub_id = workspace._find_task(workspace.load_workspace(CLIENT), task_id)["subtasks"][0]["id"]
+    sub_id = workspace.task_subtasks(
+        workspace._find_task(workspace.load_workspace(CLIENT), task_id))[0]["id"]
     _check("sub-task toggled done",
            c.post("/w/%s/admin/task/subtask" % CLIENT,
                   data={"op": "toggle", "task_id": task_id, "subtask_id": sub_id,
                         "done": "1"}).get_json().get("ok") is True)
+    _check("main-task owner reassigned via the route",
+           c.post("/w/%s/admin/task/maintask" % CLIENT,
+                  data={"op": "assign", "task_id": task_id, "maintask_id": main_id,
+                        "assignee_id": "ehjay@agoradatadriven.com"}).get_json().get("ok") is True)
+    _check("main task renamed via the route",
+           c.post("/w/%s/admin/task/maintask" % CLIENT,
+                  data={"op": "rename", "task_id": task_id, "maintask_id": main_id,
+                        "text": "SECRET-PHASE-RENAMED"}).get_json().get("ok") is True
+           and workspace._find_task(workspace.load_workspace(CLIENT),
+                                    task_id)["maintasks"][0]["text"] == "SECRET-PHASE-RENAMED")
+    # On hold <-> ongoing via the route (reason is internal-only).
+    _check("service put on hold via the route",
+           c.post("/w/%s/admin/task/hold" % CLIENT,
+                  data={"task_id": task_id, "on_hold": "1",
+                        "hold_reason": "HOLD-REASON-INTERNAL-XYZ"}).get_json().get("on_hold") is True)
+    _check("hold shows on the console card",
+           "tk-hold" in c.get("/admin/atrium").get_data(as_text=True))
+    # Reopen-after-action: a console form that carries back_task/back_tab redirects with
+    # ?task=&tab= so the page script reopens the same overlay on the same tab.
+    back = c.post("/w/%s/admin/task/subtask" % CLIENT,
+                  data={"redirect": "console", "op": "toggle", "task_id": task_id,
+                        "subtask_id": "nope", "back_task": "%s:%s" % (CLIENT, task_id),
+                        "back_tab": "tasks"})
+    _check("console redirect carries the reopen params",
+           back.status_code == 302 and ("task=%s:%s" % (CLIENT, task_id)) in back.headers["Location"]
+           and "tab=tasks" in back.headers["Location"])
     _check("team comments on the task",
            c.post("/w/%s/admin/task/comment" % CLIENT,
                   data={"op": "add", "task_id": task_id,
@@ -686,6 +739,11 @@ def run():
     console = c.get("/admin/atrium").get_data(as_text=True)
     _check("console shows the Task Board nav + the task",
            'data-section="tasks"' in console and "Park &amp; Porch funnel" in console)
+    _check("console has the Delivery Calendar tab + pane",
+           'data-section="calendar"' in console and 'data-pane="calendar"' in console)
+    _check("scheduled (dated) service becomes a calendar event",
+           '<div class="cal-ev" data-date="2026-07-20"' in console
+           and 'data-open="%s:%s"' % (CLIENT, task_id) in console)
     _check("console form posts redirect back to the Tasks pane",
            c.post("/w/%s/admin/task/move" % CLIENT,
                   data={"redirect": "console", "task_id": task_id,
@@ -699,8 +757,16 @@ def run():
            'data-pane="progress"' in pg and "Park &amp; Porch funnel" in pg)
     _check("internal notes never reach the client HTML", "INTERNAL-ONLY-MARKER-XYZ" not in pg)
     _check("lead/support identities never reach the client HTML", "zhen@100.digital" not in pg)
+    _check("main-task owner identities never reach the client HTML",
+           "ehjay@agoradatadriven.com" not in pg)
+    _check("phases (main-task names) DO reach the client", "SECRET-PHASE-RENAMED" in pg)
+    _check("campaign chip carries the discipline tint (dept=acquisition -> lb-paid)",
+           "ax-pg-chip lb-paid" in pg)
+    _check("the service charge never reaches the client HTML", "4200" not in pg and "$4,200" not in pg)
+    _check("client sees a plain 'Paused' for a held service", "Paused" in pg)
+    _check("the hold reason never reaches the client HTML", "HOLD-REASON-INTERNAL-XYZ" not in pg)
     _check("internal-only tasks never reach the client HTML", "HIDDEN-INTERNAL-TASK" not in pg)
-    for path in ("task", "task/move", "task/delete", "task/subtask", "task/comment"):
+    for path in ("task", "task/move", "task/delete", "task/subtask", "task/maintask", "task/comment"):
         _check("admin task route /%s forbidden for the client" % path,
                c.post("/w/%s/admin/%s" % (CLIENT, path), data={}).status_code == 403)
     # The client's ONE write: comment + request changes.

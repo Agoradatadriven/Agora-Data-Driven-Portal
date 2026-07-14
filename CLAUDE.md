@@ -357,25 +357,42 @@ auto-refresh (see those bullets below). Product name is one constant:
     `deploy_dash_platform.ps1` (the web service's Refresh-now runs `refresh_client` in-process).
     Off-cloud tests: `dash/_intel_feed_localtest.py` + `dash/_intel_ai_localtest.py` (inject fetchers).
 - **Task tracker = the internal Delivery board + the client Progress tab, ONE data source**
-  (spec: `TASK_TRACKER_INTEGRATION.md`): `ws["tasks"]` per client — a task is a deliverable
-  travelling `in_process → for_launch → launched → closed` (stage KEYS are canonical, never rename;
+  (spec: `TASK_TRACKER_INTEGRATION.md`, extended 2026-07-14 with the two-level breakdown +
+  dates/charge): `ws["tasks"]` per client — a task ("service") is a deliverable travelling
+  `in_process → for_launch → launched → closed` (stage KEYS are canonical, never rename;
   the client sees friendlier labels In progress / In review / Live / Completed). `workspace.py` is
   the only writer (`add_task`/`update_task`/`move_task_stage`/`delete_task`/`insert_task` +
-  sub-task and comment helpers). Each task carries a **lead + support people** (`lead_id` /
-  `support_ids`, roster = active admin accounts from `store.py`; the lead is never duplicated into
-  support) and **sub-tasks that each carry their own owner**; a move to `closed` is BLOCKED while
-  any sub-task is open or a client change request is unresolved (the route surfaces the blocker
-  list verbatim). The **team board** is a console pane (Delivery → Task Board in
-  `admin_atrium.html`): cross-client stage columns collected in `admin_atrium()` from the
-  already-loaded workspaces (no extra reads), drag-to-move, client/department/person/priority
-  filters, and per-task detail/edit/new overlays that are SERVER-RENDERED into a hidden store (no
-  JSON-in-JS; plain forms post with `redirect=console` to land back on the pane with a flash).
-  Team routes: `POST /w/<c>/admin/task{,/move,/delete,/subtask,/comment}` gated `is_superadmin()`;
+  main-task, sub-task and comment helpers). Work is a **two-level breakdown**: `maintasks[]`, each
+  a named group with its own owner and its own `subs[]` (sub-tasks that each carry their own
+  owner); a legacy flat `subtasks[]` is migrated in place by `workspace.normalize_task` (called by
+  `_find_task`, so every mutation persists it) and `task_subtasks()` flattens for counts/guards.
+  Each task also carries a **lead + support people** (`lead_id` / `support_ids`, roster = active
+  admin accounts from `store.py`; the lead is never duplicated into support; support is assigned
+  AFTER creation — the picker renders only on the Edit form, guarded by a `has_support` form
+  field), **`start_date` + `due_date`** (the LAUNCH date — key canonical, UI label "Launch date"),
+  an internal-only **`service_charge`**, and a single **label AUTO-derived from the department**
+  (`main.TASK_DEPT_LABEL`: Acquisition→Paid Media, Lifecycle→Organic, rest→Website — no manual
+  label picker; the form's one name field is LABELED "Campaign" but stores as `title`). A move to
+  `closed` is BLOCKED while any sub-task is open or a client change request is unresolved (the
+  route surfaces the blocker list verbatim). The **team board** is a console pane (Delivery → Task
+  Board in `admin_atrium.html`): cross-client stage columns collected in `admin_atrium()` from the
+  already-loaded workspaces (no extra reads), columns sorted **Urgent-first then launch date**,
+  drag-to-move, client/department/person/priority filters, and per-task detail/edit/new overlays
+  SERVER-RENDERED into a hidden store (no JSON-in-JS; plain forms post with `redirect=console`).
+  The detail overlay is **tabbed** — a persistent summary (stage pill + glance chips: priority /
+  start / launch / charge / progress) above **Details | Tasks | Comments** panels (`data-tktab`
+  buttons, wired in the console script); the New/Edit form tucks optional fields into a
+  collapsible **"Additional details"** `<details>` (auto-open when an edited task uses them).
+  Team routes: `POST /w/<c>/admin/task{,/move,/delete,/maintask,/subtask,/comment}` gated
+  `is_superadmin()` (`/maintask` op=add|assign|delete; `/subtask` op=add takes a `maintask_id`);
   deletes soft-delete to the Bin (`kind:"task"`, restored via `workspace.insert_task`) and every
   mutation `_audit`s. The **client Progress tab** (`progress` in ATRIUM_TABS, pane in
   `atrium.html`) renders `main._progress_tasks(ws)` — SERVER-FILTERED to `client_facing` tasks and
-  client-safe fields only (lead/support/sub-task owners, priority, `internal_notes`, and the
-  account manager NEVER reach the client's HTML). The ONE client write is
+  client-safe fields only (lead/support/main-task/sub-task owners, priority, `service_charge`,
+  `internal_notes`, and the account manager NEVER reach the client's HTML); the two-level
+  breakdown reaches the client as **phases** (name + steps, no owners), the detail modal shows a
+  **Started → Going live timeline**, cards say **"Launching <date>"** ("Live" once launched), and
+  columns sort by soonest launch. The ONE client write is
   `POST /w/<c>/task-comment` (comment / request-changes — a `kind:"changes"` comment flags the
   task on BOTH surfaces; resolving is team-only, `op=resolve`, which also notifies via the
   `notify.py` task functions).
