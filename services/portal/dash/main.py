@@ -2311,6 +2311,7 @@ def _watcher_view(ws, client):
         entry.setdefault("platform", "youtube")
         entry.setdefault("industry", "")
         entry.setdefault("kind", "creator")
+        entry["loose"] = bool(ch.get("loose"))  # the "Saved videos" pseudo-channel (single scrapes)
         entry["safe_queued"] = ch.get("id") in safe_queue
         cards = []
         latest = ""
@@ -2394,6 +2395,10 @@ def atrium_admin_watcher(client):
 
     * add     -- resolve the pasted channel `url`, list EVERY video, auto-label the industry,
                  store the (transcript-less) archive; transcripts come from repeated `fetch` calls.
+    * add_video - scrape a SINGLE pasted video `url`: resolve its title, fetch its transcript inline,
+                 and save it under the per-client "Saved videos" pseudo-channel. The transcript is
+                 returned in the response (shown immediately); a rate-limit is reported `blocked` and
+                 the video is saved pending, so Fetch missing / Safe pull on the card can finish it.
     * fetch   -- fetch the next batch of MISSING transcripts only (the page JS loops this until
                  `remaining` hits 0, so each request stays short). A YouTube rate-limit stops the
                  batch and reports `blocked` WITHOUT marking any video failed, so the next fetch
@@ -2438,6 +2443,41 @@ def atrium_admin_watcher(client):
                                        [_watcher_video_entry(v) for v in listing["videos"]])
         _audit(client, "added watcher channel", "%s (%d videos)" % (info["title"], len(listing["videos"])))
         return jsonify(ok=True, channel=entry["id"])
+
+    if op == "add_video":
+        info = watcher.resolve_video(request.form.get("url", ""))
+        if not info["ok"]:
+            return jsonify(ok=False, message=info["error"])
+        channel = workspace.ensure_loose_channel(client)
+        videos = workspace.read_watcher_videos(client, channel["id"])
+        entry = next((v for v in videos if v.get("id") == info["video_id"]), None)
+        already = entry is not None
+        if entry is None:
+            entry = {"id": info["video_id"], "title": info["title"], "url": info["url"],
+                     "transcript": "", "language": "", "generated": False,
+                     "error": "", "permanent": False, "fetched_at": "",
+                     "published_text": "", "published": ""}
+            videos.insert(0, entry)
+        # Fetch inline. A rate-limit is a session condition (not a fact about the video): leave the
+        # entry pending so Fetch missing / Safe pull can finish it later, exactly like a channel.
+        result = watcher.fetch_transcript(info["video_id"])
+        blocked = (not result["ok"]) and ("rate-limiting" in result["error"])
+        if not blocked:
+            entry["fetched_at"] = workspace.now_iso()
+            if result["ok"]:
+                entry.update(transcript=result["transcript"], language=result["language"],
+                             generated=result["generated"], error="", permanent=False)
+            else:
+                entry.update(error=result["error"], permanent=bool(result["permanent"]))
+        workspace.write_watcher_videos(client, channel["id"], videos)
+        _watcher_counts(client, channel["id"], videos)
+        _audit(client, "scraped single video", info["title"][:80])
+        return jsonify(ok=True, channel=channel["id"], video_id=info["video_id"],
+                       title=entry.get("title", ""), url=entry.get("url", ""),
+                       transcript=entry.get("transcript", ""),
+                       words=len((entry.get("transcript") or "").split()),
+                       language=entry.get("language", ""), error=entry.get("error", ""),
+                       blocked=blocked, already=already)
 
     channel_id = request.form.get("channel_id", "").strip()
     if workspace.find_watcher_channel(ws, channel_id) is None:

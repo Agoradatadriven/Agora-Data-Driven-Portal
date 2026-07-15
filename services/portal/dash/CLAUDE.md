@@ -72,10 +72,18 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   Channels are classified: `platform` / `industry` (auto-labeled via `intel_ai.classify_text`,
   hand-editable) / `kind` creator|competitor. Registry in `ws["watcher"]`; each channel's
   transcripts in its own `workspace/watcher/<c>/<id>.json` object. `POST /w/<c>/admin/watcher`
-  (op add|fetch|safe_pull|refresh|meta|label|delete; fetch = MISSING-only batches of 8, page JS
+  (op add|add_video|fetch|safe_pull|refresh|meta|label|delete; fetch = MISSING-only batches of 8, page JS
   loops it; a rate-limit reports `blocked` and never marks videos failed) +
-  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards). UI:
-  3-across creator grid, collapsed to the 4 newest videos, filter bar
+  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards).
+  **Single-video scraper (`op=add_video`):** paste ONE video link → `watcher.resolve_video`
+  (`extract_video_id` handles watch/youtu.be/shorts/embed/live + a bare id; keyless oEmbed for the
+  title) → fetch transcript inline → save under the per-client "Saved videos" pseudo-channel
+  (`workspace.ensure_loose_channel`, marked `loose`, `channel_id=""`); the response carries the
+  transcript so the reader pops immediately (the tab's 2nd add-card; on success it reloads + auto-
+  opens the modal). A rate-limit saves the video pending + reports `blocked` (Fetch missing / Safe
+  pull finish it). The loose channel renders/fetches/safe-pulls/indexes like any other; only its
+  Check-new/Auto-label buttons are hidden (no real channel_id → `list_videos`/`refresh` never run
+  on it). UI: 3-across creator grid, collapsed to the 4 newest videos, filter bar
   (search/platform/industry/type) + date sort. YouTube blocks datacenter IPs — for Cloud Run
   fetching create Secret `watcher-proxy-url` (mounted as `WATCHER_PROXY_URL` when present).
   **Safe pull** = the no-proxy path: `op=safe_pull` queues the channel in

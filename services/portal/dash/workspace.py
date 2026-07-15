@@ -274,6 +274,32 @@ def add_watcher_channel(client, fields):
     return _mutate(client, fn)
 
 
+# The single-video scraper has no parent channel, so its videos are archived under ONE per-client
+# pseudo-channel (marked `loose`). It renders as a normal creator card and the Assistant indexes it
+# like any other channel; only the channel-specific actions (Check new / Auto-label) are hidden for
+# it in the UI. `list_videos`/`refresh` never run against it (its channel_id is "").
+LOOSE_CHANNEL_TITLE = "Saved videos"
+
+
+def ensure_loose_channel(client):
+    """Find (or create, newest-first) the per-client 'Saved videos' pseudo-channel. Returns it."""
+    def fn(ws):
+        channels = ws.setdefault("watcher", {}).setdefault("channels", [])
+        for ch in channels:
+            if ch.get("loose"):
+                return ch
+        entry = {
+            "id": _new_id("wch"),
+            "url": "", "title": LOOSE_CHANNEL_TITLE, "channel_id": "",
+            "platform": "youtube", "industry": "", "kind": "creator", "loose": True,
+            "video_count": 0, "transcript_count": 0, "failed_count": 0,
+            "last_fetch": "", "added_at": now_iso(),
+        }
+        channels.insert(0, entry)
+        return entry
+    return _mutate(client, fn)
+
+
 def update_watcher_channel(client, channel_id, fields):
     """Merge `fields` into a registry entry (counts / last_fetch / title). Returns the entry."""
     def fn(ws):

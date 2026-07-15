@@ -113,6 +113,27 @@ def run():
     _check("list_videos rejects a bad id", watcher.list_videos("nope")["ok"] is False)
     _check("lockup upload age captured", listing["videos"][2]["published_text"] == "2 weeks ago")
 
+    # --- watcher.py: single-video id extraction + oEmbed title resolution (injected fetcher) ------
+    _check("extract_video_id: watch?v=", watcher.extract_video_id(
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5s") == "dQw4w9WgXcQ")
+    _check("extract_video_id: youtu.be", watcher.extract_video_id(
+        "https://youtu.be/dQw4w9WgXcQ?si=abc") == "dQw4w9WgXcQ")
+    _check("extract_video_id: /shorts/", watcher.extract_video_id(
+        "https://www.youtube.com/shorts/dQw4w9WgXcQ") == "dQw4w9WgXcQ")
+    _check("extract_video_id: bare id", watcher.extract_video_id("dQw4w9WgXcQ") == "dQw4w9WgXcQ")
+    _check("extract_video_id: channel link has no video id",
+           watcher.extract_video_id("https://www.youtube.com/@datawithdana") == "")
+    rv = watcher.resolve_video("https://youtu.be/dQw4w9WgXcQ",
+                               fetcher=lambda url: '{"title": "A & B talk", "author_name": "Dana"}')
+    _check("resolve_video reads oEmbed title/author",
+           rv["ok"] and rv["video_id"] == "dQw4w9WgXcQ" and rv["title"] == "A & B talk"
+           and rv["url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    rv = watcher.resolve_video("dQw4w9WgXcQ", fetcher=lambda url: (_ for _ in ()).throw(IOError()))
+    _check("resolve_video degrades to id title when oEmbed fails",
+           rv["ok"] and rv["title"] == "Video dQw4w9WgXcQ")
+    _check("resolve_video rejects a non-video link",
+           watcher.resolve_video("https://example.com/foo")["ok"] is False)
+
     import datetime as _dt
     _now = _dt.datetime(2026, 7, 12, tzinfo=_dt.timezone.utc)
     _check("published_estimate: weeks", watcher.published_estimate("2 weeks ago", _now) == "2026-06-28")
@@ -266,6 +287,53 @@ def run():
     vids = workspace.read_watcher_videos(CLIENT, chan)
     _check("new video is prepended, old transcripts kept",
            vids[0]["id"] == "vid00000009" and vids[1]["transcript"] == "transcript for vid00000001")
+
+    # --- Single-video scraper: op=add_video saves under a "Saved videos" loose channel -----------
+    real_resolve_video = watcher.resolve_video
+    watcher.resolve_video = lambda url: {
+        "ok": True, "video_id": "loosevid001", "title": "One-off talk", "author": "Someone",
+        "url": "https://www.youtube.com/watch?v=loosevid001", "error": ""}
+    # fetch_transcript is still stubbed to succeed ("transcript for <vid>").
+    r = c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "add_video", "url": "https://youtu.be/loosevid001"})
+    data = r.get_json()
+    _check("op=add_video returns the fetched transcript",
+           data["ok"] and data["transcript"] == "transcript for loosevid001"
+           and data["words"] == 3 and data["already"] is False)
+    loose = next(ch for ch in workspace.watcher_channels(workspace.load_workspace(CLIENT)) if ch.get("loose"))
+    _check("a 'Saved videos' loose channel was created (no real channel_id)",
+           loose["title"] == workspace.LOOSE_CHANNEL_TITLE and loose["channel_id"] == ""
+           and loose["transcript_count"] == 1)
+    lvids = workspace.read_watcher_videos(CLIENT, loose["id"])
+    _check("the video landed in the loose archive with its transcript",
+           len(lvids) == 1 and lvids[0]["id"] == "loosevid001"
+           and lvids[0]["transcript"] == "transcript for loosevid001")
+    r = c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "add_video", "url": "loosevid001"})
+    _check("re-scraping the same video de-dupes (already=True, still one loose video)",
+           r.get_json()["already"] is True
+           and len(workspace.read_watcher_videos(CLIENT, loose["id"])) == 1)
+    # A rate-limit saves the video PENDING (no transcript, no error) so Safe pull can finish it later.
+    watcher.resolve_video = lambda url: {
+        "ok": True, "video_id": "blockedvid1", "title": "Blocked one", "author": "",
+        "url": "https://www.youtube.com/watch?v=blockedvid1", "error": ""}
+    saved_fetch = watcher.fetch_transcript
+    watcher.fetch_transcript = lambda vid: {
+        "ok": False, "transcript": "", "language": "", "generated": False,
+        "error": "YouTube is rate-limiting or blocking this server right now — re-run later.",
+        "permanent": False}
+    r = c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "add_video", "url": "blockedvid1"})
+    data = r.get_json()
+    _check("a rate-limited single video reports blocked with no transcript",
+           data["ok"] and data["blocked"] is True and data["transcript"] == "")
+    bv = next(v for v in workspace.read_watcher_videos(CLIENT, loose["id"]) if v["id"] == "blockedvid1")
+    _check("blocked video stays pending (retryable, not marked failed)",
+           bv["transcript"] == "" and bv["error"] == "")
+    watcher.fetch_transcript = saved_fetch
+    watcher.resolve_video = real_resolve_video
+    _check("op=add_video rejects a non-video link",
+           c.post("/w/%s/admin/watcher" % CLIENT,
+                  data={"op": "add_video", "url": "https://example.com/nope"}).get_json()["ok"] is False)
+    # Clean the loose channel up so the later 'no channels left' assertion holds.
+    workspace.delete_watcher_channel(CLIENT, loose["id"])
 
     # --- Safe pull: queue the channel for the local slow scraper ---------------------------------
     r = c.post("/w/%s/admin/watcher" % CLIENT, data={"op": "safe_pull", "channel_id": chan})

@@ -115,6 +115,54 @@ def resolve_channel(url, fetcher=None):
             "url": "https://www.youtube.com/channel/" + channel_id, "error": ""}
 
 
+_VIDEO_ID = r"[0-9A-Za-z_-]{11}"
+# YouTube's keyless oEmbed endpoint -- returns a video's title + author as JSON, no API key/quota.
+_OEMBED_URL = "https://www.youtube.com/oembed?format=json&url="
+
+
+def extract_video_id(url):
+    """Pull the 11-char YouTube video id out of any link the operator might paste ('' if none).
+
+    Handles watch?v=, youtu.be/, /shorts/, /embed/, /live/ URLs (query params and all) and a bare
+    video id typed on its own; a channel/playlist link (no video) returns ''."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if re.fullmatch(_VIDEO_ID, url):
+        return url
+    m = (re.search(r"[?&]v=(" + _VIDEO_ID + r")", url)
+         or re.search(r"youtu\.be/(" + _VIDEO_ID + r")", url)
+         or re.search(r"/shorts/(" + _VIDEO_ID + r")", url)
+         or re.search(r"/embed/(" + _VIDEO_ID + r")", url)
+         or re.search(r"/live/(" + _VIDEO_ID + r")", url))
+    return m.group(1) if m else ""
+
+
+def resolve_video(url, fetcher=None):
+    """Resolve a SINGLE video link to {ok, video_id, title, author, url, error}.
+
+    Reads the title/author from YouTube's keyless oEmbed endpoint; that lookup is best-effort, so a
+    private/removed video (oEmbed 401/404) or a network hiccup still resolves -- the title just
+    falls back to the id and the transcript fetch decides the real outcome. Only an unparseable link
+    fails here."""
+    fetcher = fetcher or _http_get
+    video_id = extract_video_id(url)
+    if not video_id:
+        return {"ok": False, "video_id": "", "title": "", "author": "", "url": "",
+                "error": "That doesn't look like a YouTube video link."}
+    watch_url = "https://www.youtube.com/watch?v=" + video_id
+    title, author = "", ""
+    try:
+        import json  # lazy, stdlib
+        meta = json.loads(fetcher(_OEMBED_URL + watch_url))
+        title = _unescape((meta.get("title") or "").strip())
+        author = _unescape((meta.get("author_name") or "").strip())
+    except Exception:
+        pass  # title/author are a nicety; the transcript is what the operator is after
+    return {"ok": True, "video_id": video_id, "title": title or ("Video " + video_id),
+            "author": author, "url": watch_url, "error": ""}
+
+
 def list_videos(channel_id, poster=None):
     """Every video on `channel_id` as {ok, videos: [{id, title}], error} (newest first).
 

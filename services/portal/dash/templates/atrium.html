@@ -1353,6 +1353,8 @@
     .ax-wt-url { flex: 1 1 280px; min-width: 200px; }
     .ax-wt-addmsg { margin-top: 10px; font-size: 13.5px; font-weight: 600; color: #c0322f; }
     .ax-wt-addmsg.is-busy { color: var(--ax-sub); }
+    .ax-wt-addmsg.is-ok { color: #2f7a2c; }
+    .ax-wt-vidcard { margin-top: -4px; }
     /* Filter bar: search + platform + industry + type + sort. */
     .ax-wt-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
     .ax-wt-fsearch { flex: 1 1 220px; min-width: 160px; }
@@ -3265,7 +3267,7 @@
         {% if is_superadmin %}
         <section class="ax-pane {{ 'is-active' if view.active_tab=='watcher' else '' }}" data-pane="watcher">
           <h1 class="ax-greet">Watcher</h1>
-          <p class="ax-lede">Watch creators and competitors across platforms (YouTube for now) and archive the transcript of everything they publish. Paste a channel link below &mdash; Watcher lists every video, auto-labels the creator's industry, and pulls the raw transcripts.</p>
+          <p class="ax-lede">Watch creators and competitors across platforms (YouTube for now) and archive the transcript of everything they publish. Paste a <strong>channel</strong> link to list every video, auto-label the industry, and pull the raw transcripts &mdash; or paste a <strong>single video</strong> link to grab just that one transcript (saved under &ldquo;Saved videos&rdquo;).</p>
 
           <div class="ax-panel ax-wt-addcard">
             <div class="ax-wt-addrow">
@@ -3274,6 +3276,16 @@
               <button class="ax-btn violet" id="ax-wt-add" type="button">Watch channel</button>
             </div>
             <div class="ax-wt-addmsg" id="ax-wt-addmsg" hidden></div>
+          </div>
+
+          <!-- Single-video scraper: paste ONE link, get its transcript, saved under "Saved videos". -->
+          <div class="ax-panel ax-wt-addcard ax-wt-vidcard">
+            <div class="ax-wt-addrow">
+              <span class="ax-wt-eye">{{ ic('watcher') }}</span>
+              <input class="ax-editbox ax-wt-url" id="ax-wt-vurl" type="url" inputmode="url" placeholder="Or paste ONE video link &mdash; youtube.com/watch?v=&hellip; (grabs just that transcript)">
+              <button class="ax-btn" id="ax-wt-vget" type="button">Get transcript</button>
+            </div>
+            <div class="ax-wt-addmsg" id="ax-wt-vmsg" hidden></div>
           </div>
 
           {% if watcher %}
@@ -3325,21 +3337,27 @@
                  data-wtlatest="{{ ch.latest }}" data-wtadded="{{ ch.added_at }}">
               <div class="ax-wt-chead">
                 <div class="ax-wt-chtitle">{{ ch.title }}</div>
+                {% if not ch.loose %}
                 <button class="ax-wt-kind {{ ch.kind }}" type="button" data-wtkindbtn="{{ ch.id }}"
                         title="Click to switch between creator and competition">{{ 'Creator' if ch.kind == 'creator' else 'Competition' }}</button>
+                {% endif %}
               </div>
               <div class="ax-wt-chips">
                 <span class="ax-wt-chip plat">{{ 'YouTube' if ch.platform == 'youtube' else ch.platform|title }}</span>
+                {% if ch.loose %}
+                <span class="ax-wt-chip">Individually saved</span>
+                {% else %}
                 <button class="ax-wt-chip ind {{ 'is-empty' if not ch.industry }}" type="button" data-wtind="{{ ch.id }}"
                         title="Click to edit the industry label">{{ ch.industry or '+ industry' }}</button>
                 <span class="ax-wt-indedit" data-wtindedit="{{ ch.id }}" hidden>
                   <input class="ax-editbox" type="text" maxlength="40" value="{{ ch.industry }}" placeholder="Industry&hellip;">
                   <button class="ax-btn" type="button" data-wtindsave="{{ ch.id }}">Save</button>
                 </span>
+                {% endif %}
               </div>
               <div class="ax-wt-chmeta">
-                <a href="{{ ch.url }}" target="_blank" rel="noopener noreferrer">Open channel</a>
-                &middot; {{ ch.video_count }} video{{ '' if ch.video_count == 1 else 's' }}
+                {% if not ch.loose %}<a href="{{ ch.url }}" target="_blank" rel="noopener noreferrer">Open channel</a>
+                &middot; {% endif %}{{ ch.video_count }} video{{ '' if ch.video_count == 1 else 's' }}
                 &middot; {{ ch.transcript_count }} transcript{{ '' if ch.transcript_count == 1 else 's' }}
                 {% if ch.failed_count %} &middot; {{ ch.failed_count }} unavailable{% endif %}
               </div>
@@ -3353,8 +3371,10 @@
                         title="Queue this channel for the slow safe scraper — it never gets rate-limited, transcripts land automatically">Safe pull</button>
                 {% endif %}
                 {% endif %}
+                {% if not ch.loose %}
                 <button class="ax-btn" type="button" data-wtrefresh="{{ ch.id }}">Check new</button>
                 <button class="ax-btn" type="button" data-wtlabel="{{ ch.id }}">Auto-label</button>
+                {% endif %}
                 <button class="ax-btn" type="button" data-wtdelete="{{ ch.id }}" data-wtname="{{ ch.title }}">Remove</button>
               </div>
               <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" {% if not ch.safe_queued %}hidden{% endif %}>
@@ -4019,6 +4039,56 @@
       });
     }
 
+    // Single-video scraper: paste ONE video link -> resolve its title, pull its transcript inline,
+    // and save it under the per-client "Saved videos" pseudo-channel. On success we stash a note +
+    // the video id and reload; the load-time hook at the end of this IIFE shows the note and pops the
+    // transcript reader (the fresh "Saved videos" card is now in the grid). A rate-limit or a video
+    // with no captions is saved pending, and the note explains the retry path (Fetch missing / Safe
+    // pull on that card).
+    var vGet = document.getElementById("ax-wt-vget");
+    var vMsg = document.getElementById("ax-wt-vmsg");
+    function showVidMsg(text, tone) {
+      if (!vMsg) { return; }
+      vMsg.hidden = !text;
+      vMsg.textContent = text || "";
+      vMsg.classList.toggle("is-busy", tone === "busy");
+      vMsg.classList.toggle("is-ok", tone === "ok");
+    }
+    if (vGet) {
+      vGet.addEventListener("click", function () {
+        var input = document.getElementById("ax-wt-vurl");
+        var url = input ? input.value.replace(/^\s+|\s+$/g, "") : "";
+        if (!url) { showVidMsg("Paste a single YouTube video link first.", "err"); return; }
+        vGet.setAttribute("disabled", "disabled");
+        showVidMsg("Fetching the transcript…", "busy");
+        post("/admin/watcher", { op: "add_video", url: url })
+          .then(function (data) {
+            if (!data || data.ok === false) {
+              vGet.removeAttribute("disabled");
+              showVidMsg((data && data.message) || "Could not scrape that video.", "err");
+              return;
+            }
+            var note;
+            if (data.transcript) {
+              note = { msg: (data.already ? "Re-fetched ✓ — " : "Saved to your archive ✓ — ") + data.words + " words.",
+                       ok: true, open: true, chan: data.channel, vid: data.video_id };
+            } else if (data.blocked) {
+              note = { msg: "YouTube is rate-limiting this server right now — the video is saved. Click “Safe pull” on the Saved videos card below and the transcript lands automatically.",
+                       ok: false, open: false };
+            } else {
+              note = { msg: "Saved, but no transcript: " + (data.error || "none is available for this video."),
+                       ok: false, open: false };
+            }
+            try { sessionStorage.setItem("ax-wt-scrape", JSON.stringify(note)); } catch (e) {}
+            window.location.reload();
+          })
+          .catch(function () {
+            vGet.removeAttribute("disabled");
+            showVidMsg("Could not scrape that video. Please try again.", "err");
+          });
+      });
+    }
+
     // Fetch MISSING transcripts: loop batches until nothing is pending. retry=1 on the first call
     // clears non-permanent errors, so "missing" = everything except stored transcripts and videos
     // permanently without one. A blocked response stops politely; progress is already saved.
@@ -4344,6 +4414,17 @@
         }
       });
     }
+
+    // After a single-video scrape reloaded us: surface the saved-note and pop the transcript reader.
+    try {
+      var scrapeNote = sessionStorage.getItem("ax-wt-scrape");
+      if (scrapeNote) {
+        sessionStorage.removeItem("ax-wt-scrape");
+        var sn = JSON.parse(scrapeNote);
+        if (sn && sn.msg) { showVidMsg(sn.msg, sn.ok ? "ok" : "err"); }
+        if (sn && sn.open && sn.vid) { openVideo(sn.chan, sn.vid); }
+      }
+    } catch (e) {}
   })();
 
   // ---- Mail (team-only tab): contacts, sync, briefing, and the thread reader -------------------

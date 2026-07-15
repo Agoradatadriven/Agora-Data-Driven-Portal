@@ -129,9 +129,14 @@ auto-refresh (see those bullets below). Product name is one constant:
   registry lives in `ws["watcher"]["channels"]` (counts + classification only); each channel's full
   archive is its OWN object `workspace/watcher/<c>/<channel_id>.json` (transcripts run to MBs —
   same posture as creatives). Routes: `POST /w/<c>/admin/watcher` (`op`
-  add|fetch|refresh|meta|label|delete — fetch pulls MISSING transcripts in short batches of 8 and
+  add|add_video|fetch|refresh|meta|label|delete — fetch pulls MISSING transcripts in short batches of 8 and
   the page JS loops it with a progress bar; **a YouTube rate-limit stops the batch and reports
   `blocked` WITHOUT marking any video failed**, so the next fetch resumes exactly where it stopped;
+  **add_video scrapes ONE pasted video link** (resolve title via keyless oEmbed → fetch transcript
+  inline → save under the per-client "Saved videos" pseudo-channel, marked `loose`, created by
+  `workspace.ensure_loose_channel`; a rate-limit saves it pending + reports `blocked`, so the card's
+  Fetch missing / Safe pull can finish it — the loose channel is fetched/safe-pulled/indexed like
+  any other, only its Check-new/Auto-label actions are hidden since it has no real channel_id);
   refresh also backfills upload dates; meta hand-edits industry/kind; label re-runs the AI label)
   and `GET /w/<c>/watcher/video/<channel_id>/<video_id>` (the click-to-expand full transcript; the
   page itself only inlines previews). **UI = a filterable creator grid:** three creator cards per
