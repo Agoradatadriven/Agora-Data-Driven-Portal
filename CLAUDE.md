@@ -191,9 +191,29 @@ auto-refresh (see those bullets below). Product name is one constant:
   accept a `usage_out` dict that captures token counts; `intel_ai.PRICING`/`cost_of` price them
   (approximate, editable) and `workspace.add_assistant_usage` persists the all-time tally in
   `ws["assistant"]["usage"]`; each `op=ask` response carries `usage` + `totals`.
-- **Mail is a TEAM-ONLY tab (client email archive + AI digest, `mailroom.py`):** connect the
-  agency's mailboxes ONCE in the console (`/admin/atrium` -> **Mailboxes**; add/remove/test is
-  root-admin only -- entries carry live credentials); each client's Mail tab then lists that
+- **Communications is ONE unified, channel-tagged, date-filterable timeline** (`conversations` tab,
+  rebuilt 2026-07-15): every conversation -- email, Upwork, Slack, meeting, call, note -- is a single
+  card in a date-sorted feed, each with a coloured **channel badge** and an **audience** (`client`
+  or `team`). State is ONE list `ws["communications"]` (`{id,channel,audience,title,summary,date,
+  people,origin,thread_key}`); the legacy split lists `email_summaries[]`/`meeting_summaries[]`
+  migrate into it in place via `workspace._ensure_communications` (called by every read/mutation;
+  `add_communication`/`update_communication`/`delete_communication`/`upsert_email_summary` are the
+  writers, `add_email_summary`/`add_meeting_summary` kept as thin wrappers). **Client/team split is
+  enforced SERVER-SIDE:** `main._communications_view(ws, client, is_admin, mailview)` filters a
+  client render to `audience=="client"` BEFORE the template (team cards never reach the client HTML,
+  same posture as `_progress_tasks`); admins additionally get the non-client email threads projected
+  from Mail as team-only cards, plus an All/Client-sees/Team-only toggle + per-card visibility pill.
+  Channel chips + counts, the date range, and the audience toggle all filter client-side in
+  `atrium.html`. Route `POST /w/<c>/admin/communication` (op add|edit|delete, `channel`+`audience`).
+- **Mail is FOLDED INTO Communications (team-only machinery; client email archive + AI digest,
+  `mailroom.py`):** there is no standalone Mail tab anymore -- its contacts editor, Sync/Refresh
+  buttons, the AI briefing, and the response-stats strip live in the Communications tab's collapsible
+  **Email intelligence** panel (admin-only), and email threads appear as email-channel cards in the
+  timeline (client-tier via the mirror below; other tiers as team-only cards with a "Read full
+  thread" reader). `/w/<c>/mail` now renders Communications; the `POST /w/<c>/admin/mail` +
+  `GET /w/<c>/mail/thread/<key>` routes are unchanged (invoked from within Communications). Connect
+  the agency's mailboxes ONCE in the console (`/admin/atrium` -> **Mailboxes**; add/remove/test is
+  root-admin only -- entries carry live credentials); the Email intelligence panel then lists that
   client's contact emails/domains and the sync pulls ONLY correspondence with those contacts (the
   Gmail query is BUILT from the contact list -- from:/to: each address or bare domain -- so
   unrelated mail never leaves the mailbox). Two connector kinds: **dwd** -- our own Workspace
@@ -212,7 +232,7 @@ auto-refresh (see those bullets below). Product name is one constant:
   bypass a VA), **client** (human mail involving the client, or ANY human mail in a client-owned
   mailbox), **operations** (human mail not from the client -- vendors/partners/leads), **noise**
   (newsletters/bulk/automated, via `is_automated`; List-Unsubscribe alone never counts, Google-
-  Groups-safe). Only Gmail's SPAM folder is skipped at ingest. The Mail tab defaults to hiding noise
+  Groups-safe). Only Gmail's SPAM folder is skipped at ingest. The Email intelligence panel defaults to hiding noise
   and flags security; the hourly AI summarizes every tier EXCEPT noise (cost control). **Per-mailbox
   scope:** a mailbox can be ASSIGNED to one client (a dedicated inbox they gave us) -> its WHOLE
   contents are ingested, no contact list needed; an unassigned/**shared** mailbox is routed to each
@@ -223,8 +243,8 @@ auto-refresh (see those bullets below). Product name is one constant:
   tab's stats strip + per-row chips. The intel brain (`intel_ai._call`; model = Assistant's ->
   intel's -> default) writes TWO voices per changed thread in ONE call
   (`summarize_thread` -> internal summary + `client_summary`): the internal one (blunt, includes
-  reply-quality observations) runs the Mail tab and the digest; the client one (for CLIENT-tier threads only) is MIRRORED onto
-  the client-visible Communications tab's **Email Summary** feed (`workspace.upsert_email_summary`,
+  reply-quality observations) runs the Email intelligence panel and the digest; the client one (for CLIENT-tier threads only) is MIRRORED into
+  the client-visible Communications timeline as an **email-channel card** (`workspace.upsert_email_summary`,
   stable id `mail_<key>` so re-summarizing updates in place; deleting the thread retracts the
   mirror -- safe by construction, the client was on every thread). The rolling digest is STATUS /
   NEEDS ACTION / RECENT / **REPLIES** -- the REPLIES section judges reply speed + quality against

@@ -1,139 +1,102 @@
-# Client Communications — features & setup
+# Communications — features & setup
 
-This tab (`/w/<c>/conversations`, labelled **Client Communications**) is the running record of every
-conversation with a client: emails, Upwork chats, and meetings. This doc lists what it does and how to
-turn each piece on. It is the practical companion to the contract notes innnn
-[`CLAUDE.md`](./CLAUDE.md) → *feedback_ai* and the root [`/CLAUDE.md`](../../../CLAUDE.md) Atrium section.
+The **Communications** tab (`/w/<c>/conversations`) is the running record of every conversation with
+a client. **Rebuilt 2026-07-15** from a two-column Email | Meeting layout into ONE unified,
+channel-tagged, date-filterable timeline, and the old standalone **Mail** tab was folded into it.
+This doc lists what it does and how to run it. It is the practical companion to the contract notes in
+[`CLAUDE.md`](../CLAUDE.md) (Atrium section) and the dash [`CLAUDE.md`](../services/portal/dash/CLAUDE.md).
 
-> **Nothing here needs new infrastructure to run.** The panels, badges, week filter, and the manual
-> "add summary" flow all work on a default deploy. Only the optional **"Summarize with AI"** button
-> needs a model wired (see §4).
-
----
-
-## 1. Two panels: Email (+ Upwork) and Meeting
-
-- **Email Summary** panel holds two channels merged into one date-sorted list: **email** entries and
-  **Upwork chat** entries. Each card carries a small colour badge (violet **Email**, teal **Upwork**)
-  so they never get mixed up.
-- **Meeting Summary** panel holds meeting entries.
-- Every entry stores a title, an optional "who was involved" line, the summary text, and an optional
-  date. Data lives in the per-client workspace JSON as three lists: `email_summaries[]`,
-  `meeting_summaries[]`, `upwork_summaries[]` (no database, no new bucket).
-
-**How to use (team/super-admin):** open a panel's **+ Add**, pick the **Type** (Email / Upwork chat),
-fill in title + summary (+ optional date), then **Add summary**. Clients see the saved cards read-only.
-
-Minimum to save: a title **or** a summary. Everything else is optional.
+> **Nothing here needs new infrastructure.** The timeline, filters, channel badges, audience split,
+> and the manual "add" flow all work on a default deploy. Only the folded-in **email** machinery
+> (auto-pulling a client's mail) needs a mailbox connected — see §4.
 
 ---
 
-## 2. Filter by week
+## 1. One timeline, many channels
 
-A **Show** dropdown at the top filters both panels at once: **All time · This week · Last week ·
-Last 4 weeks**. Calendar weeks start Monday (local time). Dateless entries show only under "All time".
-Purely client-side — no reload, no server round-trip.
+Every conversation is a single card in a date-sorted feed. Each card carries a coloured **channel
+badge** — **Email** (violet), **Upwork** (teal), **Slack** (plum), **Meeting** (green), **Call**
+(amber), **Note** (grey) — plus a title, an optional "who was involved" line, the summary, and a date.
 
-Nothing to enable. Always on.
+State is ONE list in the per-client workspace JSON: `ws["communications"]`, each entry
+`{id, channel, audience, title, summary, date, people, origin, thread_key}`. `workspace.py` is the
+only writer (`add_communication` / `update_communication` / `delete_communication` /
+`upsert_email_summary`; `add_email_summary` / `add_meeting_summary` are kept as thin wrappers). The
+old split lists (`email_summaries[]` / `meeting_summaries[]`) migrate into this one list in place the
+first time it is touched (`workspace._ensure_communications`) — no data is lost.
 
----
-
-## 3. "Summarize with AI" — one saved recap per week (Gemini)
-
-On the Email panel's add form, **Summarize with AI**:
-
-1. You paste a raw Upwork/email chat into the summary box.
-2. Gemini splits it into **one recap per calendar week** and **saves each as its own dated card**
-   (dated to that week's Monday, titled e.g. `Upwork chat (week of June 2)`).
-3. The page reloads so each week appears as a separate card, filterable by the **Show** menu (§2).
-
-The output is written to read like a person wrote it: **no em/en dashes, no asterisks, no bullets, no
-markdown** (guaranteed by a post-processing sanitizer, `feedback_ai._humanize`, on top of the prompt).
-Undated "June 2" text is anchored to the current year.
-
-If Gemini is not wired, the button degrades gracefully to *"write it by hand"* — you just type the
-summary and click **Add summary**. Nothing breaks.
+**How to use (team/super-admin):** click **+ Add a communication**, pick the **Channel** and who can
+see it, fill in a title + summary (+ optional date + people), then **Add communication**. Edit or
+delete any card in place. Clients see the saved cards read-only.
 
 ---
 
-## 4. How to fully integrate the AI button
+## 2. The client / team split (audience)
 
-Gemini is reached two ways; the code tries them **in this order**:
+Every card has an **audience**: **client** (the client sees it) or **team** (internal only). This is
+what lets internal Slack notes live in the same record without ever reaching the client.
 
-| Mode | When it's used | What to set |
-|------|----------------|-------------|
-| **Gemini API key** | Local dev / the preview | `GEMINI_API_KEY` env var (or a `.gemini_key` file) |
-| **Vertex AI** (no key) | The deployed portal | `VERTEX_GEMINI_ENABLED=1` + runtime SA with `roles/aiplatform.user` |
-
-### 4a. Local / preview (`run_local.ps1`)
-
-1. Get a Gemini key from <https://aistudio.google.com/apikey>.
-2. Save it as a file named `.gemini_key` at the **repo root** (`atrium/.gemini_key`) — just the key,
-   nothing else. It is gitignored (`*.key`), so it is never committed.
-3. Run `services/portal/dash/run_local.ps1` (or the double-click preview). On boot it prints
-   **`Gemini ENABLED`**, loads the key, and the button drafts real summaries.
-
-> The separate **"Generate strategy"** feature (campaign Google-Doc → strategy) uses **Claude**, not
-> Gemini. To try that locally, drop an Anthropic key in `.anthropic_key` the same way.
-
-### 4b. Production (`deploy_dash_platform.ps1`)
-
-**Nothing extra is needed** — the deploy already enables Vertex Gemini:
-
-- it runs `gcloud services enable aiplatform.googleapis.com`,
-- grants the web SA `roles/aiplatform.user`,
-- sets `VERTEX_GEMINI_ENABLED=1`, `VERTEX_PROJECT`, `VERTEX_LOCATION=global`.
-
-So the button uses Vertex (GCP-billed, **no API key**, one invoice) in the deployed portal out of the
-box. `gemini-2.5-flash` is the model. Deploy with:
-
-```powershell
-services\portal\dash\deploy_dash_platform.ps1
-```
-
-### 4c. (Optional) the Claude "Generate strategy" feature in production
-
-Separate from the summarize button. To enable it, create the Anthropic secret once; the deploy then
-mounts it and flips the flag automatically:
-
-```bash
-echo -n "sk-ant-YOUR-KEY" | gcloud secrets create ANTHROPIC_API_KEY --data-file=- --project=agora-data-driven
-```
+- The split is enforced **server-side**: a client render is filtered to `audience=="client"` in
+  `main._communications_view` BEFORE the template, so a team card's text never reaches the client's
+  HTML (same no-leak posture as the Progress tab's `_progress_tasks`).
+- Admins get an **All / Client sees / Team only** toggle and a per-card visibility pill, plus a
+  live "N visible to client" count. Use **Preview as client →** to see the exact client feed.
 
 ---
 
-## 5. Environment variables & secrets (summary)
+## 3. Filtering
 
-| Name | Purpose | Where | Required? |
-|------|---------|-------|-----------|
-| `GEMINI_API_KEY` | Summarize button (Gemini Developer API) | local `.gemini_key` / env | Local only |
-| `VERTEX_GEMINI_ENABLED` `VERTEX_PROJECT` `VERTEX_LOCATION` | Summarize button (Vertex) | set by the deploy | Prod (auto) |
-| `ANTHROPIC_API_KEY` + `FEEDBACK_AI_ENABLED=1` | "Generate strategy" (Claude) | Secret Manager / `.anthropic_key` | Optional |
+A filter bar sits above the timeline, all **client-side** (no reload), and runs for clients too:
 
-Keys pasted anywhere public should be **rotated** in their consoles after testing.
+- **Channel chips** — All + one per channel present, each with a live count. Multi-select.
+- **Date range** — All time · Last 4 weeks · This week.
+- **Audience** (admin only) — All · Client sees · Team only.
 
 ---
 
-## 6. Where the code lives
+## 4. Email folded in (the former Mail tab)
+
+The client's email archive + AI briefing now lives **inside** Communications, team-only:
+
+- A collapsible **Email intelligence** panel (admin-only) holds the contact list, **Sync now** /
+  **Refresh briefing** buttons, the rolling AI digest, and the response-stats strip.
+- Email **threads** appear as email-channel cards in the timeline: the **client-tier** recap is
+  mirrored as a client-visible card (`upsert_email_summary`, stable `mail_<key>` id); other tiers
+  (operations / security / noise) show as **team-only** cards. Each email card has a **Read full
+  thread** button (the reader modal).
+- To pull mail: connect a mailbox once in the operator console (`/admin/atrium` → **Mailboxes**),
+  add this client's addresses in the Email intelligence panel, then **Sync now**. Full setup
+  (dwd domain-wide delegation vs imap app password, the hourly `mail-refresh` job) is in
+  `mailroom.py` and the dash [`CLAUDE.md`](../services/portal/dash/CLAUDE.md).
+
+The old `/w/<c>/mail` URL now renders the Communications tab (back-compat).
+
+---
+
+## 5. Where the code lives
 
 | File | Responsibility |
 |------|----------------|
-| `templates/atrium.html` | The Client Communications pane (two panels, badges, week filter, add forms, JS) |
-| `atrium_view.py` | `communications(ws)` merge + `comms_inbox` / `comms_meetings` split for the two panels |
-| `workspace.py` | `add_email_summary` / `add_meeting_summary` / `add_upwork_summary` + `_COMM_KINDS` add/edit/delete |
-| `main.py` | Routes: `/admin/communication` (add/edit/delete), `/admin/summarize-conversation` (single draft), `/admin/summarize-weekly` (split + save per week) |
-| `feedback_ai.py` | Gemini calls (`_gemini_generate`, `summarize_conversation`, `summarize_conversation_weekly`), the `_humanize` sanitizer, and the Claude strategy summarizer |
-| `run_local.ps1` | Loads `.gemini_key` / `.anthropic_key` for local testing |
-| `deploy_dash_platform.ps1` | Enables Vertex Gemini + mounts the optional Anthropic secret |
+| `templates/atrium.html` | The Communications pane (Email intelligence panel, filter bar, timeline cards, composer, reader modal) + the filter/admin JS |
+| `workspace.py` | `ws["communications"]` data layer: `_ensure_communications` migration, `add/update/delete_communication`, `upsert_email_summary`, `COMM_CHANNELS` |
+| `main.py` | `_communications_view` (merge + client/team filter + Mail projection); route `POST /w/<c>/admin/communication` (op add/edit/delete, `channel`+`audience`); `/w/<c>/mail` → Communications |
+| `mailroom.py` / `mail_refresh.py` | The folded-in email machinery (pull/archive/summarize; mirrors the client recap into the timeline) |
 
 ### Tests (run from `services/portal/dash/`)
 
 ```bash
-python _atrium_smoketest.py      # routes + template + humanize/weekly checks (stubs GCS)
-python _workspace_localtest.py   # workspace data layer
+python _workspace_localtest.py   # data layer: unified model, migration, audience
+python _atrium_smoketest.py      # routes + render + the client/team no-leak guarantee
+python _mail_localtest.py        # the email fold: mirror into the timeline, folded-in panel
 python ..\..\..\tools\_validate_dash_js.py templates\atrium.html   # inline-JS gate
 ```
 
-Why is there no live AI in the tests? The AI calls hit an external model, so the tests only assert
-the **graceful-degrade** path (unconfigured → `ok:false` / `[]`) and the pure helpers (`_humanize`,
-`_parse_week_items`, `_week_label`). Verify the real summaries by running the preview with a key.
+---
+
+## 6. Planned follow-on (not yet built)
+
+- **AI paste-split for chat channels.** For Slack/Upwork, paste a raw thread and have the model split
+  it into **one card per topic, bounded to the week** (e.g. `Upwork · Creative approvals (week of Jun
+  2)`). Email/meetings stay one-card-each. There is no summarizer wired for this yet
+  (`feedback_ai.py` has no `summarize_conversation_weekly` — the earlier version of this doc described
+  it aspirationally; it was never implemented).

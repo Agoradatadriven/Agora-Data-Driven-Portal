@@ -400,16 +400,17 @@ def run():
            by_subject["Landing page copy"]["awaiting_reply"] is True
            and by_subject["June budget"]["awaiting_reply"] is False
            and by_subject["June budget"]["avg_response_hours"] == 25.0)
-    mirrors = [e for e in (ws.get("email_summaries") or []) if str(e.get("id", "")).startswith("mail_")]
+    mirrors = [e for e in workspace.communications_list(ws)
+               if e.get("channel") == "email" and str(e.get("id", "")).startswith("mail_")]
     client_entries = [e for e in entries if e.get("tier") == "client"]
     _check("ONLY client-tier recaps mirror to the Communications feed (not ops/security/noise)",
            len(mirrors) == len(client_entries) and len(mirrors) >= 1
            and all("Friendly recap" in e["summary"] for e in mirrors))
     _n_mirrors = len(mirrors)
-    workspace.upsert_email_summary(CLIENT, mirrors[0]["id"], mirrors[0]["subject"], "updated recap")
+    workspace.upsert_email_summary(CLIENT, mirrors[0]["id"], mirrors[0]["title"], "updated recap")
     ws2 = workspace.load_workspace(CLIENT)
-    again_mirrors = [e for e in (ws2.get("email_summaries") or [])
-                     if str(e.get("id", "")).startswith("mail_")]
+    again_mirrors = [e for e in workspace.communications_list(ws2)
+                     if e.get("channel") == "email" and str(e.get("id", "")).startswith("mail_")]
     _check("re-mirroring UPDATES in place (no duplicates)",
            len(again_mirrors) == _n_mirrors and any(e["summary"] == "updated recap" for e in again_mirrors))
     _check("AI spend folded into the assistant tally",
@@ -484,14 +485,16 @@ def run():
         s.update(SUPER)
     r = c.post("/w/%s/admin/mail" % CLIENT, data={"op": "contacts", "contacts": "maya@riverdanceresort.com"})
     _check("op=contacts saves", r.status_code == 200 and r.get_json()["ok"] is True)
-    body = c.get("/w/%s/mail" % CLIENT).get_data(as_text=True)
-    _check("mail tab renders for the team (contacts + digest present)",
-           'data-pane="mail"' in body and "maya@riverdanceresort.com" in body and "NEEDS ACTION" in body)
-    _check("mail tab shows the responsiveness strip + awaiting chip",
-           "ax-ml-statsrow" in body and "awaiting our reply" in body and "Awaiting our reply" in body)
+    body = c.get("/w/%s/conversations" % CLIENT).get_data(as_text=True)
+    _check("Communications renders the folded-in Email intelligence panel (contacts + digest)",
+           'data-pane="conversations"' in body and "maya@riverdanceresort.com" in body and "NEEDS ACTION" in body)
+    _check("Communications shows the responsiveness strip",
+           "ax-ml-statsrow" in body and "awaiting our reply" in body)
+    _check("the old /w/<c>/mail URL still lands on Communications (back-compat)",
+           'data-pane="conversations"' in c.get("/w/%s/mail" % CLIENT).get_data(as_text=True))
     _ws_cur = workspace.load_workspace(CLIENT)
-    _cur_mirror = next((e for e in (_ws_cur.get("email_summaries") or [])
-                        if str(e.get("id", "")).startswith("mail_")), None)
+    _cur_mirror = next((e for e in workspace.communications_list(_ws_cur)
+                        if e.get("channel") == "email" and str(e.get("id", "")).startswith("mail_")), None)
     conv = c.get("/w/%s/conversations" % CLIENT).get_data(as_text=True)
     _check("the client-facing Communications tab carries the mirrored recap",
            _cur_mirror is not None and _cur_mirror["summary"] in conv)
@@ -522,7 +525,7 @@ def run():
     _check("op=delete removes that thread from the index", r.get_json()["ok"] is True
            and key not in [t["id"] for t in workspace.mail_threads(ws3)])
     _check("op=delete also retracts the mirrored Communications entry",
-           not any(e.get("id") == "mail_" + key for e in ws3.get("email_summaries") or []))
+           not any(e.get("id") == "mail_" + key for e in workspace.communications_list(ws3)))
 
     # --- Routes: the console Mailboxes pane ------------------------------------------------------------
     body = c.get("/admin/atrium").get_data(as_text=True)

@@ -1841,82 +1841,157 @@ def delete_subtask(client, task_id, subtask_id):
     return _mutate(client, fn)
 
 
-# --- Client Communications: email + meeting summaries (team-written, client-read) ---------------
-def add_email_summary(client, subject, summary, date=None, email_id=None):
-    """Add an email summary (newest first) to the Client Communications tab. Returns it."""
+# --- Client Communications: ONE multi-channel timeline (team-written, client-read) --------------
+# All conversations -- email, Upwork, Slack, meetings, calls, notes -- live in a single list
+# ws["communications"], newest first. Each entry:
+#   {id, channel, audience, title, summary, date, people, origin, thread_key}
+# * channel  -- one of COMM_CHANNELS (the coloured badge on the card).
+# * audience -- "client" (the client sees it) or "team" (internal only; server-filtered out of the
+#               client render, exactly like a client_facing:false task never reaches _progress_tasks).
+# * people   -- "who was involved" (meeting attendees / call participants / email participants).
+# * origin   -- "manual" (hand-added) or "mail" (mirrored from the Mail sync's client recap).
+# * thread_key -- for an email card, the Mail thread key so "Read full thread" can open the archive.
+# Email thread recaps are mirrored here by the Mail sync (upsert_email_summary, stable "mail_<key>"
+# id, audience "client"). The two legacy split lists (email_summaries / meeting_summaries) migrate
+# into this one list the first time it is touched -- no data is lost.
+COMM_CHANNELS = ("email", "upwork", "slack", "meeting", "call", "note")
+
+
+def _clean_channel(channel):
+    channel = (channel or "").strip().lower()
+    return channel if channel in COMM_CHANNELS else "note"
+
+
+def _clean_audience(audience):
+    return "team" if (audience or "").strip().lower() == "team" else "client"
+
+
+def _ensure_communications(ws):
+    """Return ws["communications"], migrating the legacy email_summaries / meeting_summaries lists
+    into it the first time (in place). Idempotent -- safe to call on every read and mutation."""
+    if isinstance(ws.get("communications"), list):
+        return ws["communications"]
+    items = []
+    for e in (ws.get("email_summaries") or []):
+        eid = str(e.get("id") or _new_id("cm"))
+        is_mail = eid.startswith("mail_")
+        items.append({
+            "id": eid, "channel": "email", "audience": "client",
+            "title": e.get("subject") or "(no subject)", "summary": e.get("summary") or "",
+            "date": e.get("date") or "", "people": "",
+            "origin": "mail" if is_mail else "manual",
+            "thread_key": eid[5:] if is_mail else "",
+        })
+    for m in (ws.get("meeting_summaries") or []):
+        items.append({
+            "id": str(m.get("id") or _new_id("cm")), "channel": "meeting", "audience": "client",
+            "title": m.get("title") or "(untitled meeting)", "summary": m.get("summary") or "",
+            "date": m.get("date") or "", "people": m.get("attendees") or "",
+            "origin": "manual", "thread_key": "",
+        })
+    items.sort(key=lambda it: it.get("date") or "", reverse=True)
+    ws["communications"] = items
+    ws.pop("email_summaries", None)
+    ws.pop("meeting_summaries", None)
+    return items
+
+
+def communications_list(ws):
+    """The normalized communications list from an already-loaded workspace (never None). Migrates the
+    legacy lists in memory; the migration persists on the next mutation."""
+    return list(_ensure_communications(ws))
+
+
+def add_communication(client, channel, title, summary, date=None, people="",
+                      audience="client", origin="manual", thread_key="", item_id=None):
+    """Add a communication entry (newest first) to the unified timeline. Returns it."""
     def fn(ws):
         item = {
-            "id": email_id or _new_id("em"),
-            "subject": subject or "(no subject)",
-            "date": date or now_iso(),
+            "id": item_id or _new_id("cm"),
+            "channel": _clean_channel(channel),
+            "audience": _clean_audience(audience),
+            "title": title or "",
             "summary": summary or "",
+            "date": date or now_iso(),
+            "people": people or "",
+            "origin": origin or "manual",
+            "thread_key": thread_key or "",
         }
-        ws.setdefault("email_summaries", []).insert(0, item)
+        _ensure_communications(ws).insert(0, item)
         return item
     return _mutate(client, fn)
 
 
 def upsert_email_summary(client, item_id, subject, summary, date=None):
-    """Insert-or-update an Email Summary entry BY ID on the client-visible Communications tab.
+    """Insert-or-update the Mail sync's mirrored email recap in the unified timeline, BY ID.
 
-    The Mail sync mirrors each thread's client-facing recap here under a stable 'mail_<key>' id, so
-    a thread that gains messages UPDATES its entry in place instead of stacking duplicates.
-    Hand-added entries (add_email_summary) are untouched. Returns the entry."""
+    Each thread's client-facing recap is mirrored under a stable 'mail_<key>' id (channel "email",
+    audience "client"), so a thread that gains messages UPDATES its card in place instead of stacking
+    duplicates. Hand-added entries are untouched. Returns the entry."""
+    key = str(item_id)[5:] if str(item_id).startswith("mail_") else ""
     def fn(ws):
-        items = ws.setdefault("email_summaries", [])
+        items = _ensure_communications(ws)
         for it in items:
             if it.get("id") == item_id:
                 if subject:
-                    it["subject"] = subject
+                    it["title"] = subject
                 it["summary"] = summary or ""
                 if date:
                     it["date"] = date
+                it["channel"] = "email"
+                it["audience"] = "client"
+                it["origin"] = "mail"
+                if key:
+                    it["thread_key"] = key
                 return it
-        item = {"id": item_id, "subject": subject or "(no subject)",
-                "date": date or now_iso(), "summary": summary or ""}
+        item = {"id": item_id, "channel": "email", "audience": "client",
+                "title": subject or "(no subject)", "summary": summary or "",
+                "date": date or now_iso(), "people": "", "origin": "mail", "thread_key": key}
         items.insert(0, item)
         return item
     return _mutate(client, fn)
 
 
-def add_meeting_summary(client, title, summary, attendees="", date=None, meeting_id=None):
-    """Add a meeting summary / notes (newest first) to the Client Communications tab. Returns it."""
+def delete_communication(client, item_id):
+    """Delete a communication entry by id. Returns the remaining list."""
     def fn(ws):
-        item = {
-            "id": meeting_id or _new_id("mt"),
-            "title": title or "(untitled meeting)",
-            "date": date or now_iso(),
-            "attendees": attendees or "",
-            "summary": summary or "",
-        }
-        ws.setdefault("meeting_summaries", []).insert(0, item)
-        return item
+        items = _ensure_communications(ws)
+        ws["communications"] = [it for it in items if it.get("id") != item_id]
+        return ws["communications"]
     return _mutate(client, fn)
 
 
-def delete_communication(client, kind, item_id):
-    """Delete an email ('email') or meeting ('meeting') summary by id. Returns the remaining list."""
-    key = "email_summaries" if kind == "email" else "meeting_summaries"
+def update_communication(client, item_id, fields):
+    """Edit a communication entry's fields in place by id (channel/audience/title/summary/date/
+    people). Returns the updated item, or None if not found."""
+    allowed = ("channel", "audience", "title", "summary", "date", "people")
     def fn(ws):
-        ws[key] = [it for it in ws.get(key, []) if it.get("id") != item_id]
-        return ws[key]
-    return _mutate(client, fn)
-
-
-def update_communication(client, kind, item_id, fields):
-    """Edit an email/meeting summary's fields in place by id. Email accepts subject/summary; meeting
-    accepts title/attendees/summary. Returns the updated item, or None if not found."""
-    key = "email_summaries" if kind == "email" else "meeting_summaries"
-    allowed = ("subject", "summary") if kind == "email" else ("title", "attendees", "summary")
-    def fn(ws):
-        for it in ws.get(key, []):
+        for it in _ensure_communications(ws):
             if it.get("id") == item_id:
                 for k in allowed:
                     if k in (fields or {}):
-                        it[k] = fields[k]
+                        if k == "channel":
+                            it[k] = _clean_channel(fields[k])
+                        elif k == "audience":
+                            it[k] = _clean_audience(fields[k])
+                        else:
+                            it[k] = fields[k]
                 return it
         return None
     return _mutate(client, fn)
+
+
+# Back-compat wrappers (kept so the Mail sync + any older callers/tests keep working).
+def add_email_summary(client, subject, summary, date=None, email_id=None):
+    """Add a hand-written email summary. Thin wrapper over add_communication (channel 'email')."""
+    return add_communication(client, "email", subject, summary, date=date,
+                             audience="client", origin="manual", item_id=email_id)
+
+
+def add_meeting_summary(client, title, summary, attendees="", date=None, meeting_id=None):
+    """Add a meeting summary / notes. Thin wrapper over add_communication (channel 'meeting')."""
+    return add_communication(client, "meeting", title, summary, date=date, people=attendees,
+                             audience="client", origin="manual", item_id=meeting_id)
 
 
 # --- Market Intelligence: the weekly briefing (team-written, client-read) -----------------------

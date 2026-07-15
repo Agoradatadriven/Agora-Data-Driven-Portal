@@ -123,7 +123,10 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   `POST /admin/atrium/<c>/rename` (superadmin) updates the registry name
   (`store.set_client_name`) AND the workspace `display_name` — display-only, the key/resources
   never change; the console cards have a Rename button (prompt-driven).
-- **`mailroom.py` / `mail_refresh.py`** -- the team-only Mail tab: pull + archive + AI-summarize
+- **`mailroom.py` / `mail_refresh.py`** -- the team-only email machinery, now FOLDED INTO the
+  Communications tab (2026-07-15; no standalone Mail tab -- its contacts/sync/briefing/stats live in
+  the Communications **Email intelligence** panel and email threads render as email-channel cards in
+  the timeline). Pull + archive + AI-summarize
   each client's email correspondence. Mailboxes connect ONCE in the console (Mailboxes pane;
   `POST /admin/mail` op add|delete|test, root-only): kind **dwd** = our Workspace domain via the
   Gmail API + domain-wide delegation, keyless signJwt as the `mail-sync` SA
@@ -140,13 +143,15 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   AGORA reply hours per thread (connected-mailbox addresses + dwd domains count as agency) -->
   the tab's stats strip, per-row chips, the digest's REPLIES judgement, and the Assistant's
   `mail:responsiveness` snapshot chunk. `summarize_thread` returns TWO voices in one call: the
-  internal summary (blunt, reply-quality included) + a `client_summary` that is mirrored onto the
-  client-visible Communications Email Summary feed (`workspace.upsert_email_summary`, stable
+  internal summary (blunt, reply-quality included) + a `client_summary` that is mirrored into the
+  client-visible Communications timeline as an email-channel card (`workspace.upsert_email_summary`,
+  channel "email"/audience "client", stable
   `mail_<key>` id, updated in place; thread delete retracts it). `build_digest(..., stats=...)`
   writes STATUS/NEEDS ACTION/RECENT/REPLIES; both reuse
   `intel_ai._call` (spend -> the Assistant tally); the Assistant's `build_chunks` indexes the
   archive (`mail_threads`). Routes: `POST /w/<c>/admin/mail` (op contacts|sync|digest|delete) +
-  `GET /w/<c>/mail/thread/<key>`, gated `is_superadmin()`; nav = the Insights group. The hourly
+  `GET /w/<c>/mail/thread/<key>`, gated `is_superadmin()` (invoked from within Communications;
+  `/w/<c>/mail` now renders the Communications tab). The hourly
   job `mail-refresh` reuses THIS image (gated `MAIL_SYNC_ENABLED=1`; deploy
   `deploy_mail_refresh.ps1`, rerun after any mailroom/mail_refresh change). Test:
   `python _mail_localtest.py`.

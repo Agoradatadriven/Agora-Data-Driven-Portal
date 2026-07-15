@@ -117,6 +117,33 @@ def run():
     for tab in ("dashboard", "leadgen", "organic", "calendar", "conversations", "settings"):
         _check("tab '%s' returns 200" % tab, c.get("/w/%s/%s" % (CLIENT, tab)).status_code == 200)
 
+    # Communications: the unified timeline + the client/team no-leak guarantee (server-side filter).
+    r = c.post("/w/%s/admin/communication" % CLIENT,
+               data={"op": "add", "channel": "slack", "audience": "team",
+                     "title": "Internal spend note", "summary": "TEAMSECRET reallocate budget"})
+    _check("admin adds a team-only communication", r.status_code == 200 and r.get_json().get("ok"))
+    r = c.post("/w/%s/admin/communication" % CLIENT,
+               data={"op": "add", "channel": "meeting", "audience": "client",
+                     "title": "Client kickoff", "summary": "CLIENTVISIBLE kickoff recap"})
+    _check("admin adds a client-visible communication", r.get_json().get("ok"))
+    admin_conv = c.get("/w/%s/conversations" % CLIENT).get_data(as_text=True)
+    _check("admin sees BOTH cards with audience pills + channel badges",
+           "TEAMSECRET" in admin_conv and "CLIENTVISIBLE" in admin_conv
+           and "Team only" in admin_conv and "Client sees" in admin_conv
+           and "ch-slack" in admin_conv and "ch-meeting" in admin_conv)
+    with c.session_transaction() as s:
+        s.update({"ok": True, "user": "owner@riverdanceresort.com", "clients": [CLIENT]})
+    client_conv = c.get("/w/%s/conversations" % CLIENT).get_data(as_text=True)
+    # "ax-cm-audseg"/"data-commaddform" also appear as JS string literals, so assert on rendered
+    # signals: the team summary text is absent, and none of the admin-only affordances rendered.
+    _check("the client sees ONLY their card -- a team-only summary never reaches the client HTML",
+           "CLIENTVISIBLE" in client_conv and "TEAMSECRET" not in client_conv
+           and 'data-admin="1"' not in client_conv
+           and "+ Add a communication" not in client_conv
+           and "Client sees" not in client_conv)
+    with c.session_transaction() as s:
+        s.update(SUPER)
+
     # Approve an awaiting piece -> persists + confirmation shows on reload.
     r = c.post("/w/%s/approve" % CLIENT, data={"content_id": "RVR-016", "note": "Ship it."})
     _check("approve returns ok json", r.status_code == 200 and r.get_json().get("ok") is True)

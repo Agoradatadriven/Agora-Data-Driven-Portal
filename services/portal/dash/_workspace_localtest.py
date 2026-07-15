@@ -300,6 +300,52 @@ def run():
     _check("insert_task restores once (idempotent)",
            len([t for t in workspace.load_workspace(CLIENT)["tasks"] if t["id"] == task["id"]]) == 1)
 
+    # 8b. Communications: the unified multi-channel timeline (+ audience + legacy migration).
+    m = workspace.add_communication(CLIENT, "meeting", "Kickoff call", "Walked the funnel.",
+                                    people="Daniela, Mike", audience="client")
+    s = workspace.add_communication(CLIENT, "slack", "Internal: reallocate spend",
+                                    "Pull 15% off cold prospecting.", audience="team")
+    _check("add_communication cleans channel + audience",
+           m["channel"] == "meeting" and m["audience"] == "client"
+           and s["channel"] == "slack" and s["audience"] == "team")
+    _check("an unknown channel falls back to 'note'",
+           workspace.add_communication(CLIENT, "carrier-pigeon", "x", "y")["channel"] == "note")
+    items = workspace.communications_list(workspace.load_workspace(CLIENT))
+    _check("communications_list returns the entries newest-first-ish (contains both)",
+           any(i["id"] == m["id"] for i in items) and any(i["id"] == s["id"] for i in items))
+    workspace.update_communication(CLIENT, m["id"], {"audience": "team", "title": "Kickoff (edited)"})
+    edited = next(i for i in workspace.communications_list(workspace.load_workspace(CLIENT))
+                  if i["id"] == m["id"])
+    _check("update_communication edits channel-safe fields", edited["audience"] == "team"
+           and edited["title"] == "Kickoff (edited)")
+    workspace.delete_communication(CLIENT, s["id"])
+    _check("delete_communication removes by id",
+           not any(i["id"] == s["id"]
+                   for i in workspace.communications_list(workspace.load_workspace(CLIENT))))
+    # upsert_email_summary mirrors an email thread recap (channel email, audience client, thread_key).
+    workspace.upsert_email_summary(CLIENT, "mail_abc", "Re: booking", "Client recap here.")
+    mir = next(i for i in workspace.communications_list(workspace.load_workspace(CLIENT))
+               if i["id"] == "mail_abc")
+    _check("upsert_email_summary mirrors as a client email card with a thread_key",
+           mir["channel"] == "email" and mir["audience"] == "client"
+           and mir["origin"] == "mail" and mir["thread_key"] == "abc")
+    # Legacy split lists migrate in place the first time communications is touched.
+    legacy = {"display_name": "Legacy Co",
+              "email_summaries": [{"id": "em1", "subject": "Old email", "summary": "E", "date": "2026-06-01"}],
+              "meeting_summaries": [{"id": "mt1", "title": "Old meeting", "summary": "M",
+                                     "attendees": "A, B", "date": "2026-06-02"}]}
+    workspace.save_workspace("legacyco", legacy)
+    workspace.add_communication("legacyco", "note", "trigger", "migration")  # touches the list
+    lw = workspace.load_workspace("legacyco")
+    lc = {i["id"]: i for i in lw.get("communications", [])}
+    _check("legacy email_summaries migrated to channel email/audience client",
+           lc.get("em1", {}).get("channel") == "email" and lc["em1"]["title"] == "Old email"
+           and lc["em1"]["audience"] == "client")
+    _check("legacy meeting_summaries migrated to channel meeting (attendees -> people)",
+           lc.get("mt1", {}).get("channel") == "meeting" and lc["mt1"]["people"] == "A, B")
+    _check("legacy split lists are removed after migration",
+           "email_summaries" not in lw and "meeting_summaries" not in lw)
+
     # 9. Everything survived a reload from disk.
     reloaded = workspace.load_workspace(CLIENT)
     _camp, rvr016 = workspace._find_content(reloaded, "RVR-016")

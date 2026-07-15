@@ -892,7 +892,10 @@ ATRIUM_TABS = {"overview", "dashboard", "leadgen", "organic", "calendar", "conve
 # Watcher tab archives every video transcript from watched YouTube channels; the Assistant tab is
 # retrieval-augmented chat over EVERY workspace source (watcher, intel, campaigns, metrics, ...);
 # the Mail tab archives + AI-summarizes the client's email correspondence (mailroom.py).
-ATRIUM_TEAM_TABS = {"website-health", "watcher", "assistant", "mail"}
+# NOTE: "mail" is no longer its own tab -- the client's email archive is folded into the unified
+# Communications tab (2026-07-15). The /w/<c>/admin/mail + /w/<c>/mail/thread routes stay (invoked
+# from within Communications); an old /w/<c>/mail link is redirected to conversations below.
+ATRIUM_TEAM_TABS = {"website-health", "watcher", "assistant"}
 
 
 @app.template_filter("atrium_dt")
@@ -988,6 +991,9 @@ def atrium(client, tab):
     ws = workspace.load_workspace(client)
     if ws is None:
         return Response("No workspace exists for this client yet.", status=404, mimetype="text/plain")
+    if tab == "mail":
+        # Mail was folded into Communications (2026-07-15) -- keep old /w/<c>/mail links working.
+        tab = "conversations"
     if tab not in ATRIUM_TABS and tab not in ATRIUM_TEAM_TABS:
         tab = "overview"
     if tab in ATRIUM_TEAM_TABS and not is_superadmin():
@@ -1004,6 +1010,11 @@ def atrium(client, tab):
     # not the old in-header session toggle (which could flip roles) -- it's a per-request preview the
     # client themselves never see, so the login-derived role boundary stays intact.
     admin_preview = is_superadmin() and request.args.get("preview") == "client"
+    is_admin_view = is_superadmin() and not admin_preview
+    # Mail (folded into Communications): the client's email archive index + digest. Team-only, so it
+    # is only built for admins; it feeds BOTH the Communications team panel and the timeline's
+    # non-client email cards. Bodies stay in per-thread objects, fetched on click (atrium_mail_thread).
+    mailview = _mail_view(ws, client) if is_admin_view else None
     return render_template(
         "atrium.html",
         workspace_name=WORKSPACE_NAME,
@@ -1011,15 +1022,17 @@ def atrium(client, tab):
         view=view,
         user=user,
         user_notify=workspace.get_notify(ws, user or ""),
-        is_superadmin=(is_superadmin() and not admin_preview),
+        is_superadmin=is_admin_view,
         # Website Health is editable by THE super admin only; admins see it read-only.
         can_edit_health=(is_root_admin() and not admin_preview),
         # Watcher (team-only tab): per-channel video cards with transcript PREVIEWS only -- the
         # full transcripts stay in each channel's own archive object, fetched on click.
-        watcher=(_watcher_view(ws, client) if (is_superadmin() and not admin_preview) else []),
-        # Mail (team-only tab): the client's email archive index + digest; bodies stay in their
-        # per-thread objects, fetched on click (atrium_mail_thread).
-        mail=(_mail_view(ws, client) if (is_superadmin() and not admin_preview) else None),
+        watcher=(_watcher_view(ws, client) if is_admin_view else []),
+        mail=mailview,
+        # Communications: ONE unified, date-sorted timeline of every conversation (email/Upwork/
+        # Slack/meeting/call). Clients get ONLY audience=="client" cards (team cards are filtered out
+        # here, server-side); admins also get non-client email threads as team-only cards.
+        communications=_communications_view(ws, client, is_admin_view, mailview),
         # Assistant (team-only): the model dropdown options + the saved choices ("" = automatic
         # model; depth quick|standard|deep) + the all-time spend tally that seeds the cost pill.
         assistant_models=intel_ai.available_models(),
@@ -2018,39 +2031,38 @@ def atrium_admin_reach(client):
 
 @app.route("/w/<client>/admin/communication", methods=["POST"])
 def atrium_admin_communication(client):
-    """Add, edit, or delete an email/meeting summary in the Client Communications tab. `op` is
-    'add' | 'edit' | 'delete'; `kind` is 'email' | 'meeting'."""
+    """Add, edit, or delete a communication entry in the unified Communications timeline. `op` is
+    'add' | 'edit' | 'delete'. An entry carries a `channel` (email/upwork/slack/meeting/call/note),
+    an `audience` (client|team), a title, a summary, an optional date, and optional `people`."""
     gate = _atrium_admin_json_gate(client)
     if gate:
         return gate
     if workspace.load_workspace(client) is None:
         return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
     op = request.form.get("op", "").strip()
-    kind = "email" if request.form.get("kind", "").strip() == "email" else "meeting"
     if op == "delete":
-        workspace.delete_communication(client, kind, request.form.get("item_id", "").strip())
-        _audit(client, "deleted %s summary" % kind)
+        workspace.delete_communication(client, request.form.get("item_id", "").strip())
+        _audit(client, "deleted a communication")
         return jsonify(ok=True)
     if op == "add":
-        date = (request.form.get("date", "") or "").strip() or None
-        if kind == "email":
-            item = workspace.add_email_summary(client, request.form.get("subject", "").strip(),
-                                               request.form.get("summary", "").strip(),
-                                               date=date)
-        else:
-            item = workspace.add_meeting_summary(client, request.form.get("title", "").strip(),
-                                                 request.form.get("summary", "").strip(),
-                                                 request.form.get("attendees", "").strip(),
-                                                 date=date)
-        _audit(client, "added %s summary" % kind)
+        item = workspace.add_communication(
+            client,
+            request.form.get("channel", "").strip(),
+            request.form.get("title", "").strip(),
+            request.form.get("summary", "").strip(),
+            date=((request.form.get("date", "") or "").strip() or None),
+            people=request.form.get("people", "").strip(),
+            audience=request.form.get("audience", "").strip(),
+        )
+        _audit(client, "added a communication", item.get("title", ""))
         return jsonify(ok=True, id=item.get("id"))
     if op == "edit":
         fields = {}
-        for key in ("subject", "title", "attendees", "summary"):
+        for key in ("channel", "audience", "title", "summary", "date", "people"):
             if request.form.get(key) is not None:
                 fields[key] = request.form.get(key, "").strip()
-        workspace.update_communication(client, kind, request.form.get("item_id", "").strip(), fields)
-        _audit(client, "edited %s summary" % kind)
+        workspace.update_communication(client, request.form.get("item_id", "").strip(), fields)
+        _audit(client, "edited a communication")
         return jsonify(ok=True)
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 
@@ -2716,6 +2728,53 @@ def _mail_view(ws, client):
     }
 
 
+def _communications_view(ws, client, is_admin, mailview=None):
+    """The unified Communications timeline: every conversation as one date-sorted list of cards.
+
+    A CLIENT sees only audience=="client" cards -- team cards are filtered out HERE, server-side, so
+    they never reach the client HTML (the same no-leak posture as _progress_tasks). An ADMIN also
+    gets the non-client email threads (operations/security/noise) projected from Mail as team-only
+    cards; the client-tier email recaps already arrive via the mirror in the list below."""
+    items = []
+    for it in workspace.communications_list(ws):
+        aud = "team" if (it.get("audience") == "team") else "client"
+        if not is_admin and aud != "client":
+            continue
+        items.append({
+            "id": it.get("id", ""),
+            "channel": it.get("channel") or "note",
+            "audience": aud,
+            "title": it.get("title") or "",
+            "summary": it.get("summary") or "",
+            "date": it.get("date") or "",
+            "people": it.get("people") or "",
+            "thread_key": it.get("thread_key") or "",
+            "origin": it.get("origin") or "manual",
+            "client_visible": (aud == "client"),
+            "readonly": False,
+        })
+    if is_admin and mailview:
+        for r in (mailview.get("threads") or []):
+            if (r.get("tier") or "client") == "client":
+                continue  # client-tier recap is already mirrored into the list above
+            items.append({
+                "id": "mailrow_" + (r.get("id") or ""),
+                "channel": "email",
+                "audience": "team",
+                "title": r.get("subject") or "(no subject)",
+                "summary": r.get("summary") or "",
+                "date": r.get("last_date") or "",
+                "people": r.get("participants") or "",
+                "thread_key": r.get("id") or "",
+                "origin": "mail",
+                "tier": r.get("tier") or "",
+                "client_visible": False,
+                "readonly": True,  # projected -- manage it from the email thread, not as a card
+            })
+    items.sort(key=lambda it: it.get("date") or "", reverse=True)
+    return items
+
+
 @app.route("/w/<client>/admin/mail", methods=["POST"])
 def atrium_admin_mail(client):
     """The Mail tab's team actions. `op` is one of:
@@ -2784,7 +2843,7 @@ def atrium_admin_mail(client):
         try:
             # Also retract the thread's mirrored recap from the client's Communications feed
             # (a later sync may re-pull + re-mirror it if it still matches the contacts).
-            workspace.delete_communication(client, "email", "mail_" + key)
+            workspace.delete_communication(client, "mail_" + key)
         except Exception:
             pass
         _audit(client, "deleted mail thread", removed.get("subject", ""))

@@ -1034,6 +1034,69 @@
     .ax-comm-meta { font-size: 12px; color: var(--ax-sub); display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }
     .ax-comm-meta .ax-ic { width: 14px; height: 14px; }
     .ax-comm-body { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
+
+    /* Communications v2 — ONE unified, channel-tagged, date-filterable timeline. Per-channel colour
+       set on .ch-<channel>; the badge + audience pill encode channel and who-can-see-it at a glance. */
+    .ch-email   { --cm:#6a6aea; --cm-bg:#eeeefc; --cm-ink:#4a44c8; }
+    .ch-upwork  { --cm:#12a594; --cm-bg:#dcf4f0; --cm-ink:#0b7d70; }
+    .ch-slack   { --cm:#8a3b8f; --cm-bg:#f5e8f6; --cm-ink:#712b76; }
+    .ch-meeting { --cm:#4fa84a; --cm-bg:#e7f4e6; --cm-ink:#3a7f36; }
+    .ch-call    { --cm:#c9821f; --cm-bg:#faedd7; --cm-ink:#9a6314; }
+    .ch-note    { --cm:#6a7180; --cm-bg:#eef0f3; --cm-ink:#4a4f5a; }
+
+    /* Team-only "Email intelligence" panel (the Mail machinery folded in) */
+    .ax-cm-mailpanel { padding: 0; margin: 0 0 20px; overflow: hidden; }
+    .ax-cm-mailsum { display: flex; align-items: center; gap: 9px; cursor: pointer; padding: 14px 18px; font-size: 14px; font-weight: 800; list-style: none; }
+    .ax-cm-mailsum::-webkit-details-marker { display: none; }
+    .ax-cm-mailsum .ax-ic { width: 17px; height: 17px; }
+    .ax-cm-mailhint { font-weight: 600; font-size: 12px; color: var(--ax-sub); }
+    .ax-cm-mailpanel[open] .ax-cm-mailsum { border-bottom: 1px solid var(--ax-line); }
+    .ax-cm-mailbody { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Filter toolbar */
+    .ax-cm-toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+    .ax-cm-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ax-cm-chip { display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px; font-weight: 650; padding: 7px 13px 7px 11px; border-radius: 999px; cursor: pointer; background: #fff; color: #3a3f4b; border: 1.5px solid var(--ax-line); transition: border-color .14s, background .14s; }
+    .ax-cm-chip .cdot { width: 9px; height: 9px; border-radius: 50%; background: var(--cd, var(--ax-sub)); flex: 0 0 auto; }
+    .ax-cm-chip .cn { font-size: 12px; font-weight: 700; color: var(--ax-sub); }
+    .ax-cm-chip[aria-pressed="true"] { border-color: var(--cd, var(--ax-green-d)); background: var(--cb, #f4f6f8); color: #171a21; }
+    .ax-cm-chip.all .cdot { background: linear-gradient(135deg,#6a6aea,#12a594 45%,#4fa84a 72%,#c9821f); }
+    .ax-cm-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .ax-cm-seg { display: inline-flex; background: #fff; border: 1.5px solid var(--ax-line); border-radius: 10px; overflow: hidden; }
+    .ax-cm-seg button { font: inherit; font-size: 12.5px; font-weight: 650; color: var(--ax-sub); background: transparent; border: 0; border-right: 1px solid var(--ax-line); padding: 7px 13px; cursor: pointer; }
+    .ax-cm-seg button:last-child { border-right: 0; }
+    .ax-cm-seg button.is-active { background: #171a21; color: #fff; }
+    .ax-cm-count { font-size: 12.5px; color: var(--ax-sub); margin-left: auto; }
+    .ax-cm-count b { color: var(--ax-green-d); font-weight: 750; }
+
+    /* Timeline cards */
+    .ax-cm-feed { display: flex; flex-direction: column; gap: 13px; }
+    .ax-cm-card { padding: 15px 17px; }
+    .ax-cm-card.is-team { border-style: dashed; background: #fbfcfd; }
+    .ax-cm-card.ax-cm-hidden { display: none; }
+    .ax-cm-top { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; flex-wrap: wrap; }
+    .ax-cm-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--cm-ink); background: var(--cm-bg); padding: 4px 9px; border-radius: 7px; }
+    .ax-cm-badge .cdot { width: 8px; height: 8px; border-radius: 50%; background: var(--cm); }
+    .ax-cm-vis { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; }
+    .ax-cm-vis.client { color: var(--ax-green-d); background: var(--ax-green-bg); }
+    .ax-cm-vis.team { color: var(--ax-sub); background: #eef0f3; }
+    .ax-cm-date { margin-left: auto; font-size: 11.5px; color: var(--ax-sub); white-space: nowrap; }
+    .ax-cm-title { font-size: 15px; font-weight: 800; margin: 0 0 3px; line-height: 1.3; }
+    .ax-cm-people { font-size: 12px; color: var(--ax-sub); display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }
+    .ax-cm-people .ax-ic { width: 13px; height: 13px; }
+    .ax-cm-summary { font-size: 13.5px; color: #2b2f38; margin: 0; white-space: pre-wrap; }
+    .ax-cm-tools { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    .ax-cm-readlink { font: inherit; font-size: 12px; font-weight: 700; color: var(--cm-ink); background: var(--cm-bg); border: 0; border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+    .ax-cm-empty { text-align: center; color: var(--ax-sub); font-size: 14px; padding: 44px 0; }
+    /* Composer */
+    .ax-cm-composer { margin-top: 20px; }
+    .ax-cm-addbtn { display: inline-flex; align-items: center; gap: 8px; }
+    .ax-cm-form { display: none; margin-top: 12px; flex-direction: column; gap: 10px; }
+    .ax-cm-form.is-open { display: flex; }
+    .ax-cm-form .ax-cm-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ax-cm-form .ax-cm-row .ax-editbox { margin-bottom: 0; }
+    .ax-cm-form .ax-cm-fill { flex: 1 1 220px; }
+    .ax-cm-form .ax-cm-narrow { flex: 0 0 160px; }
     /* Market Intelligence: two side-by-side, labelled sections of briefing cards (team-written, client-read). */
     .ax-intel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
     @media (max-width: 860px) { .ax-intel-grid { grid-template-columns: 1fr; } }
@@ -1696,7 +1759,7 @@
         {#- Insights: the research/monitoring surfaces. Market Intelligence is client-visible;
            Website Health + Watcher stay TEAM-ONLY (admins + super-admins, hidden from clients
            entirely) — the nav, the panes, AND the routes all gate on is_superadmin. -#}
-        {% set tools_open = view.active_tab in ('intel', 'website-health', 'watcher', 'mail') %}
+        {% set tools_open = view.active_tab in ('intel', 'website-health', 'watcher') %}
         <div class="ax-nav-group {{ 'is-open' if tools_open else '' }}">
           <button class="ax-nav-ghead" type="button" title="Insights" aria-expanded="{{ 'true' if tools_open else 'false' }}">
             {{ ic('insights') }}<span>Insights</span>
@@ -1712,9 +1775,6 @@
             </a>
             <a href="{{ '/w/' ~ view.client ~ '/watcher' }}" data-tab="watcher" title="Watcher" class="{{ 'is-active' if view.active_tab == 'watcher' else '' }}">
               {{ ic('watcher') }}<span>Watcher</span>
-            </a>
-            <a href="{{ '/w/' ~ view.client ~ '/mail' }}" data-tab="mail" title="Mail" class="{{ 'is-active' if view.active_tab == 'mail' else '' }}">
-              {{ ic('mail') }}<span>Mail</span>
             </a>
             {% endif %}
           </div>
@@ -2598,97 +2658,164 @@
           {% endif %}
         </section>
 
-        <!-- ============ CLIENT COMMUNICATIONS (email + meeting summaries) ============ -->
+        <!-- ============ COMMUNICATIONS (one unified, channel-tagged, date-filterable timeline) ============ -->
+        {%- set cm_labels = {'email':'Email','upwork':'Upwork','slack':'Slack','meeting':'Meeting','call':'Call','note':'Note'} -%}
         <section class="ax-pane {{ 'is-active' if view.active_tab=='conversations' else '' }}" data-pane="conversations">
           <h1 class="ax-greet">Communications</h1>
-          <p class="ax-lede">A running record of our meetings and email updates, so nothing gets lost.</p>
-          <div class="ax-comm">
-            <div class="ax-comm-col email">
-              <h2>{{ ic('mail') }} Email Summary</h2>
-              {% if ws.email_summaries %}
-                {% for e in ws.email_summaries %}
-                <div class="ax-card ax-comm-item" data-comm="{{ e.id }}">
-                  <div class="ax-comm-top">
-                    <span class="ax-comm-title">{{ e.subject }}</span>
-                    <span class="ax-comm-date">{{ e.date|atrium_date }}</span>
-                  </div>
-                  <p class="ax-comm-body">{{ e.summary }}</p>
-                  {% if is_superadmin %}
-                  <div class="ax-admin-tools">
-                    <button class="ax-btn admin small" type="button" data-commedit="{{ e.id }}">Edit</button>
-                    <button class="ax-btn danger small" type="button" data-commdelete="{{ e.id }}" data-commkind="email">Delete</button>
-                  </div>
-                  <div class="ax-edit-hidden" data-commform="{{ e.id }}" style="margin-top:10px">
-                    <input class="ax-editbox" data-cm="subject" value="{{ e.subject }}" placeholder="Subject">
-                    <textarea class="ax-editbox" data-cm="summary" placeholder="What the email covered…">{{ e.summary }}</textarea>
-                    <div class="ax-actions">
-                      <button class="ax-btn violet small" type="button" data-commsave="{{ e.id }}" data-commkind="email">Save</button>
-                      <button class="ax-btn ghost small" type="button" data-commcancel="{{ e.id }}">Cancel</button>
-                    </div>
-                  </div>
-                  {% endif %}
-                </div>
-                {% endfor %}
-              {% else %}
-                <div class="ax-empty">No email summaries yet.</div>
+          <p class="ax-lede">One running record of every conversation &mdash; email, Upwork, Slack, meetings and calls &mdash; so nothing gets lost.</p>
+
+          {% if is_superadmin and mail is not none %}
+          {#- Team-only "Email intelligence" panel: the Mail machinery folded in (contacts, sync, the
+             AI briefing, response stats). Clients never see this; the email threads themselves appear
+             as cards in the timeline below. Element ids (ax-ml-*) are reused by the Mail JS. -#}
+          <details class="ax-card ax-cm-mailpanel"{{ ' open' if mail.stats and mail.stats.awaiting else '' }}>
+            <summary class="ax-cm-mailsum">{{ ic('mail') }} <span>Email intelligence</span> <span class="ax-cm-mailhint">contacts, sync &amp; the AI briefing &mdash; team only</span></summary>
+            <div class="ax-cm-mailbody">
+              {% if mail.mailbox_count == 0 %}
+              <div class="ax-ml-hint">No mailboxes are connected yet &mdash; connect one in the <a href="/admin/atrium?section=mailboxes">operator console &rarr; Mailboxes</a> first, then come back.</div>
               {% endif %}
-              {% if is_superadmin %}
-              <div class="ax-admin-tools" data-commadd-email>
-                <span class="ax-doc-label" style="width:100%">Add an email summary</span>
-                <input class="ax-editbox" data-ce="subject" placeholder="Subject">
-                <textarea class="ax-editbox" data-ce="summary" placeholder="What the email covered…"></textarea>
-                <div class="ax-comm-addrow">
-                  <input class="ax-editbox" type="date" data-ce="date" aria-label="Email date">
-                  <button class="ax-btn green small" type="button" data-commaddbtn="email">{{ ic('mail') }} Add email summary</button>
+              <div>
+                <h3 class="ax-ml-h">This client's email addresses</h3>
+                <p class="ax-ml-note">Comma-separated emails or whole domains (e.g. <code>maya@riverdance.com, riverdance.com</code>). Only mail to or from these is ever pulled &mdash; nothing else leaves the mailbox.</p>
+                <textarea class="ax-editbox ax-ml-contacts" id="ax-ml-contacts" rows="2" placeholder="name@client.com, clientdomain.com">{{ mail.contacts }}</textarea>
+                <div class="ax-ml-actions">
+                  <button class="ax-btn" type="button" id="ax-ml-savecontacts">Save contacts</button>
+                  <button class="ax-btn violet" type="button" id="ax-ml-sync">Sync now</button>
+                  <button class="ax-btn" type="button" id="ax-ml-redigest">Refresh briefing</button>
+                  <span class="ax-ml-status" id="ax-ml-status">{% if mail.last_sync %}Last sync {{ mail.last_sync|atrium_dt }}{% if mail.backlog %} &middot; {{ mail.backlog }} older conversation{{ '' if mail.backlog == 1 else 's' }} still queued{% endif %}{% if mail.last_error %} &middot; {{ mail.last_error }}{% endif %}{% else %}Never synced yet &mdash; the hourly job also syncs automatically once it's deployed.{% endif %}</span>
                 </div>
               </div>
+              {% if mail.threads %}
+              {% if mail.stats.security %}<div class="ax-ml-secbanner">{{ ic('health') }}<span><b>{{ mail.stats.security }}</b> security / account alert{{ '' if mail.stats.security == 1 else 's' }} in this mailbox &mdash; review these first.</span></div>{% endif %}
+              <div class="ax-ml-statsrow">
+                <span><b>{{ mail.stats.total }}</b> real conversation{{ '' if mail.stats.total == 1 else 's' }}</span>
+                <span class="{{ 'is-bad' if mail.stats.awaiting else '' }}"><b>{{ mail.stats.awaiting }}</b> awaiting our reply{% if mail.stats.awaiting and mail.stats.oldest_awaiting %} (oldest {{ mail.stats.oldest_awaiting|atrium_date }}){% endif %}</span>
+                {% if mail.stats.avg_response_hours is not none %}<span>avg reply time <b>{{ mail.stats.avg_response_hours }}h</b></span>{% endif %}
+              </div>
               {% endif %}
+              <div>
+                <div class="ax-ml-dighead"><h3 class="ax-ml-h">AI briefing</h3>{% if mail.digest.updated %}<span class="ax-ml-meta">updated {{ mail.digest.updated|atrium_dt }}</span>{% endif %}</div>
+                <div class="ax-ml-digest" id="ax-ml-digest">{{ mail.digest.body or 'No briefing yet — sync some mail and the AI keeps a running summary of where things stand with this client.' }}</div>
+              </div>
             </div>
-            <div class="ax-comm-col meeting">
-              <h2>{{ ic('calendar') }} Meeting Summary</h2>
-              {% if ws.meeting_summaries %}
-                {% for mtg in ws.meeting_summaries %}
-                <div class="ax-card ax-comm-item" data-comm="{{ mtg.id }}">
-                  <div class="ax-comm-top">
-                    <span class="ax-comm-title">{{ mtg.title }}</span>
-                    <span class="ax-comm-date">{{ mtg.date|atrium_date }}</span>
-                  </div>
-                  {% if mtg.attendees %}<div class="ax-comm-meta">{{ ic('users') }} {{ mtg.attendees }}</div>{% endif %}
-                  <p class="ax-comm-body">{{ mtg.summary }}</p>
-                  {% if is_superadmin %}
-                  <div class="ax-admin-tools">
-                    <button class="ax-btn admin small" type="button" data-commedit="{{ mtg.id }}">Edit</button>
-                    <button class="ax-btn danger small" type="button" data-commdelete="{{ mtg.id }}" data-commkind="meeting">Delete</button>
-                  </div>
-                  <div class="ax-edit-hidden" data-commform="{{ mtg.id }}" style="margin-top:10px">
-                    <input class="ax-editbox" data-cm="title" value="{{ mtg.title }}" placeholder="Meeting title">
-                    <input class="ax-editbox" data-cm="attendees" value="{{ mtg.attendees }}" placeholder="Attendees (optional)">
-                    <textarea class="ax-editbox" data-cm="summary" placeholder="Meeting notes…">{{ mtg.summary }}</textarea>
-                    <div class="ax-actions">
-                      <button class="ax-btn violet small" type="button" data-commsave="{{ mtg.id }}" data-commkind="meeting">Save</button>
-                      <button class="ax-btn ghost small" type="button" data-commcancel="{{ mtg.id }}">Cancel</button>
-                    </div>
-                  </div>
-                  {% endif %}
-                </div>
-                {% endfor %}
-              {% else %}
-                <div class="ax-empty">No meeting summaries yet.</div>
-              {% endif %}
+          </details>
+          {% endif %}
+
+          {#- Filter bar. Channel chips are built client-side from the cards (with counts); the date and
+             (admin-only) audience segments filter the same timeline. -#}
+          <div class="ax-cm-toolbar">
+            <div class="ax-cm-chips" id="ax-cm-chips" role="group" aria-label="Filter by channel"></div>
+            <div class="ax-cm-controls">
+              <div class="ax-cm-seg" id="ax-cm-dateseg" role="group" aria-label="Filter by date">
+                <button type="button" data-cmrange="all" class="is-active">All time</button>
+                <button type="button" data-cmrange="4w">Last 4 weeks</button>
+                <button type="button" data-cmrange="1w">This week</button>
+              </div>
               {% if is_superadmin %}
-              <div class="ax-admin-tools" data-commadd-meeting>
-                <span class="ax-doc-label" style="width:100%">Add a meeting summary</span>
-                <input class="ax-editbox" data-cmt="title" placeholder="Meeting title">
-                <input class="ax-editbox" data-cmt="attendees" placeholder="Attendees (optional)">
-                <textarea class="ax-editbox" data-cmt="summary" placeholder="Meeting notes…"></textarea>
-                <div class="ax-comm-addrow">
-                  <input class="ax-editbox" type="date" data-cmt="date" aria-label="Meeting date">
-                  <button class="ax-btn green small" type="button" data-commaddbtn="meeting">{{ ic('calendar') }} Add meeting summary</button>
-                </div>
+              <div class="ax-cm-seg" id="ax-cm-audseg" role="group" aria-label="Filter by audience" title="Clients only ever see the 'Client sees' cards">
+                <button type="button" data-cmaud="all" class="is-active">All</button>
+                <button type="button" data-cmaud="client">Client sees</button>
+                <button type="button" data-cmaud="team">Team only</button>
               </div>
               {% endif %}
+              <span class="ax-cm-count" id="ax-cm-count"></span>
             </div>
           </div>
+
+          <div class="ax-cm-feed" id="ax-cm-feed">
+            {% for c in communications %}
+            <article class="ax-card ax-cm-card ch-{{ c.channel }}{{ ' is-team' if c.audience == 'team' else '' }}"
+                     data-commcard="{{ c.id }}" data-cmchannel="{{ c.channel }}" data-cmlabel="{{ cm_labels.get(c.channel, c.channel|capitalize) }}"
+                     data-cmaudience="{{ c.audience }}" data-cmdate="{{ (c.date|string)[:10] }}">
+              <div class="ax-cm-top">
+                <span class="ax-cm-badge"><span class="cdot"></span>{{ cm_labels.get(c.channel, c.channel|capitalize) }}</span>
+                {% if is_superadmin %}{% if c.audience == 'team' %}<span class="ax-cm-vis team">Team only</span>{% else %}<span class="ax-cm-vis client">Client sees</span>{% endif %}{% endif %}
+                <span class="ax-cm-date">{{ c.date|atrium_date }}</span>
+              </div>
+              {% if c.title %}<h3 class="ax-cm-title">{{ c.title }}</h3>{% endif %}
+              {% if c.people %}<div class="ax-cm-people">{{ ic('users') }} {{ c.people }}</div>{% endif %}
+              <p class="ax-cm-summary">{{ c.summary }}</p>
+              {% if is_superadmin %}
+              <div class="ax-cm-tools">
+                {% if c.thread_key %}
+                <button class="ax-cm-readlink" type="button" data-mlthread="{{ c.thread_key }}">Read full thread</button>
+                {% endif %}
+                {% if c.readonly %}
+                <button class="ax-btn danger small" type="button" data-mldelete="{{ c.thread_key }}" title="Remove this email thread from the archive">Delete thread</button>
+                {% else %}
+                <button class="ax-btn admin small" type="button" data-commedit="{{ c.id }}">Edit</button>
+                <button class="ax-btn danger small" type="button" data-commdelete="{{ c.id }}">Delete</button>
+                {% endif %}
+              </div>
+              {% if not c.readonly %}
+              <div class="ax-edit-hidden ax-cm-editform" data-commform="{{ c.id }}" style="margin-top:12px">
+                <div class="ax-cm-row">
+                  <select class="ax-editbox ax-cm-narrow" data-cm="channel">
+                    {% for ch, lab in cm_labels.items() %}<option value="{{ ch }}"{{ ' selected' if ch == c.channel else '' }}>{{ lab }}</option>{% endfor %}
+                  </select>
+                  <select class="ax-editbox ax-cm-narrow" data-cm="audience">
+                    <option value="client"{{ ' selected' if c.audience != 'team' else '' }}>Client sees this</option>
+                    <option value="team"{{ ' selected' if c.audience == 'team' else '' }}>Team only</option>
+                  </select>
+                  <input class="ax-editbox ax-cm-fill" data-cm="title" value="{{ c.title }}" placeholder="Title">
+                </div>
+                <div class="ax-cm-row">
+                  <input class="ax-editbox ax-cm-fill" data-cm="people" value="{{ c.people }}" placeholder="Who was involved (optional)">
+                  <input class="ax-editbox ax-cm-narrow" type="date" data-cm="date" value="{{ (c.date|string)[:10] }}" aria-label="Date">
+                </div>
+                <textarea class="ax-editbox" data-cm="summary" placeholder="Summary…">{{ c.summary }}</textarea>
+                <div class="ax-actions">
+                  <button class="ax-btn violet small" type="button" data-commsave="{{ c.id }}">Save</button>
+                  <button class="ax-btn ghost small" type="button" data-commcancel="{{ c.id }}">Cancel</button>
+                </div>
+              </div>
+              {% endif %}
+              {% endif %}
+            </article>
+            {% endfor %}
+            <div class="ax-cm-empty" id="ax-cm-empty"{{ '' if not communications else ' hidden' }}>{% if communications %}Nothing matches this filter. Try a wider date range or another channel.{% else %}No communications logged yet.{% endif %}</div>
+          </div>
+
+          {% if is_superadmin %}
+          <div class="ax-cm-composer" data-commadd>
+            <button class="ax-btn green ax-cm-addbtn" type="button" id="ax-cm-addtoggle">+ Add a communication</button>
+            <div class="ax-cm-form ax-card" data-commaddform style="padding:16px 18px">
+              <div class="ax-cm-row">
+                <select class="ax-editbox ax-cm-narrow" data-ca="channel">
+                  {% for ch, lab in cm_labels.items() %}<option value="{{ ch }}"{{ ' selected' if ch == 'meeting' else '' }}>{{ lab }}</option>{% endfor %}
+                </select>
+                <select class="ax-editbox ax-cm-narrow" data-ca="audience">
+                  <option value="client" selected>Client sees this</option>
+                  <option value="team">Team only</option>
+                </select>
+                <input class="ax-editbox ax-cm-fill" data-ca="title" placeholder="What it was about">
+              </div>
+              <div class="ax-cm-row">
+                <input class="ax-editbox ax-cm-fill" data-ca="people" placeholder="Who was involved (optional)">
+                <input class="ax-editbox ax-cm-narrow" type="date" data-ca="date" aria-label="Date">
+              </div>
+              <textarea class="ax-editbox" data-ca="summary" placeholder="A plain-language recap the client can read at a glance…"></textarea>
+              <div class="ax-actions">
+                <button class="ax-btn green small" type="button" data-commaddbtn>Add communication</button>
+                <button class="ax-btn ghost small" type="button" id="ax-cm-addcancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Full-thread reader for email cards (team-only; reuses the Watcher modal styling). -->
+          <div class="ax-wt-modal" id="ax-ml-modal" hidden>
+            <div class="ax-wt-mbox" role="dialog" aria-modal="true" aria-label="Email thread">
+              <div class="ax-wt-mhead">
+                <div class="ax-wt-mtitle" id="ax-ml-mtitle"></div>
+                <div class="ax-wt-mactions">
+                  <button class="ax-btn" id="ax-ml-mclose" type="button">Close</button>
+                </div>
+              </div>
+              <div class="ax-wt-mmeta" id="ax-ml-mmeta"></div>
+              <div class="ax-wt-mbody ax-ml-mbody" id="ax-ml-mbody"></div>
+            </div>
+          </div>
+          {% endif %}
         </section>
 
         <!-- ============ MARKET INTELLIGENCE (team-written briefing, client-read) ============ -->
@@ -3307,92 +3434,9 @@
           </div>
         </section>
 
-        <!-- ============ MAIL (team-only: client email archive + AI digest) ============ -->
-        <section class="ax-pane {{ 'is-active' if view.active_tab=='mail' else '' }}" data-pane="mail">
-          <h1 class="ax-greet">Mail</h1>
-          <p class="ax-lede">Every email conversation with {{ ws.display_name }}, pulled automatically from the agency's connected mailboxes, summarized by AI, and rolled into a running briefing. Mailboxes are connected once in the <a href="/admin/atrium?section=mailboxes">operator console</a>; below you control which addresses count as this client.</p>
-
-          {% if mail %}
-          {% if mail.mailbox_count == 0 %}
-          <div class="ax-panel ax-ml-hint">No mailboxes are connected yet &mdash; connect one in the <a href="/admin/atrium?section=mailboxes">operator console &rarr; Mailboxes</a> first, then come back here.</div>
-          {% endif %}
-
-          <div class="ax-panel">
-            <h3 class="ax-ml-h">This client's email addresses</h3>
-            <p class="ax-ml-note">Comma-separated emails or whole domains (e.g. <code>maya@riverdance.com, riverdance.com</code>). Only mail to or from these addresses is ever pulled &mdash; nothing else leaves the mailbox.</p>
-            <textarea class="ax-editbox ax-ml-contacts" id="ax-ml-contacts" rows="2" placeholder="name@client.com, clientdomain.com">{{ mail.contacts }}</textarea>
-            <div class="ax-ml-actions">
-              <button class="ax-btn" type="button" id="ax-ml-savecontacts">Save contacts</button>
-              <button class="ax-btn violet" type="button" id="ax-ml-sync">Sync now</button>
-              <span class="ax-ml-status" id="ax-ml-status">{% if mail.last_sync %}Last sync {{ mail.last_sync|atrium_dt }}{% if mail.backlog %} &middot; {{ mail.backlog }} older conversation{{ '' if mail.backlog == 1 else 's' }} still queued &mdash; sync again (or let the hourly job drain them){% endif %}{% if mail.last_error %} &middot; {{ mail.last_error }}{% endif %}{% else %}Never synced yet &mdash; the hourly job also syncs automatically once it's deployed.{% endif %}</span>
-            </div>
-          </div>
-
-          <div class="ax-panel">
-            <div class="ax-ml-dighead">
-              <h3 class="ax-ml-h">AI briefing</h3>
-              <div>
-                {% if mail.digest.updated %}<span class="ax-ml-meta">updated {{ mail.digest.updated|atrium_dt }}</span>{% endif %}
-                <button class="ax-btn" type="button" id="ax-ml-redigest">Refresh briefing</button>
-              </div>
-            </div>
-            <div class="ax-ml-digest" id="ax-ml-digest">{{ mail.digest.body or 'No briefing yet — sync some mail and the AI keeps a running summary of where things stand with this client.' }}</div>
-          </div>
-
-          {% if mail.threads %}
-          {% if mail.stats.security %}
-          <div class="ax-panel ax-ml-secbanner">{{ ic('health') }}<span><b>{{ mail.stats.security }}</b> security / account alert{{ '' if mail.stats.security == 1 else 's' }} in this mailbox &mdash; review these first (they can bypass a VA).</span></div>
-          {% endif %}
-          <div class="ax-panel ax-ml-statsrow">
-            <span><b>{{ mail.stats.total }}</b> real conversation{{ '' if mail.stats.total == 1 else 's' }}</span>
-            <span class="{{ 'is-bad' if mail.stats.awaiting else '' }}"><b>{{ mail.stats.awaiting }}</b> awaiting our reply{% if mail.stats.awaiting and mail.stats.oldest_awaiting %} (oldest {{ mail.stats.oldest_awaiting|atrium_date }}){% endif %}</span>
-            {% if mail.stats.avg_response_hours is not none %}<span>avg reply time <b>{{ mail.stats.avg_response_hours }}h</b></span>{% endif %}
-            <span class="ax-ml-meta">Ask the Assistant &ldquo;how well are we handling {{ ws.display_name }}'s emails?&rdquo; &mdash; it judges against these numbers and the actual replies.</span>
-          </div>
-          {% set tc = mail.stats.tier_counts %}
-          <div class="ax-ml-filters" id="ax-ml-filters" role="tablist">
-            <button type="button" class="ax-ml-fbtn is-active" data-mlfilter="active">Needs attention{% if tc.security or tc.client or tc.operations %} <span class="ax-ml-fn">{{ tc.security + tc.client + tc.operations }}</span>{% endif %}</button>
-            <button type="button" class="ax-ml-fbtn" data-mlfilter="security">Security{% if tc.security %} <span class="ax-ml-fn">{{ tc.security }}</span>{% endif %}</button>
-            <button type="button" class="ax-ml-fbtn" data-mlfilter="client">Client{% if tc.client %} <span class="ax-ml-fn">{{ tc.client }}</span>{% endif %}</button>
-            <button type="button" class="ax-ml-fbtn" data-mlfilter="operations">Operations{% if tc.operations %} <span class="ax-ml-fn">{{ tc.operations }}</span>{% endif %}</button>
-            <button type="button" class="ax-ml-fbtn" data-mlfilter="noise">Noise{% if tc.noise %} <span class="ax-ml-fn">{{ tc.noise }}</span>{% endif %}</button>
-            <button type="button" class="ax-ml-fbtn" data-mlfilter="all">All</button>
-          </div>
-          <div class="ax-ml-list" id="ax-ml-list">
-            {% for t in mail.threads %}
-            <div class="ax-panel ax-ml-row" data-mlthread="{{ t.id }}" data-mltier="{{ t.tier }}" role="button" tabindex="0" title="Read the full thread">
-              <div class="ax-ml-rowhead">
-                <div class="ax-ml-sub"><span class="ax-ml-tier t-{{ t.tier }}">{{ {'security':'Security','client':'Client','operations':'Ops','noise':'Noise'}[t.tier] }}</span> {{ t.subject }}{% if t.awaiting_reply and t.tier != 'noise' %} <span class="ax-wt-chip bad">Awaiting our reply</span>{% endif %}</div>
-                <div class="ax-ml-meta">{{ t.last_date|atrium_date }} &middot; {{ t.message_count }} message{{ '' if t.message_count == 1 else 's' }}</div>
-              </div>
-              <div class="ax-ml-meta">{{ t.participants }}{% if t.mailbox %} &middot; via {{ t.mailbox }}{% endif %}</div>
-              {% if t.summary %}<div class="ax-ml-sum">{{ t.summary }}</div>{% endif %}
-              <button class="ax-ml-del" type="button" data-mldelete="{{ t.id }}" title="Remove this thread from the archive" aria-label="Remove thread">&times;</button>
-            </div>
-            {% endfor %}
-          </div>
-          {% else %}
-          <div class="ax-panel ax-wt-empty">
-            {{ ic('mail') }}
-            <div>No client email archived yet. {% if mail.mailbox_count == 0 %}Connect a mailbox in the operator console, add this client's addresses above, then{% else %}Add this client's addresses above, then{% endif %} click <strong>Sync now</strong>.</div>
-          </div>
-          {% endif %}
-
-          <!-- Full-thread reader: opened by clicking any row (reuses the Watcher modal styling). -->
-          <div class="ax-wt-modal" id="ax-ml-modal" hidden>
-            <div class="ax-wt-mbox" role="dialog" aria-modal="true" aria-label="Email thread">
-              <div class="ax-wt-mhead">
-                <div class="ax-wt-mtitle" id="ax-ml-mtitle"></div>
-                <div class="ax-wt-mactions">
-                  <button class="ax-btn" id="ax-ml-mclose" type="button">Close</button>
-                </div>
-              </div>
-              <div class="ax-wt-mmeta" id="ax-ml-mmeta"></div>
-              <div class="ax-wt-mbody ax-ml-mbody" id="ax-ml-mbody"></div>
-            </div>
-          </div>
-          {% endif %}
-        </section>
+        <!-- Mail was folded into Communications (2026-07-15). Its team machinery — contacts, sync,
+             the AI briefing, response stats, and the thread reader — now lives in the Communications
+             pane's "Email intelligence" panel; email threads appear as cards in that timeline. -->
 
         <!-- ============ ASSISTANT (team-only: RAG chat over the whole workspace) ============ -->
         {#- The Assistant's model options, shared by the tab bar and the floating bubble's settings
@@ -4393,8 +4437,9 @@
           post("/admin/mail", { op: "delete", thread_id: id })
             .then(function (data) {
               if (data && data.ok) {
-                var row = document.querySelector('[data-mlthread="' + aq(id) + '"]');
-                if (row && row.parentNode) { row.parentNode.removeChild(row); }
+                // The delete button lives on an email card in the Communications timeline; drop it.
+                var card = btn.closest(".ax-cm-card");
+                if (card && card.parentNode) { card.parentNode.removeChild(card); }
               }
             })
             .catch(function () {});
@@ -4447,6 +4492,7 @@
           mBody.textContent = "Please try again.";
         });
     }
+    // Email cards in the timeline carry a "Read full thread" button (data-mlthread = the thread key).
     qsa("[data-mlthread]").forEach(function (row) {
       function go() { openThread(row.getAttribute("data-mlthread")); }
       row.addEventListener("click", go);
@@ -4457,27 +4503,6 @@
       modal.addEventListener("click", function (e) { if (e.target === modal) { closeModal(); } });
       document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) { closeModal(); } });
     }
-
-    // Tier filter: "Needs attention" (default) shows Security + Client + Operations and hides
-    // Noise; the other buttons show one tier; "All" shows everything. Pure client-side show/hide.
-    var rows = qsa("[data-mlthread]");
-    function applyMlFilter(mode) {
-      rows.forEach(function (r) {
-        var tier = r.getAttribute("data-mltier") || "client";
-        var show = (mode === "all") ? true
-                 : (mode === "active") ? (tier !== "noise")
-                 : (tier === mode);
-        r.classList.toggle("ax-ml-hidden", !show);
-      });
-    }
-    qsa("[data-mlfilter]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        qsa("[data-mlfilter]").forEach(function (b) { b.classList.remove("is-active"); });
-        btn.classList.add("is-active");
-        applyMlFilter(btn.getAttribute("data-mlfilter"));
-      });
-    });
-    applyMlFilter("active");   // default view hides Noise
   })();
 
   // ---- Assistant spend (the cost pill): session + all-time, mastery-engine style ----------------
@@ -5635,6 +5660,96 @@
   // Every control reads its values from data-* inputs and posts to /w/<c>/admin/*; on success
   // adminAction() reloads so the rendered workspace reflects exactly what the client will see.
   // ======================================================================
+  // ---- Communications: client-side channel / date / audience filtering of the timeline ----------
+  // Runs for EVERYONE (clients filter too). Channel chips are built from the server-rendered cards
+  // with live counts; the date + (admin-only) audience segments filter the same timeline in place.
+  (function () {
+    var feed = document.getElementById("ax-cm-feed");
+    if (!feed) { return; }
+    var cards = qsa("[data-commcard]", feed);
+    var chipsWrap = document.getElementById("ax-cm-chips");
+    var countEl = document.getElementById("ax-cm-count");
+    var emptyEl = document.getElementById("ax-cm-empty");
+    var COLORS = { email: "#6a6aea", upwork: "#12a594", slack: "#8a3b8f", meeting: "#4fa84a", call: "#c9821f", note: "#6a7180" };
+    var active = {};       // channel -> selected; nothing selected = All
+    var range = "all";     // all | 4w | 1w
+    var audience = "all";  // all | client | team  (admin only)
+
+    var counts = {}, labels = {};
+    cards.forEach(function (c) {
+      var ch = c.getAttribute("data-cmchannel") || "note";
+      counts[ch] = (counts[ch] || 0) + 1;
+      labels[ch] = c.getAttribute("data-cmlabel") || ch;
+    });
+    function anyActive() { for (var k in active) { if (active[k]) { return true; } } return false; }
+    if (chipsWrap) {
+      var allBtn = document.createElement("button");
+      allBtn.type = "button"; allBtn.className = "ax-cm-chip all";
+      allBtn.setAttribute("data-chip", ""); allBtn.setAttribute("aria-pressed", "true");
+      allBtn.innerHTML = '<span class="cdot"></span>All <span class="cn">' + cards.length + '</span>';
+      chipsWrap.appendChild(allBtn);
+      ["email", "upwork", "slack", "meeting", "call", "note"].forEach(function (ch) {
+        if (!counts[ch]) { return; }
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "ax-cm-chip";
+        b.setAttribute("data-chip", ch); b.setAttribute("aria-pressed", "false");
+        b.style.setProperty("--cd", COLORS[ch] || "#6a7180");
+        b.style.setProperty("--cb", (COLORS[ch] || "#6a7180") + "1f");
+        var dot = document.createElement("span"); dot.className = "cdot"; b.appendChild(dot);
+        b.appendChild(document.createTextNode(" " + (labels[ch] || ch) + " "));
+        var cn = document.createElement("span"); cn.className = "cn"; cn.textContent = counts[ch];
+        b.appendChild(cn);
+        chipsWrap.appendChild(b);
+      });
+      chipsWrap.addEventListener("click", function (e) {
+        var b = e.target.closest(".ax-cm-chip"); if (!b) { return; }
+        var ch = b.getAttribute("data-chip");
+        if (ch === "") { active = {}; } else { active[ch] = !active[ch]; }
+        qsa(".ax-cm-chip", chipsWrap).forEach(function (x) {
+          var xc = x.getAttribute("data-chip");
+          x.setAttribute("aria-pressed", xc === "" ? (!anyActive()) : (!!active[xc]));
+        });
+        apply();
+      });
+    }
+    function wireSeg(id, cb) {
+      var seg = document.getElementById(id); if (!seg) { return; }
+      seg.addEventListener("click", function (e) {
+        var b = e.target.closest("button"); if (!b) { return; }
+        qsa("button", seg).forEach(function (x) { x.classList.remove("is-active"); });
+        b.classList.add("is-active");
+        cb(b); apply();
+      });
+    }
+    wireSeg("ax-cm-dateseg", function (b) { range = b.getAttribute("data-cmrange"); });
+    wireSeg("ax-cm-audseg", function (b) { audience = b.getAttribute("data-cmaud"); });
+    function inRange(iso) {
+      if (range === "all" || !iso) { return true; }
+      var d = new Date(iso + "T00:00:00");
+      if (isNaN(d.getTime())) { return true; }
+      var days = (range === "1w") ? 7 : 28;
+      return d >= new Date(Date.now() - days * 86400000);
+    }
+    function apply() {
+      var shown = 0, clientSeen = 0, filtering = anyActive();
+      cards.forEach(function (c) {
+        var ch = c.getAttribute("data-cmchannel") || "note";
+        var aud = c.getAttribute("data-cmaudience") || "client";
+        var ok = (!filtering || active[ch]) &&
+                 (audience === "all" || aud === audience) &&
+                 inRange(c.getAttribute("data-cmdate"));
+        c.classList.toggle("ax-cm-hidden", !ok);
+        if (ok) { shown++; if (aud === "client") { clientSeen++; } }
+      });
+      if (emptyEl && cards.length > 0) { emptyEl.hidden = (shown > 0); }
+      if (countEl) {
+        var hasAud = !!document.getElementById("ax-cm-audseg");
+        countEl.innerHTML = "Showing " + shown + (hasAud ? ' · <b>' + clientSeen + " visible to client</b>" : "");
+      }
+    }
+    apply();
+  })();
+
   if (isAdmin) {
     function fieldsFrom(scope, attr, into) {
       var out = into || {};
@@ -6001,10 +6116,10 @@
       });
     });
 
-    // --- Client Communications: add / edit / delete email & meeting summaries (super-admin) ---
+    // --- Communications: add / edit / delete a card in the unified timeline (super-admin) ---------
     qsa("[data-commedit]").forEach(function (btn) {
       var form = document.querySelector('[data-commform="' + aq(btn.getAttribute("data-commedit")) + '"]');
-      btn.addEventListener("click", function () { if (form) { form.classList.toggle("ax-edit-hidden"); } });
+      btn.addEventListener("click", function () { toggleHidden(form); });
     });
     qsa("[data-commcancel]").forEach(function (btn) {
       var form = document.querySelector('[data-commform="' + aq(btn.getAttribute("data-commcancel")) + '"]');
@@ -6012,26 +6127,31 @@
     });
     qsa("[data-commsave]").forEach(function (btn) {
       var id = btn.getAttribute("data-commsave");
-      var kind = btn.getAttribute("data-commkind");
       var form = document.querySelector('[data-commform="' + aq(id) + '"]');
       btn.addEventListener("click", function () {
-        adminAction("/admin/communication", fieldsFrom(form, "data-cm", { op: "edit", kind: kind, item_id: id }), btn);
+        adminAction("/admin/communication", fieldsFrom(form, "data-cm", { op: "edit", item_id: id }), btn);
       });
     });
     qsa("[data-commdelete]").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        axConfirm({ title: "Delete summary?", message: "Delete this summary? This cannot be undone." }, function () {
-          adminAction("/admin/communication", { op: "delete", kind: btn.getAttribute("data-commkind"), item_id: btn.getAttribute("data-commdelete") }, btn);
+        axConfirm({ title: "Delete this?", message: "Remove this from the timeline? This cannot be undone." }, function () {
+          adminAction("/admin/communication", { op: "delete", item_id: btn.getAttribute("data-commdelete") }, btn);
         });
       });
     });
+    // The add composer: toggle it open, then post.
+    (function () {
+      var toggle = document.getElementById("ax-cm-addtoggle");
+      var cancel = document.getElementById("ax-cm-addcancel");
+      var form = document.querySelector("[data-commaddform]");
+      if (toggle && form) { toggle.addEventListener("click", function () { form.classList.toggle("is-open"); }); }
+      if (cancel && form) { cancel.addEventListener("click", function () { form.classList.remove("is-open"); }); }
+    })();
     qsa("[data-commaddbtn]").forEach(function (btn) {
-      var isEmail = btn.getAttribute("data-commaddbtn") === "email";
-      var panel = document.querySelector(isEmail ? "[data-commadd-email]" : "[data-commadd-meeting]");
+      var panel = document.querySelector("[data-commaddform]");
       btn.addEventListener("click", function () {
-        var fields = fieldsFrom(panel, isEmail ? "data-ce" : "data-cmt", { op: "add", kind: isEmail ? "email" : "meeting" });
-        var hasContent = isEmail ? (fields.subject || fields.summary) : (fields.title || fields.summary);
-        if (!hasContent) { adminMsg("Add a subject/title or a summary first.", false); return; }
+        var fields = fieldsFrom(panel, "data-ca", { op: "add" });
+        if (!fields.title && !fields.summary) { adminMsg("Add a title or a summary first.", false); return; }
         adminAction("/admin/communication", fields, btn);
       });
     });
