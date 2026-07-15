@@ -45,6 +45,9 @@ FIELDS = ",".join([
     "datasource", "date", "frequency", "impressions", "link_clicks", "reach", "source",
     "spend", "unique_actions_link_click", "action_values_omni_purchase",
     "actions_offsite_conversion_fb_pixel_purchase",
+    # "Book Nightly_Initiated" custom conversion (booking-engine checkout started; its
+    # conversion_values_* twin is always 0 — the pixel event carries no value, so not pulled).
+    "actions_book_nightly_initiated",
     "thumbnail_url", "image_url", "creative_id", "ad_id", "title", "body",
 ])
 WINDSOR_SECRET = "riverdance-windsor-key"   # Secret Manager id (fallback when env not set)
@@ -155,6 +158,7 @@ def build(rows_in):
             "lclk": int(_num(r.get("link_clicks"))), "reach": int(_num(r.get("reach"))),
             "pur": _num(r.get("actions_offsite_conversion_fb_pixel_purchase")),
             "rev": round(_num(r.get("action_values_omni_purchase")), 2),
+            "book_init": _num(r.get("actions_book_nightly_initiated")),
         })
     dates = sorted({r["date"] for r in rows if r["date"]})
 

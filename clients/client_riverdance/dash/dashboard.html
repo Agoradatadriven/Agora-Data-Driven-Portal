@@ -618,11 +618,11 @@ function mday(iso){ var p = iso.split("-"); return MONTHS[parseInt(p[1],10) - 1]
 function prettyDate(iso){ var p = iso.split("-"); return MONTHS[parseInt(p[1],10) - 1] + " " + parseInt(p[2],10) + ", " + p[0]; }
 
 /* ---------- Aggregation (data contract keys: spend imps clicks lclk reach pur rev) ---------- */
-function blank(){ return { spend:0, imps:0, clicks:0, lclk:0, reach:0, pur:0, rev:0 }; }
+function blank(){ return { spend:0, imps:0, clicks:0, lclk:0, reach:0, pur:0, rev:0, book_init:0 }; }
 function add(a, r){ a.spend += r.spend; a.imps += r.imps; a.clicks += r.clicks; a.lclk += r.lclk;
-  a.reach += r.reach; a.pur += r.pur; a.rev += r.rev; }
+  a.reach += r.reach; a.pur += r.pur; a.rev += r.rev; a.book_init += (r.book_init || 0); }
 function derive(a){
-  a.spend = r2(a.spend); a.rev = r2(a.rev); a.pur = Math.round(a.pur);
+  a.spend = r2(a.spend); a.rev = r2(a.rev); a.pur = Math.round(a.pur); a.book_init = Math.round(a.book_init);
   a.ctr = a.imps ? r2(a.clicks / a.imps * 100) : 0;
   a.link_ctr = a.imps ? r2(a.lclk / a.imps * 100) : 0;
   a.cpc = a.clicks ? r2(a.spend / a.clicks) : 0;
@@ -784,13 +784,14 @@ var HERO_METRICS = {
   rev:    { label: "Revenue",     unit: "money", color: "#2E7D43", fam: "out", w: 3.4 },
   roas:   { label: "ROAS",        unit: "mult",  color: "#21582B", fam: "out", w: 3.4 },
   pur:    { label: "Bookings",    unit: "int",   color: "#5C9A6B", fam: "out", w: 3.4 },
+  book_init: { label: "Booking starts", unit: "int", color: "#7CB342", fam: "out", w: 3.4 },
   imps:   { label: "Impressions", unit: "int",   color: "#2F6BB0", fam: "del", w: 2 },
   reach:  { label: "Reach",       unit: "int",   color: "#5B93D6", fam: "del", w: 2 },
   clicks: { label: "Clicks",      unit: "int",   color: "#1F4A7A", fam: "del", w: 2 },
   lclk:   { label: "Link clicks", unit: "int",   color: "#2A8FA0", fam: "del", w: 2 },
   ctr:    { label: "CTR",         unit: "pct",   color: "#7A6FB8", fam: "del", w: 2 }
 };
-var HERO_ORDER = ["rev", "roas", "pur", "imps", "reach", "clicks", "lclk", "ctr"];
+var HERO_ORDER = ["rev", "roas", "pur", "book_init", "imps", "reach", "clicks", "lclk", "ctr"];
 var HERO_FAMS = [
   { fam: "out", label: "Money outcomes" },
   { fam: "del", label: "Delivery & engagement" }
@@ -1658,7 +1659,26 @@ function initControls(){
 }
 
 /* ---------- Boot ---------- */
+/* Ads run before Agora took over the account (the Feb 2026 "Extended Stay End of Season" push,
+   ad title "Riverdance Vail Valley", by the previous operator) are not ours — drop them from
+   every view: rows (charts/KPIs/tables), the creative gallery, and the date range. */
+var EXCLUDED_ADS = ["Promoting lead generation: Riverdance Extended Stay End of Season  Sale"];
+var EXCLUDED_TITLES = ["Riverdance Vail Valley"];
+function excludeForeignAds(){
+  var exAd = {}, exTitle = {};
+  EXCLUDED_ADS.forEach(function(a){ exAd[a] = true; });
+  EXCLUDED_TITLES.forEach(function(t){ exTitle[t] = true; });
+  DATA.rows = (DATA.rows || []).filter(function(r){ return exAd[r.ad] !== true; });
+  DATA.creatives = (DATA.creatives || []).filter(function(c){
+    return exAd[c.ad] !== true && exTitle[c.title] !== true;
+  });
+  var ds = {};
+  DATA.rows.forEach(function(r){ ds[r.date] = true; });
+  var dates = Object.keys(ds); dates.sort();
+  if(dates.length){ DATA.dates = dates; }
+}
 function boot(){
+  excludeForeignAds();
   tip = byId("tip");
   if(DATA.logo){ byId("brand-logo").src = DATA.logo; }
   if(DATA.agora_logo){ byId("agora-logo").src = DATA.agora_logo; byId("foot-agora").src = DATA.agora_logo; }
