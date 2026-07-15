@@ -2311,6 +2311,7 @@ def _watcher_view(ws, client):
         entry.setdefault("platform", "youtube")
         entry.setdefault("industry", "")
         entry.setdefault("kind", "creator")
+        entry["loose"] = bool(ch.get("loose"))  # the "Saved videos" pseudo-channel (single scrapes)
         entry["safe_queued"] = ch.get("id") in safe_queue
         cards = []
         latest = ""
