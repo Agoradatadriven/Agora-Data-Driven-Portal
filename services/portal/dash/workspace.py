@@ -359,6 +359,27 @@ def clear_watcher_safe_pull(client, channel_id):
     return _mutate(client, fn)
 
 
+# The local safe scraper (safe_scrape_local.py, on the operator's machine) writes ONE global
+# heartbeat object as it works so the Watcher tab can show live progress instead of "check back
+# later". It is NOT under workspace/watcher/<c>/ (that prefix is the per-client archive folders the
+# scraper globs), so it never looks like a client slug.
+def safe_pull_status_name():
+    """Object name for the global safe-scraper heartbeat, e.g. 'workspace/watcher_safe_pull_status.json'."""
+    return "%swatcher_safe_pull_status.json" % _prefix()
+
+
+def read_safe_pull_status():
+    """The local safe scraper's last heartbeat dict ({} if it has never run). Best-effort: a
+    missing/corrupt object just reads as {} so the status route always answers."""
+    raw = _read_object(safe_pull_status_name())
+    if raw is None:
+        return {}
+    try:
+        return json.loads(raw.decode("utf-8")) or {}
+    except (ValueError, AttributeError):
+        return {}
+
+
 # --- Assistant (team-only tab: the workspace knowledge index) ------------------------------------
 # The Assistant's retrieval index (chunks + BM25 stats over every workspace source) is ONE private
 # object per client, rebuilt lazily when its fingerprint stops matching the live data. Like the

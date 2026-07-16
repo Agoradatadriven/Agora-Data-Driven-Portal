@@ -132,7 +132,8 @@ auto-refresh (see those bullets below). Product name is one constant:
   add|add_video|fetch|refresh|meta|label|delete — fetch pulls MISSING transcripts in short batches of 8 and
   the page JS loops it with a progress bar; **a YouTube rate-limit stops the batch and reports
   `blocked` WITHOUT marking any video failed**, so the next fetch resumes exactly where it stopped;
-  **add_video scrapes ONE pasted video link** (resolve title via keyless oEmbed → fetch transcript
+  **add_video scrapes ONE pasted video link** (resolve title via keyless oEmbed, falling back to a
+  watch-page og:title scrape when oEmbed 401s → fetch transcript
   inline → save under the per-client "Saved videos" pseudo-channel, marked `loose`, created by
   `workspace.ensure_loose_channel`; a rate-limit saves it pending + reports `blocked`, so the card's
   Fetch missing / Safe pull can finish it — the loose channel is fetched/safe-pulled/indexed like
@@ -154,7 +155,12 @@ auto-refresh (see those bullets below). Product name is one constant:
   `dash/safe_scrape_local.py --queue` from a residential IP with 12–20s pacing + a 5→60 min
   rate-limit ladder, syncing transcripts back to the bucket as it goes and clearing each queue
   entry on completion (no args = full sweep of every client; a %TEMP% PID lock keeps every mode
-  single-instance). Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube
+  single-instance). It is SLOW by design (≤5-min tick latency + ~15s/video + cooldowns). **Live
+  status:** the scraper writes a per-video heartbeat to `workspace/watcher_safe_pull_status.json`
+  (`safe_scrape_local.write_status` / `workspace.read_safe_pull_status`); `GET
+  /w/<c>/watcher/safe-pull-status` fuses it with the queued channels' counts and the Watcher tab
+  polls it (~12s) to show what's fetching now / cooldowns / idle-since + a progress bar, instead of
+  "check back later". Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube
   fetchers).
 - **Assistant is a TEAM-ONLY tab (RAG chat over the WHOLE workspace):** grounded Q&A across every
   source the portal holds for a client — campaigns + content (incl. comments), workspace metrics,
