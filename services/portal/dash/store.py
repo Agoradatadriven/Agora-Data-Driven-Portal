@@ -86,10 +86,15 @@ def load_registry():
             return {"version": 1, "agencies": [], "clients": []}
         with open(path, "r", encoding="utf-8") as fh:
             return json.loads(fh.read())
+    # ONE GCS round-trip: download and treat a missing object as "not seeded yet". The old
+    # exists()-then-download did two round-trips on this per-request hot path (the registry is read
+    # on nearly every request).
+    from google.cloud.exceptions import NotFound  # lazy: only the GCS backend needs the package
     blob = _gcs_blob()
-    if not blob.exists():
+    try:
+        return json.loads(blob.download_as_bytes().decode("utf-8"))
+    except NotFound:
         return {"version": 1, "agencies": [], "clients": []}
-    return json.loads(blob.download_as_bytes().decode("utf-8"))
 
 
 def save_registry(registry):
