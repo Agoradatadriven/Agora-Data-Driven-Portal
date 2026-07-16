@@ -54,6 +54,8 @@ PRICING = {
     "gemini-2.5-pro": {"in": 1.25, "out": 10.0},
     "deepseek-v4-flash": {"in": 0.28, "out": 0.42},
     "deepseek-v4-pro": {"in": 0.55, "out": 2.19},
+    # Retrieval embeddings (the Assistant's hybrid search). Input-only; ~$0.025/1M tokens.
+    "text-embedding-005": {"in": 0.025, "out": 0.0},
 }
 
 
@@ -481,6 +483,217 @@ def _call(model, system, user, fetcher, max_tokens, token_fetcher=None, capture=
         return _call_vertex_gemini(model["id"], system, user, fetcher, max_tokens, token_fetcher,
                                    capture, usage_out, think)
     return "", "unknown provider", ""
+
+
+# ================================================================================================
+# RETRIEVAL EMBEDDINGS + RERANKING -- the Assistant's hybrid search (opt-in, gated, graceful).
+# ================================================================================================
+# The Assistant's BM25 index gains a SEMANTIC leg: every chunk is embedded once at index time and
+# each question is embedded at ask time, so retrieval catches meaning ("retention" ~ "keep customers
+# coming back") that pure keyword search misses. Both legs are then fused (RRF, in assistant_ai) and
+# -- when the Ranking API is enabled -- a cross-encoder rerank sorts the survivors by true relevance.
+#
+# Both features reuse the EXACT Vertex plumbing above (the runtime SA's metadata token, GCP-billed,
+# no API key). Embeddings run on the same `aiplatform.googleapis.com` the Gemini brain already uses
+# (no new API/IAM); reranking is the ONE piece that needs a new API enable + IAM grant, so it is
+# gated separately and degrades to "no rerank" when unavailable. Every call is (result, error) and
+# NEVER raises -- a failure just means the Assistant falls back to keyword-only retrieval.
+
+# text-embedding-005 (English + code, top-tier retrieval, GCP-billed). 768 native dims; we truncate
+# to 256 via Matryoshka (`outputDimensionality`) so the stored per-client index stays lean. It is a
+# REGIONAL model (NOT served at `global`), so it has its own location env -- default asia-southeast1
+# so the client's private chunk text never leaves the project region (unlike the Gemini brain, which
+# only ever sees public news + keywords at `global`).
+EMBED_MODEL = os.environ.get("ASSISTANT_EMBED_MODEL", "text-embedding-005")
+EMBED_DIM = 256
+_VERTEX_EMBED_LOCATION = (os.environ.get("VERTEX_EMBED_LOCATION")
+                          or os.environ.get("VERTEX_REGION") or "asia-southeast1")
+# Online :predict caps: <=250 instances AND a ~20k-token budget PER REQUEST. We batch well under both
+# (a chunk can be ~1.3k tokens), and embed batches concurrently so a full reindex stays a few seconds.
+_EMBED_MAX_BATCH = 50
+_EMBED_TOKEN_BUDGET = 16000       # conservative chars/4 estimate per request
+_EMBED_WORKERS = 5
+_EMBED_TIMEOUT = 60
+
+# The cross-encoder reranker (Vertex/Discovery Engine Ranking API). `fast` is the latency-optimised
+# model; both 004 models take up to 1024 tokens per record. Served from the `global` ranking config.
+RERANK_MODEL = os.environ.get("ASSISTANT_RERANK_MODEL", "semantic-ranker-fast-004")
+_RERANK_MAX_RECORDS = 200
+_RERANK_TIMEOUT = 30
+
+
+def embeddings_configured():
+    """True iff the Assistant should build/query the semantic (embedding) leg.
+
+    Opt-in via ASSISTANT_EMBED_ENABLED=1. Reuses the SAME Vertex auth as the Gemini brain, so it also
+    requires Vertex to be wired (VERTEX_GEMINI_ENABLED) unless a dev token override is present."""
+    if os.environ.get("ASSISTANT_EMBED_ENABLED", "") not in ("1", "true", "True"):
+        return False
+    return (os.environ.get("VERTEX_GEMINI_ENABLED", "") in ("1", "true", "True")
+            or bool(os.environ.get("VERTEX_ACCESS_TOKEN", "").strip()))
+
+
+def reranking_configured():
+    """True iff the cross-encoder rerank pass should run (opt-in via ASSISTANT_RERANK_ENABLED=1).
+
+    Needs discoveryengine.googleapis.com enabled + the runtime SA granted roles/discoveryengine.user
+    (one-time enable_assistant_reranking.ps1). Off by default; a stray flag with no API access simply
+    degrades -- rerank() returns the pool unchanged on any error."""
+    if os.environ.get("ASSISTANT_RERANK_ENABLED", "") not in ("1", "true", "True"):
+        return False
+    return (os.environ.get("VERTEX_GEMINI_ENABLED", "") in ("1", "true", "True")
+            or bool(os.environ.get("VERTEX_ACCESS_TOKEN", "").strip()))
+
+
+def _embed_request(texts, task_type, token, fetcher):
+    """One :predict call for a small batch of texts. Returns (list-of-vectors, error).
+
+    Each vector is a plain list[float] truncated to EMBED_DIM; a per-text failure never partial-fills
+    (the whole batch shares one request), so a bad batch returns (None, reason) and the caller drops
+    just those texts."""
+    loc = _VERTEX_EMBED_LOCATION
+    host = "aiplatform.googleapis.com" if loc == "global" else ("%s-aiplatform.googleapis.com" % loc)
+    url = ("https://%s/v1/projects/%s/locations/%s/publishers/google/models/%s:predict"
+           % (host, _VERTEX_PROJECT, loc, EMBED_MODEL))
+    payload = {
+        "instances": [{"task_type": task_type, "content": t} for t in texts],
+        "parameters": {"outputDimensionality": EMBED_DIM, "autoTruncate": True},
+    }
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    fn = fetcher or _requests_post
+    try:
+        resp = fn(url, headers, payload, _EMBED_TIMEOUT)
+    except Exception as exc:
+        return None, "could not reach Vertex embeddings (%s)" % type(exc).__name__
+    if getattr(resp, "status_code", 0) >= 400:
+        return None, _short_error(resp, "embedding error")
+    try:
+        preds = resp.json().get("predictions") or []
+        out = [list((p.get("embeddings") or {}).get("values") or []) for p in preds]
+        if len(out) != len(texts) or any(not v for v in out):
+            return None, "embedding response shape mismatch"
+        return out, ""
+    except Exception:
+        return None, "embeddings returned an unexpected response"
+
+
+def _batch_by_budget(texts):
+    """Split `texts` into batches within BOTH the count cap and the per-request token budget.
+    Returns a list of (start_index, [texts]) so results can be scattered back into place."""
+    batches, cur, cur_tok, start = [], [], 0, 0
+    for i, t in enumerate(texts):
+        est = max(1, len(t) // 4)
+        if cur and (len(cur) >= _EMBED_MAX_BATCH or cur_tok + est > _EMBED_TOKEN_BUDGET):
+            batches.append((start, cur))
+            cur, cur_tok, start = [], 0, i
+        cur.append(t)
+        cur_tok += est
+    if cur:
+        batches.append((start, cur))
+    return batches
+
+
+def embed_texts(texts, task_type="RETRIEVAL_DOCUMENT", token_fetcher=None, fetcher=None):
+    """Embed many texts. Returns (vectors, error) where `vectors` is a list aligned with `texts`,
+    each entry a list[float] (EMBED_DIM) or None for a text whose batch failed.
+
+    `error` is "" if ANY text embedded (partial success is fine -- unembedded chunks just miss the
+    semantic leg), else a short reason. Batches run concurrently to keep a full reindex to a few
+    seconds. Off-cloud tests inject `fetcher`; the batching/threading is transparent to it."""
+    texts = list(texts or [])
+    if not texts:
+        return [], ""
+    token = _gcp_access_token(token_fetcher)
+    if not token:
+        return [None] * len(texts), "could not get GCP credentials for Vertex"
+    batches = _batch_by_budget(texts)
+    results = [None] * len(texts)
+    errors = []
+
+    def _run(item):
+        start, batch = item
+        vecs, err = _embed_request(batch, task_type, token, fetcher)
+        return start, batch, vecs, err
+
+    if len(batches) == 1:
+        runs = [_run(batches[0])]
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(_EMBED_WORKERS, len(batches))) as ex:
+            runs = list(ex.map(_run, batches))
+    for start, batch, vecs, err in runs:
+        if err or not vecs:
+            errors.append(err or "empty")
+            continue
+        for j, v in enumerate(vecs):
+            results[start + j] = v
+    if all(r is None for r in results):
+        return results, (errors[0] if errors else "no embeddings produced")
+    return results, ""
+
+
+def embed_query(text, token_fetcher=None, fetcher=None):
+    """Embed ONE query (task_type RETRIEVAL_QUERY -- asymmetric, tuned for search). Returns (vec, err)."""
+    vecs, err = embed_texts([text], task_type="RETRIEVAL_QUERY",
+                            token_fetcher=token_fetcher, fetcher=fetcher)
+    vec = vecs[0] if vecs else None
+    if vec is None:
+        return None, err or "query embedding failed"
+    return vec, ""
+
+
+def rerank(query, records, top_n=None, model=None, token_fetcher=None, fetcher=None):
+    """Cross-encoder rerank of `records` (list of {id, title, content}) by relevance to `query`.
+
+    Returns (records_sorted_desc, error): each surviving record gains a `score` (0..1) and the list
+    is truncated to `top_n`. On ANY failure (not configured, no creds, API error) returns
+    (records, reason) UNCHANGED so the caller keeps its fused order -- reranking is a bonus, never a
+    dependency. Uses the Discovery Engine Ranking API (global ranking config) with the same SA token."""
+    records = list(records or [])
+    if not records:
+        return [], ""
+    token = _gcp_access_token(token_fetcher)
+    if not token:
+        return records, "could not get GCP credentials for Vertex"
+    url = ("https://discoveryengine.googleapis.com/v1/projects/%s/locations/global/"
+           "rankingConfigs/default_ranking_config:rank" % _VERTEX_PROJECT)
+    payload = {
+        "model": (model or RERANK_MODEL),
+        "query": query,
+        "records": [{"id": str(r.get("id", i)),
+                     "title": (r.get("title") or "")[:512],
+                     "content": (r.get("content") or "")[:4000]}
+                    for i, r in enumerate(records[:_RERANK_MAX_RECORDS])],
+    }
+    if top_n:
+        payload["topN"] = int(top_n)
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json",
+               "X-Goog-User-Project": _VERTEX_PROJECT}
+    fn = fetcher or _requests_post
+    try:
+        resp = fn(url, headers, payload, _RERANK_TIMEOUT)
+    except Exception as exc:
+        return records, "could not reach the Ranking API (%s)" % type(exc).__name__
+    if getattr(resp, "status_code", 0) >= 400:
+        return records, _short_error(resp, "rerank error")
+    try:
+        ranked = resp.json().get("records") or []
+        by_id = {str(r.get("id", i)): r for i, r in enumerate(records)}
+        out = []
+        for row in ranked:
+            src = by_id.get(str(row.get("id")))
+            if src is None:
+                continue
+            src = dict(src)
+            src["score"] = row.get("score")
+            out.append(src)
+        if not out:
+            return records, "rerank returned no records"
+        if top_n:                       # honour the cap even if the API returned more
+            out = out[:int(top_n)]
+        return out, ""
+    except Exception:
+        return records, "the Ranking API returned an unexpected response"
 
 
 # --- Parsing ------------------------------------------------------------------------------------

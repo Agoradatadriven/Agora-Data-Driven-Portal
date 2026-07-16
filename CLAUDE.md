@@ -162,8 +162,23 @@ auto-refresh (see those bullets below). Product name is one constant:
   transcript, and (opt-in) the client's dashboard `<c>.json` KPI export. `dash/assistant_ai.py`:
   `build_chunks` flattens the sources, `build_index` stores a pure-Python BM25 index as ONE private
   object `workspace/assistant/<c>/index.json` (rebuilt lazily via `fingerprint` whenever data
-  moves; no vector DB, no new deps), `ask` retrieves top chunks (optionally date-ranged — dated
-  sources only) and answers with the intel brain's provider plumbing (`intel_ai._call`, the
+  moves). **Retrieval is HYBRID** (production-RAG shape): BM25 (keyword) **and** a semantic leg
+  (`embed_index` embeds every chunk once via Vertex `text-embedding-005` — same SA/auth as the
+  Gemini brain, NO new API/IAM — and packs unit vectors compactly into the same index object) are
+  each ranked per query and fused with **Reciprocal Rank Fusion** (`_rrf`, rank-only so the
+  incompatible BM25/cosine scales never fight); the fused pool is then optionally sorted by a
+  **cross-encoder reranker** (Vertex Ranking API `semantic-ranker-fast-004`) — "retrieve wide, keep
+  few". A **metadata pre-filter** (`_infer_kinds`) scopes retrieval to one source kind ONLY for an
+  unambiguous single-source question (relaxed if it would empty the set), on top of the date range
+  (dated sources only). Both the semantic leg and the reranker are gated + graceful: with them off
+  (or on any call failure) retrieval is exactly the old BM25 path. Embeddings are ON by default when
+  Vertex is wired (`ASSISTANT_EMBED_ENABLED=1`, `VERTEX_EMBED_LOCATION` = the project region so
+  private chunk text stays in-region); reranking is opt-in
+  (`ASSISTANT_RERANK_ENABLED=1`, needs `enable_assistant_reranking.ps1` — enables
+  discoveryengine.googleapis.com + grants the web SA `roles/discoveryengine.user`; the deploy
+  auto-detects the API and flips the flag). `intel_ai.embed_texts`/`embed_query`/`rerank` are the
+  transport (injected into `ask` as `query_embedder`/`reranker`, so tests run with no network).
+  `ask` answers with the intel brain's provider plumbing (`intel_ai._call`, the
   client's configured model or the default; prompts for `{"answer": ...}` JSON, parsed leniently —
   `_parse_answer` also SALVAGES nearly-JSON (trailing junk, truncation, raw newlines) so the chat
   never displays a raw JSON envelope; the UI renders answers as markdown via `mdToHtml`).

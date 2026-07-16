@@ -72,6 +72,10 @@ jobs:
         working-directory: services/portal/dash
         run: python _intel_feed_localtest.py
 
+      - name: Intel AI brain test (Vertex/DeepSeek transports, embeddings + reranking; injected fetchers)
+        working-directory: services/portal/dash
+        run: python _intel_ai_localtest.py
+
       - name: Atrium route + template smoke test (stubs GCS)
         working-directory: services/portal/dash
         run: python _atrium_smoketest.py
@@ -80,7 +84,7 @@ jobs:
         working-directory: services/portal/dash
         run: python _watcher_localtest.py
 
-      - name: Assistant RAG test (chunking, BM25, route; LLM stubbed)
+      - name: Assistant RAG test (chunking, hybrid BM25+vector, RRF, rerank, route; LLM stubbed)
         working-directory: services/portal/dash
         run: python _assistant_localtest.py
 

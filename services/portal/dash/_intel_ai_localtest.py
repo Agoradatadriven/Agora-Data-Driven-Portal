@@ -21,7 +21,8 @@ import tempfile
 
 _TMP = tempfile.mkdtemp(prefix="intel_ai_localtest_")
 os.environ["WORKSPACE_LOCAL_DIR"] = _TMP
-for _k in ("DEEPSEEK_API_KEY", "VERTEX_GEMINI_ENABLED", "GEMINI_API_KEY"):
+for _k in ("DEEPSEEK_API_KEY", "VERTEX_GEMINI_ENABLED", "GEMINI_API_KEY",
+           "VERTEX_ACCESS_TOKEN", "ASSISTANT_EMBED_ENABLED", "ASSISTANT_RERANK_ENABLED"):
     os.environ.pop(_k, None)
 
 import atrium_view      # noqa: E402
@@ -281,6 +282,76 @@ def run():
            (workspace.bulk_intel(CLIENT + "b", "media_buying", "unfavourite", [a["id"]]) and
             not [x for x in workspace.load_workspace(CLIENT + "b")["intel"]["media_buying"]
                  if x["id"] == a["id"]][0].get("favourite")))
+
+    # 10. Assistant hybrid search: embeddings + reranking transport (injected fetcher + token).
+    _emb_calls = []
+
+    def _embed_fetcher(url, headers, payload, timeout):
+        _emb_calls.append(payload)
+        # A distinct 3-float vector per instance (real API returns 256; length is caller-agnostic).
+        preds = [{"embeddings": {"values": [float(len(i["content"])), 1.0, 2.0]}}
+                 for i in payload["instances"]]
+        return _Resp({"predictions": preds})
+
+    vecs, everr = intel_ai.embed_texts(["alpha", "beta gamma"], token_fetcher=_token,
+                                       fetcher=_embed_fetcher)
+    _check("embed_texts returns one vector per text", everr == "" and len(vecs) == 2 and vecs[0])
+    _check("embed request carries task_type + content + outputDimensionality",
+           _emb_calls[0]["instances"][0]["task_type"] == "RETRIEVAL_DOCUMENT"
+           and "content" in _emb_calls[0]["instances"][0]
+           and _emb_calls[0]["parameters"]["outputDimensionality"] == intel_ai.EMBED_DIM)
+    qvec, qerr = intel_ai.embed_query("a question", token_fetcher=_token, fetcher=_embed_fetcher)
+    _check("embed_query returns one vector with RETRIEVAL_QUERY",
+           qerr == "" and qvec and _emb_calls[-1]["instances"][0]["task_type"] == "RETRIEVAL_QUERY")
+    _emb_calls[:] = []
+    many, merr = intel_ai.embed_texts(["t%d" % n for n in range(60)], token_fetcher=_token,
+                                      fetcher=_embed_fetcher)
+    _check("embed_texts batches over the count cap (>1 request, all embedded)",
+           merr == "" and len(many) == 60 and all(v for v in many) and len(_emb_calls) >= 2)
+    noc, ncerr = intel_ai.embed_texts(["x"], token_fetcher=lambda: "", fetcher=_embed_fetcher)
+    _check("embed_texts with no creds -> (Nones, reason)", noc == [None] and "credentials" in ncerr)
+
+    _rr_calls = []
+
+    def _rerank_fetcher(url, headers, payload, timeout):
+        _rr_calls.append((url, headers, payload))
+        # Reverse the incoming order + score, to prove the API's order is what wins.
+        out = [{"id": r["id"], "score": 1.0 - i * 0.1}
+               for i, r in enumerate(reversed(payload["records"]))]
+        return _Resp({"records": out})
+
+    recs = [{"id": "0", "title": "A", "content": "first"},
+            {"id": "1", "title": "B", "content": "second"},
+            {"id": "2", "title": "C", "content": "third"}]
+    ranked, rrerr = intel_ai.rerank("q", recs, top_n=2, token_fetcher=_token, fetcher=_rerank_fetcher)
+    _check("rerank returns topN reordered records with scores",
+           rrerr == "" and len(ranked) == 2 and ranked[0]["id"] == "2" and "score" in ranked[0])
+    _check("rerank hits the Ranking API with a query-project header + model + topN",
+           "rankingConfigs/default_ranking_config:rank" in _rr_calls[0][0]
+           and _rr_calls[0][1].get("X-Goog-User-Project")
+           and _rr_calls[0][2]["model"] == intel_ai.RERANK_MODEL
+           and _rr_calls[0][2]["topN"] == 2)
+    deg, degerr = intel_ai.rerank("q", recs, token_fetcher=_token, fetcher=_quota_fetcher)
+    _check("rerank degrades to the input order on API error",
+           degerr and [r["id"] for r in deg] == ["0", "1", "2"])
+    dnc, dncerr = intel_ai.rerank("q", recs, token_fetcher=lambda: "")
+    _check("rerank with no creds -> input unchanged + reason",
+           dncerr and [r["id"] for r in dnc] == ["0", "1", "2"])
+
+    # Gating helpers: both opt-in, both need Vertex auth wired.
+    os.environ["VERTEX_GEMINI_ENABLED"] = "1"
+    os.environ["ASSISTANT_EMBED_ENABLED"] = "1"
+    _check("embeddings_configured on when opted in + Vertex wired", intel_ai.embeddings_configured())
+    os.environ.pop("VERTEX_GEMINI_ENABLED", None)
+    _check("embeddings_configured off without Vertex auth", not intel_ai.embeddings_configured())
+    os.environ["VERTEX_GEMINI_ENABLED"] = "1"
+    os.environ.pop("ASSISTANT_EMBED_ENABLED", None)
+    _check("embeddings_configured off when the opt-in flag is absent",
+           not intel_ai.embeddings_configured())
+    _check("reranking_configured off by default", not intel_ai.reranking_configured())
+    os.environ["ASSISTANT_RERANK_ENABLED"] = "1"
+    _check("reranking_configured on when opted in", intel_ai.reranking_configured())
+    os.environ.pop("ASSISTANT_RERANK_ENABLED", None)
 
 
 def main():

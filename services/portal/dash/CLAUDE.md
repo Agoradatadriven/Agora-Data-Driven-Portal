@@ -94,9 +94,22 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   entry per finished channel; no args = full sweep). Test: `python _watcher_localtest.py`.
 - **`assistant_ai.py`** — the team-only Assistant tab: RAG chat over EVERY workspace source
   (watcher transcripts, intel, campaigns/content, metrics, calendar, conversations, health, plus
-  the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Pure-Python
-  BM25 index stored as `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change);
-  answers via `intel_ai._call` (JSON-mode; `_parse_answer` parses leniently AND salvages
+  the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Index stored as
+  `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change). **HYBRID retrieval:**
+  BM25 (pure-Python, precomputed once per ask — the old per-query re-tokenisation is gone) + a
+  SEMANTIC leg (`embed_index` → Vertex `text-embedding-005`, unit vectors packed as base64 float16
+  into the same object; same SA auth as the Gemini brain, NO new API/IAM) are fused with **RRF**
+  (`_rrf`, rank-only), the pool optionally **reranked** by a cross-encoder (Vertex Ranking API,
+  `intel_ai.rerank` → `semantic-ranker-fast-004`), and a **metadata pre-filter** (`_infer_kinds`,
+  single-source questions only) + date range narrow first. Transport lives in `intel_ai`
+  (`embed_texts`/`embed_query`/`rerank`, gated by `embeddings_configured()`/`reranking_configured()`)
+  and is INJECTED into `ask` as `query_embedder`/`reranker` — omit them (default deploy / tests) and
+  it is exactly the old BM25 path. Gates: `ASSISTANT_EMBED_ENABLED=1` + `VERTEX_EMBED_LOCATION`
+  (embeddings, ON by default in the deploy — reuses Vertex, region-pinned so private text stays
+  in-region); `ASSISTANT_RERANK_ENABLED=1` (reranking, opt-in via `enable_assistant_reranking.ps1`
+  → enables discoveryengine.googleapis.com + grants the web SA `roles/discoveryengine.user`; the
+  deploy auto-detects + flips it). Every leg degrades to lexical/fused on any failure.
+  Answers via `intel_ai._call` (JSON-mode; `_parse_answer` parses leniently AND salvages
   nearly-JSON — `strict=False`, `raw_decode` past trailing junk, then a hand-scan of the
   `"answer"` string literal that survives stray characters, truncation at the token cap, and raw
   newlines — so the UI is never handed a raw JSON envelope) with cited sources. Bot bubbles render
@@ -231,6 +244,7 @@ they exist, so a default deploy stays unaffected (button off) until you create t
 `https://portal.agoradatadriven.com/auth/google/callback` on the OAuth client.
 **Test (off-cloud, what CI runs):** `python _workspace_localtest.py`, `python _accounts_localtest.py`,
 `python _google_oauth_localtest.py`, `python _atrium_smoketest.py`, `python _auth_smoketest.py`,
-`python _audit_localtest.py`, `python _watcher_localtest.py`, `python _slashid_creative_test.py`, and
-`python _mail_localtest.py` from this dir.
+`python _audit_localtest.py`, `python _watcher_localtest.py`, `python _slashid_creative_test.py`,
+`python _assistant_localtest.py` (hybrid retrieval), `python _intel_ai_localtest.py` (AI brain +
+embeddings/reranking transport), and `python _mail_localtest.py` from this dir.
 **Preview:** `run_local.ps1` (or `preview/Preview Portal (admin).cmd` at repo root).

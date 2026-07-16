@@ -15,24 +15,39 @@ How it works (deliberately no new infra -- mirrors the workspace-JSON posture):
   2. `build_index` computes a classic BM25 index over them (pure Python, no dependencies) and the
      whole thing is stored as ONE private object per client (workspace/assistant/<c>/index.json).
      `fingerprint` detects when the underlying data changed, so the index rebuilds lazily.
-  3. `ask` retrieves the top-scoring chunks for the question (optionally date-filtered), packs them
-     into a grounded prompt, and answers with the SAME provider plumbing as the intel brain
-     (`intel_ai._call`, default model -- Vertex Gemini when configured). The model is told to
-     answer ONLY from the provided excerpts and name its sources; we also return the source list
-     so the UI can show citation chips. The admin's DEPTH control ('quick'|'standard'|'deep')
-     shapes the whole pipeline: deep first asks the model to PLAN extra search queries (so a
-     comparative question retrieves each entity's actual positions, not just chunks containing the
-     question's words), retrieves wider, turns provider thinking ON, and asks for a structured
-     analysis; quick keeps it to a few sentences. Every depth is allowed to SYNTHESIZE across
-     excerpts -- differing recommendations count as disagreement even when nobody names the other.
+     `embed_index` OPTIONALLY augments it with a SEMANTIC leg: every chunk is embedded once (Vertex
+     text-embedding-005, via an injected embedder) and the unit vectors are packed compactly into
+     the same index object -- so retrieval is HYBRID (keyword + meaning) when embeddings are wired,
+     and pure BM25 (unchanged) when they are not.
+  3. `ask` runs HYBRID retrieval and answers with the SAME provider plumbing as the intel brain
+     (`intel_ai._call`, default model -- Vertex Gemini when configured):
+       * metadata PRE-FILTER -- an unambiguous single-source question ("how are we doing on email?")
+         scopes retrieval to that kind before scoring; an optional date range scopes dated sources.
+       * per query, a BM25 ranking AND (when embedded) a cosine-similarity ranking;
+       * those rankings are fused with RECIPROCAL RANK FUSION (rank-only, so incompatible BM25 and
+         cosine scales never fight) into one candidate pool;
+       * the pool is (optionally) RE-RANKED by a cross-encoder (Vertex Ranking API, via an injected
+         reranker) -- retrieve wide, then keep the truly-relevant few;
+       * the survivors are packed into a grounded prompt; the model answers ONLY from the excerpts
+         and names its sources (returned so the UI can show citation chips).
+     The admin's DEPTH control ('quick'|'standard'|'deep') shapes it: deep first asks the model to
+     PLAN extra search queries (so a comparative question retrieves each entity's actual positions),
+     retrieves wider, turns provider thinking ON, and asks for a structured analysis; quick keeps it
+     to a few sentences. Every depth is allowed to SYNTHESIZE across excerpts -- differing
+     recommendations count as disagreement even when nobody names the other.
 
-Pure + testable: chunking/indexing/search are dependency-free; `ask` accepts a `caller` injection
-so tests run with no network. Every failure degrades to (\"\", sources, reason) -- never a raise.
+Pure + testable: chunking/indexing/BM25/RRF/fusion are dependency-free; the semantic leg, query
+embedding, and rerank are all INJECTED (an `embedder`, `query_embedder`, `reranker`), and `ask`
+also accepts a `caller` injection, so tests run with no network and a default deploy with no
+embeddings behaves exactly like the old BM25-only path. Every failure degrades to
+(\"\", sources, reason) -- never a raise.
 """
 
+import base64
 import json
 import math
 import re
+import struct
 
 # Small, boring stopword list -- enough to keep BM25 focused without a dependency.
 _STOP = frozenset(
@@ -201,50 +216,235 @@ def fingerprint(ws, archives):
 
 # --- 2. BM25 index --------------------------------------------------------------------------------
 def build_index(chunks, fp=""):
-    """A stored-JSON BM25 index: chunks + document frequencies + average length."""
+    """A stored-JSON BM25 index: chunks + document frequencies + average length.
+
+    Pure + dependency-free (no network). The SEMANTIC leg (per-chunk vectors) is attached SEPARATELY
+    by `embed_index` so this stays testable off-cloud and a no-embeddings deploy is unchanged."""
     df = {}
     lengths = []
     for c in chunks:
-        toks = set(_tokens(c["text"]))
-        lengths.append(len(_tokens(c["text"])))
-        for t in toks:
+        toks = _tokens(c["text"])
+        lengths.append(len(toks))
+        for t in set(toks):
             df[t] = df.get(t, 0) + 1
     from workspace import now_iso
-    return {"v": 1, "fingerprint": fp, "built_at": now_iso(), "chunks": chunks, "df": df,
+    return {"v": 2, "fingerprint": fp, "built_at": now_iso(), "chunks": chunks, "df": df,
+            "n_docs": len(chunks),
             "avgdl": (sum(lengths) / len(lengths)) if lengths else 0.0}
 
 
-def search(index, query, k=TOP_K, date_from="", date_to=""):
-    """Top-k chunks for `query` by BM25. A date range filters DATED chunks (video/intel/content);
-    undated chunks (metrics, campaigns, ...) always stay eligible."""
+# --- 2b. Semantic leg: embed chunks + pack vectors compactly into the index -----------------------
+# Vectors are unit-normalised and packed as little-endian float16 (`struct` 'e') then base64'd, so
+# cosine similarity at query time is a plain dot product and the whole vector store stays small
+# (256 dims -> ~512 bytes/chunk -> ~0.7 KB base64) even for a client with thousands of chunks. All
+# stdlib -- no numpy, no vector DB.
+def _normalize(vec):
+    norm = math.sqrt(sum(x * x for x in vec)) or 1.0
+    return [x / norm for x in vec]
+
+
+def _pack_vec(vec):
+    """Unit-normalise then pack a float vector to a compact base64 float16 string."""
+    v = _normalize(vec)
+    return base64.b64encode(struct.pack("<%de" % len(v), *v)).decode("ascii")
+
+
+def _unpack_vec(b64, dim):
+    """Decode a packed vector back to a list[float] of length `dim`, or None if it can't."""
+    try:
+        return list(struct.unpack("<%de" % dim, base64.b64decode(b64)))
+    except Exception:
+        return None
+
+
+def embed_index(index, embedder):
+    """Attach a semantic leg to `index` IN PLACE: embed every chunk's text and store packed vectors.
+
+    `embedder(list_of_texts) -> (list_of_vectors, error)` is injected (the default caller wires it to
+    intel_ai.embed_texts). A per-chunk vector may be None (its batch failed) -- those chunks just
+    miss the semantic leg (BM25 still covers them). Any total failure leaves the index BM25-only.
+    Returns the same index dict (so callers can `index = embed_index(index, fn)`)."""
     chunks = index.get("chunks") or []
-    df = index.get("df") or {}
-    n_docs = len(chunks) or 1
-    avgdl = index.get("avgdl") or 1.0
-    q_terms = _tokens(query)
-    if not q_terms:
-        return []
-    scored = []
-    for c in chunks:
-        date = c.get("date") or ""
-        if date and ((date_from and date < date_from) or (date_to and date > date_to)):
+    if not chunks or embedder is None:
+        return index
+    try:
+        vectors, _err = embedder([c.get("text", "") for c in chunks])
+    except Exception:
+        vectors = None
+    if not vectors:
+        return index
+    emb, dim = {}, 0
+    for c, v in zip(chunks, vectors):
+        if not v:
             continue
-        toks = _tokens(c["text"])
-        if not toks:
-            continue
-        tf = {}
-        for t in toks:
-            tf[t] = tf.get(t, 0) + 1
-        score = 0.0
-        for t in q_terms:
-            if t not in tf:
+        dim = dim or len(v)
+        emb[c["id"]] = _pack_vec(v)
+    if emb:
+        index["emb"] = emb
+        index["emb_dim"] = dim
+        index["emb_count"] = len(emb)
+    return index
+
+
+def has_embeddings(index):
+    """True iff `index` carries a semantic leg (so the ask path should run HYBRID retrieval)."""
+    return bool((index or {}).get("emb")) and bool((index or {}).get("emb_dim"))
+
+
+# --- 2c. Metadata filtering -----------------------------------------------------------------------
+# All source kinds the chunker emits (used to validate an inferred single-source filter).
+_KINDS = {"video", "intel", "campaign", "content", "metrics", "calendar", "conversation",
+          "website", "email", "dashboard"}
+
+# Conservative source inference: a phrase group -> the chunk kinds it means. Pre-filtering is
+# POWERFUL but dangerous (wrongly excluding relevant chunks), so we only ever apply it when EXACTLY
+# ONE group matches the question (an unambiguous single-source ask like "how are we handling email?")
+# -- a cross-source question ("campaigns vs what creators say") matches several groups and stays
+# unfiltered. `ask` also relaxes the filter if it would leave nothing eligible.
+_KIND_HINTS = (
+    (("email", "inbox", "reply", "replied", "responsiveness", "correspond"), {"email"}),
+    (("transcript", "video", "youtube", "creator", "episode", "watched"), {"video"}),
+    (("market intelligence", "industry news", "competitor news", "briefing", "the news"), {"intel"}),
+    (("campaign", "content piece", "ad copy", "creative", "caption"), {"content", "campaign"}),
+    (("dashboard", "kpi", "roas", "cpl", "cost per lead", "spend"), {"dashboard", "metrics"}),
+)
+
+
+def _infer_kinds(question):
+    """A confident single-source scope for `question`, or None to search every source.
+
+    Returns a set of chunk kinds only when EXACTLY ONE hint group matches; otherwise None (so a
+    multi-source or generic question is never over-filtered)."""
+    ql = (question or "").lower()
+    matched = [kinds for phrases, kinds in _KIND_HINTS if any(p in ql for p in phrases)]
+    return matched[0] if len(matched) == 1 else None
+
+
+def _passes(chunk, date_from, date_to, kinds):
+    """Metadata gate: an optional kind scope + a date range (dated chunks only; undated always pass)."""
+    if kinds is not None and chunk.get("kind") not in kinds:
+        return False
+    date = chunk.get("date") or ""
+    if date and ((date_from and date < date_from) or (date_to and date > date_to)):
+        return False
+    return True
+
+
+# --- 2d. The retriever: BM25 + cosine, both over the SAME in-memory prep (built once per ask) ------
+# The old search re-tokenised the WHOLE corpus on EVERY query -- crippling for deep mode's multi-query
+# retrieval. This tokenises once per ask, then every query (and every RRF leg) is cheap dict work.
+class _Retriever:
+    """One-shot retrieval helper over a stored index. Tokenises + decodes vectors LAZILY and ONCE,
+    then serves any number of BM25 / cosine queries. `allowed` is the pre-filtered chunk-index set."""
+
+    def __init__(self, index):
+        self.index = index or {}
+        self.chunks = self.index.get("chunks") or []
+        self.n = len(self.chunks)
+        self._tf = None       # per-chunk {term: count}
+        self._dl = None       # per-chunk token length
+        self._df = dict(self.index.get("df") or {})
+        self._avgdl = self.index.get("avgdl") or 0.0
+        self._emb = None      # {chunk_idx: unit vector}
+        self._emb_dim = self.index.get("emb_dim") or 0
+
+    def _ensure_bm25(self):
+        if self._tf is not None:
+            return
+        self._tf, self._dl = [], []
+        for c in self.chunks:
+            toks = _tokens(c.get("text", ""))
+            tf = {}
+            for t in toks:
+                tf[t] = tf.get(t, 0) + 1
+            self._tf.append(tf)
+            self._dl.append(len(toks))
+        if not self._avgdl:
+            self._avgdl = (sum(self._dl) / self.n) if self.n else 1.0
+        if not self._df:
+            for tf in self._tf:
+                for t in tf:
+                    self._df[t] = self._df.get(t, 0) + 1
+
+    def _ensure_emb(self):
+        if self._emb is not None:
+            return
+        self._emb = {}
+        raw = self.index.get("emb") or {}
+        if not raw or not self._emb_dim:
+            return
+        idx_of = {c.get("id"): i for i, c in enumerate(self.chunks)}
+        for cid, b64 in raw.items():
+            i = idx_of.get(cid)
+            if i is None:
                 continue
-            idf = math.log((n_docs - df.get(t, 0) + 0.5) / (df.get(t, 0) + 0.5) + 1.0)
-            score += idf * (tf[t] * 2.5) / (tf[t] + 1.5 * (0.25 + 0.75 * len(toks) / avgdl))
-        if score > 0:
-            scored.append((score, c))
-    scored.sort(key=lambda sc: -sc[0])
-    return [c for _s, c in scored[:k]]
+            v = _unpack_vec(b64, self._emb_dim)
+            if v:
+                self._emb[i] = v
+
+    def bm25(self, query, allowed):
+        """Chunk indices in `allowed`, ranked by BM25 for `query` (descending, positive scores only)."""
+        self._ensure_bm25()
+        q_terms = _tokens(query)
+        if not q_terms:
+            return []
+        n_docs = self.n or 1
+        avgdl = self._avgdl or 1.0
+        scored = []
+        for i in allowed:
+            tf = self._tf[i]
+            dl = self._dl[i]
+            if not dl:
+                continue
+            score = 0.0
+            for t in q_terms:
+                f = tf.get(t)
+                if not f:
+                    continue
+                df = self._df.get(t, 0)
+                idf = math.log((n_docs - df + 0.5) / (df + 0.5) + 1.0)
+                score += idf * (f * 2.5) / (f + 1.5 * (0.25 + 0.75 * dl / avgdl))
+            if score > 0:
+                scored.append((score, i))
+        scored.sort(key=lambda s: -s[0])
+        return [i for _s, i in scored]
+
+    def cosine(self, qvec, allowed):
+        """Chunk indices in `allowed` that HAVE a vector, ranked by cosine similarity to `qvec`.
+        Stored vectors are unit-normalised, so cosine is a dot product against the normalised query."""
+        self._ensure_emb()
+        if not self._emb or not qvec:
+            return []
+        q = _normalize(qvec)
+        scored = []
+        for i in allowed:
+            v = self._emb.get(i)
+            if v is None:
+                continue
+            scored.append((sum(a * b for a, b in zip(q, v)), i))
+        scored.sort(key=lambda s: -s[0])
+        return [i for _s, i in scored]
+
+
+def _rrf(rankings, k=60, limit=None):
+    """Reciprocal Rank Fusion of several ranked index-lists into one. Rank-only (score scales never
+    fight): each list contributes 1/(k + rank) to an item's fused score. Returns fused indices desc."""
+    scores = {}
+    for ranking in rankings:
+        for rank, idx in enumerate(ranking):
+            scores[idx] = scores.get(idx, 0.0) + 1.0 / (k + rank + 1)
+    fused = sorted(scores, key=lambda i: -scores[i])
+    return fused[:limit] if limit else fused
+
+
+# BM25-only top-k (kept for callers/tests that want a single lexical ranking without the full ask
+# pipeline). A date range filters DATED chunks; `kinds` optionally scopes by source kind.
+def search(index, query, k=TOP_K, date_from="", date_to="", kinds=None):
+    """Top-k chunks for `query` by BM25, honouring the metadata filter (kind + date range)."""
+    chunks = index.get("chunks") or []
+    allowed = [i for i, c in enumerate(chunks) if _passes(c, date_from, date_to, kinds)]
+    idxs = _Retriever(index).bm25(query, allowed)
+    return [chunks[i] for i in idxs[:k]]
 
 
 # --- 3. Grounded answer ---------------------------------------------------------------------------
@@ -254,8 +454,11 @@ def search(index, query, k=TOP_K, date_from="", date_to=""):
 DEPTHS = ("quick", "standard", "deep")
 DEFAULT_DEPTH = "standard"
 
-# Per-depth retrieval shape: (top-k per search query, overall excerpt cap).
-_DEPTH_K = {"quick": (10, 10), "standard": (TOP_K, TOP_K), "deep": (12, 30)}
+# Per-depth retrieval shape: (RRF candidate pool BEFORE rerank, FINAL excerpts handed to the model).
+# "Retrieve wide, keep few": the pool is intentionally large (the reranker, when on, sorts it by true
+# relevance); the final cap keeps the prompt focused. Without a reranker the top `final` of the fused
+# pool are used directly. deep multi-queries + widest pool; quick is lean end-to-end.
+_DEPTH_RETRIEVE = {"quick": (25, 8), "standard": (45, TOP_K), "deep": (60, 24)}
 
 _DEPTH_STYLE = {
     "quick": ("Answer in 2-4 tight sentences: the direct answer and the headline numbers or names, "
@@ -400,9 +603,56 @@ def _parse_answer(raw):
     return raw
 
 
+def _retrieve(index, question, queries, depth, date_from, date_to, query_embedder, reranker):
+    """The HYBRID retrieval pipeline. Returns the final list of chunk dicts (best first).
+
+      1. metadata PRE-FILTER (kind scope + date range), relaxing the kind scope if it empties the set;
+      2. per query: a BM25 ranking + (when embedded + a query vector) a cosine ranking;
+      3. RRF-fuse every ranking into one candidate pool (rank-only -- BM25 and cosine scales can't
+         fight), capped to the depth's pool size;
+      4. optionally cross-encoder RE-RANK the pool (retrieve wide, keep few), else take the fused top.
+    `query_embedder(q) -> (vec, err)` and `reranker(query, records, top_n) -> (records, err)` are
+    injected; both are optional and every failure degrades to the lexical/fused result."""
+    chunks = index.get("chunks") or []
+    pool_cap, final = _DEPTH_RETRIEVE.get(depth, _DEPTH_RETRIEVE[DEFAULT_DEPTH])
+
+    kinds = _infer_kinds(question)
+    allowed = [i for i, c in enumerate(chunks) if _passes(c, date_from, date_to, kinds)]
+    if not allowed and kinds is not None:                 # scope too tight -> drop the kind filter
+        allowed = [i for i, c in enumerate(chunks) if _passes(c, date_from, date_to, None)]
+    if not allowed:
+        return []
+
+    retr = _Retriever(index)
+    hybrid = has_embeddings(index) and query_embedder is not None
+    rankings = []
+    for q in queries:
+        rankings.append(retr.bm25(q, allowed)[:100])
+        if hybrid:
+            qvec, _verr = query_embedder(q)
+            if qvec:
+                rankings.append(retr.cosine(qvec, allowed)[:100])
+    fused = _rrf(rankings, limit=pool_cap)
+    if not fused:
+        return []
+
+    if reranker is not None and len(fused) > 1:
+        records = [{"id": str(i), "title": chunks[i].get("title", ""),
+                    "content": chunks[i].get("text", "")} for i in fused]
+        ranked, _rerr = reranker(question, records, final)
+        order = []
+        for r in ranked:
+            try:
+                order.append(int(r["id"]))
+            except (TypeError, ValueError, KeyError):
+                pass
+        fused = order or fused
+    return [chunks[i] for i in fused[:final]]
+
+
 def ask(client_name, index, question, history=None, date_from="", date_to="", model=None,
-        caller=None, usage_out=None, depth=DEFAULT_DEPTH):
-    """Answer `question` from the workspace index. Returns (answer, sources, error).
+        caller=None, usage_out=None, depth=DEFAULT_DEPTH, query_embedder=None, reranker=None):
+    """Answer `question` from the workspace index with HYBRID retrieval. Returns (answer, sources, error).
 
     `depth` ('quick'|'standard'|'deep') is the admin's detail control: deep query-plans first (an
     extra model call), retrieves wider, turns provider thinking ON, and asks for a structured
@@ -411,7 +661,11 @@ def ask(client_name, index, question, history=None, date_from="", date_to="", mo
     `caller(system, user)` -> (text, error) is the LLM seam (used for BOTH the plan and the answer
     call in deep mode); the default uses the intel brain's provider plumbing with its default
     model. A `usage_out` dict is filled by the default caller with the SUMMED token counts of
-    every call + the model id (the spend tally)."""
+    every call + the model id (the spend tally).
+    `query_embedder(q) -> (vec, err)` adds the SEMANTIC leg (fused with BM25 via RRF) when the index
+    was embedded; `reranker(query, records, top_n) -> (records, err)` adds a cross-encoder rerank of
+    the candidate pool. Both are optional -- omit them (or leave the index unembedded) and this is
+    exactly the old BM25 path. Neither ever raises: a failure degrades to lexical/fused retrieval."""
     depth = depth if depth in DEPTHS else DEFAULT_DEPTH
     if caller is None:
         import intel_ai
@@ -441,14 +695,8 @@ def ask(client_name, index, question, history=None, date_from="", date_to="", mo
     if depth == "deep":
         queries += [q for q in plan_queries(question, history or [], plan_call)
                     if q.lower() != question.lower()]
-    k_each, cap = _DEPTH_K[depth]
-    hits, seen_ids = [], set()
-    for q in queries:
-        for c in search(index, q, k=k_each, date_from=date_from, date_to=date_to):
-            if c["id"] not in seen_ids:
-                seen_ids.add(c["id"])
-                hits.append(c)
-    hits = hits[:cap]
+
+    hits = _retrieve(index, question, queries, depth, date_from, date_to, query_embedder, reranker)
     if not hits:
         return ("", [], "Nothing in this workspace matches that question — try rephrasing, or "
                         "fetch more data first.")

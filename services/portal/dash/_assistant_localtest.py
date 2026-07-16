@@ -161,6 +161,81 @@ def run():
     _check("deep retrieval unions the planned queries' hits",
            any("cold outreach" in s["title"].lower() or s["kind"] == "video" for s in sources))
 
+    # --- Hybrid retrieval: the semantic leg surfaces a chunk BM25 misses; RRF fuses the legs ------
+    # A tiny deterministic "embedder": text -> a concept-count vector, so a query and a document that
+    # share MEANING but no keywords ("coming back" ~ "loyalty/churn/repeat") land on the same vector.
+    _CONCEPTS = (
+        ("retention", "loyalty", "repeat", "coming back", "churn", "retain"),
+        ("price", "pricing", "retainer", "charge", "fee", "cost"),
+        ("email", "inbox", "outreach", "cold"),
+    )
+
+    def _fake_embed(texts):
+        vecs = []
+        for t in texts:
+            tl = (t or "").lower()
+            v = [float(sum(w in tl for w in grp)) for grp in _CONCEPTS]
+            vecs.append(v if any(v) else [0.01, 0.01, 0.01])
+        return vecs, ""
+
+    hchunks = [
+        {"id": "h_loyal", "kind": "content", "title": "Loyalty program", "url": "", "date": "",
+         "text": "our loyalty program keeps churn low and drives repeat purchases"},
+        {"id": "h_cold", "kind": "content", "title": "Cold email", "url": "", "date": "",
+         "text": "cold outreach emails to brand new prospects"},
+        {"id": "h_price", "kind": "content", "title": "Pricing", "url": "", "date": "",
+         "text": "we charge a monthly retainer fee for the service"},
+    ]
+    hidx = assistant_ai.build_index(hchunks)
+    _check("BM25 alone misses the semantically-related chunk",
+           all(c["id"] != "h_loyal"
+               for c in assistant_ai.search(hidx, "how do we get customers coming back")))
+    assistant_ai.embed_index(hidx, _fake_embed)
+    _check("embed_index attaches a semantic leg",
+           assistant_ai.has_embeddings(hidx) and hidx["emb_count"] == 3 and hidx["emb_dim"] == 3)
+    _check("packed vectors round-trip",
+           assistant_ai._unpack_vec(hidx["emb"]["h_cold"], 3) is not None)
+    answer, sources, err = assistant_ai.ask(
+        "X", hidx, "how do we get customers coming back",
+        caller=lambda system, user: ('{"answer": "Lean on loyalty."}', ""),
+        query_embedder=lambda q: (_fake_embed([q])[0][0], ""))
+    _check("hybrid retrieval surfaces the chunk BM25 missed",
+           err == "" and any(s["title"] == "Loyalty program" for s in sources))
+
+    # --- RRF: rank-only fusion (incompatible BM25/cosine scales never fight) ----------------------
+    _check("RRF ranks the item strong in BOTH lists first",
+           assistant_ai._rrf([[5, 3, 1], [3, 9, 1]])[0] == 3)
+    _check("RRF de-dupes across lists", set(assistant_ai._rrf([[1, 2], [2, 3]])) == {1, 2, 3})
+
+    # --- Metadata pre-filter: confident single-source only, never a cross-source/generic question -
+    _check("single-source question infers its kind",
+           assistant_ai._infer_kinds("how are we handling the client's email replies") == {"email"})
+    _check("cross-source question stays unfiltered",
+           assistant_ai._infer_kinds("compare our campaigns with what creators say in videos") is None)
+    _check("generic question stays unfiltered",
+           assistant_ai._infer_kinds("what should we focus on next quarter") is None)
+
+    # --- Reranker seam: it gets {id,title,content} records and ITS order drives the cited sources --
+    seen_rr = {}
+
+    def _rerank_stub(query, records, top_n):
+        seen_rr["keys"] = set(records[0].keys())
+        picked = ([r for r in records if r["title"] == "Cold email"]
+                  + [r for r in records if r["title"] != "Cold email"])
+        return picked[:top_n or len(picked)], ""
+
+    answer, sources, err = assistant_ai.ask(
+        "X", hidx, "prospects loyalty retainer service",
+        caller=lambda system, user: ('{"answer": "ok"}', ""), reranker=_rerank_stub)
+    _check("reranker receives id/title/content records", {"id", "title", "content"} <= seen_rr["keys"])
+    _check("rerank order drives the cited sources", sources and sources[0]["title"] == "Cold email")
+    # A failing reranker must degrade to the fused order, never blow up the answer.
+    answer, sources, err = assistant_ai.ask(
+        "X", hidx, "prospects loyalty retainer service",
+        caller=lambda system, user: ('{"answer": "ok"}', ""),
+        reranker=lambda q, recs, n: (recs, "rerank error"))
+    _check("failing reranker degrades gracefully", err == "" and answer == "ok" and sources)
+
     # --- The route: lazy rebuild, reindex, ask (stubbed), gating ---------------------------------
     main.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False, SESSION_COOKIE_SAMESITE="Lax")
     c = main.app.test_client()

@@ -136,6 +136,33 @@ gcloud projects add-iam-policy-binding $PROJECT `
 $ENV_VARS += ",VERTEX_GEMINI_ENABLED=1,VERTEX_PROJECT=$PROJECT,VERTEX_LOCATION=global"
 Write-Host "[OK] Vertex Gemini available (project $PROJECT, location $REGION)" -ForegroundColor Green
 
+# Assistant HYBRID search (semantic embeddings fused with BM25). Reuses the SAME Vertex AI + runtime
+# SA just enabled above -- text-embedding-005 lives on aiplatform.googleapis.com with the same
+# aiplatform.user role -- so it needs NO new API/IAM and costs ~$0.15/1M tokens (indexed once per data
+# change + one tiny embed per question). ON by default; the Assistant falls back to pure BM25 if an
+# embedding call ever fails. text-embedding-005 is a REGIONAL model (not served at `global`), so its
+# location is pinned to $REGION -- the client's private chunk text stays in-region (unlike the Gemini
+# brain, which only ever sends public news + keywords to `global`).
+$ENV_VARS += ",ASSISTANT_EMBED_ENABLED=1,VERTEX_EMBED_LOCATION=$REGION"
+Write-Host "[OK] Assistant hybrid search ON (text-embedding-005 in $REGION)" -ForegroundColor Green
+
+# Assistant cross-encoder RERANKING (Vertex/Discovery Engine Ranking API). This is the ONE Assistant
+# piece needing a new API + IAM, so it is OPT-IN: run enable_assistant_reranking.ps1 once (it enables
+# discoveryengine.googleapis.com + grants the web SA roles/discoveryengine.user). This deploy then
+# DETECTS the API is enabled and turns reranking on; absent, retrieval is hybrid (BM25+vector+RRF)
+# without the rerank pass.
+function Test-ApiEnabled([string]$api) {
+    $v = (gcloud services list --enabled --project=$PROJECT --filter="config.name:$api" `
+          --format="value(config.name)" 2>$null)
+    return (-not [string]::IsNullOrWhiteSpace($v))
+}
+if (Test-ApiEnabled "discoveryengine.googleapis.com") {
+    $ENV_VARS += ",ASSISTANT_RERANK_ENABLED=1"
+    Write-Host "[OK] Ranking API enabled -- Assistant reranking ON (semantic-ranker-fast-004)" -ForegroundColor Green
+} else {
+    Write-Host "[..] Ranking API absent -- reranking OFF (run enable_assistant_reranking.ps1 to turn it on)" -ForegroundColor Yellow
+}
+
 if (Test-SecretExists "DEEPSEEK_API_KEY") {
     gcloud secrets add-iam-policy-binding "DEEPSEEK_API_KEY" --project=$PROJECT `
         --member="serviceAccount:$WEB_SA" --role="roles/secretmanager.secretAccessor" *> $null

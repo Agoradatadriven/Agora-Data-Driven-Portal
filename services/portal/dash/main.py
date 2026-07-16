@@ -2581,18 +2581,53 @@ def _assistant_mail(ws, client, cap=150):
     return out
 
 
+def _assistant_embedder():
+    """The chunk embedder for the semantic leg (RETRIEVAL_DOCUMENT), or None when embeddings are off.
+    Bound to the intel brain's Vertex plumbing (same SA token, GCP-billed, no API key)."""
+    if not intel_ai.embeddings_configured():
+        return None
+    return lambda texts: intel_ai.embed_texts(texts, task_type="RETRIEVAL_DOCUMENT")
+
+
+def _assistant_query_embedder(index):
+    """The per-question embedder (RETRIEVAL_QUERY) -- only when embeddings are wired AND this index
+    actually carries a semantic leg; else None so ask() stays pure BM25."""
+    import assistant_ai
+    if not (intel_ai.embeddings_configured() and assistant_ai.has_embeddings(index)):
+        return None
+    return lambda q: intel_ai.embed_query(q)
+
+
+def _assistant_reranker():
+    """The cross-encoder rerank seam (Vertex Ranking API), or None when reranking isn't enabled."""
+    if not intel_ai.reranking_configured():
+        return None
+    return lambda query, records, top_n: intel_ai.rerank(query, records, top_n=top_n)
+
+
 def _assistant_index(ws, client, force=False):
-    """The client's knowledge index, rebuilt lazily whenever any source changed (or on `force`)."""
+    """The client's knowledge index, rebuilt lazily whenever any source changed (or on `force`).
+
+    When embeddings are configured the semantic leg is attached at build time (and back-filled onto
+    an existing, still-current index the first time embeddings are enabled -- no need to rechunk)."""
     import assistant_ai
     archives = _assistant_archives(ws, client)
     fp = assistant_ai.fingerprint(ws, archives)
+    want_emb = intel_ai.embeddings_configured()
     index = None if force else workspace.read_assistant_index(client)
     if index is not None and index.get("fingerprint") == fp:
+        if not want_emb or assistant_ai.has_embeddings(index):
+            return index
+        # Data unchanged, embeddings newly enabled: add the semantic leg without rebuilding chunks.
+        assistant_ai.embed_index(index, _assistant_embedder())
+        workspace.write_assistant_index(client, index)
         return index
     chunks = assistant_ai.build_chunks(ws, archives,
                                        dash_data=assistant_ai.read_client_dash_data(client),
                                        mail_threads=_assistant_mail(ws, client))
     index = assistant_ai.build_index(chunks, fp=fp)
+    if want_emb:
+        assistant_ai.embed_index(index, _assistant_embedder())
     workspace.write_assistant_index(client, index)
     return index
 
@@ -2638,8 +2673,11 @@ def atrium_admin_assistant(client):
 
     if op == "reindex":
         index = _assistant_index(ws, client, force=True)
-        _audit(client, "rebuilt assistant index", "%d chunks" % len(index.get("chunks") or []))
-        return jsonify(ok=True, chunks=len(index.get("chunks") or []),
+        embedded = index.get("emb_count", 0)
+        _audit(client, "rebuilt assistant index",
+               "%d chunks%s" % (len(index.get("chunks") or []),
+                                (", %d embedded" % embedded) if embedded else ""))
+        return jsonify(ok=True, chunks=len(index.get("chunks") or []), embedded=embedded,
                        built_at=index.get("built_at", ""))
 
     if op == "settings":
@@ -2680,7 +2718,8 @@ def atrium_admin_assistant(client):
             history=history if isinstance(history, list) else [],
             date_from=request.form.get("date_from", "").strip(),
             date_to=request.form.get("date_to", "").strip(),
-            model=_assistant_model(ws), usage_out=usage, depth=_assistant_depth(ws))
+            model=_assistant_model(ws), usage_out=usage, depth=_assistant_depth(ws),
+            query_embedder=_assistant_query_embedder(index), reranker=_assistant_reranker())
         if err:
             return jsonify(ok=False, message=err, sources=sources)
         # Spend accounting: price this call and fold it into the client's all-time tally so the
