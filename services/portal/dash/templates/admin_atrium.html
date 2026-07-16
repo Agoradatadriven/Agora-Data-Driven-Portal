@@ -1804,11 +1804,35 @@
         qsa(".view").forEach(function (el) { el.classList.toggle("is-view", el.getAttribute("data-view") === v); });
         window.scrollTo(0, 0);
       }
+
+      // ---- Keep the URL's ?section= in sync with the open pane, so a RELOAD stays put instead of
+      //      bouncing back to the Home hub (the server reads ?section into data-initial-section).
+      //      Also makes each pane a shareable/bookmarkable link. Accounts encodes its sub-tab. ----
+      var SUB_TO_SECTION = { requests: "requests", people: "accounts", add: "create" };
+      function setSectionParam(value) {
+        try {
+          var u = new URL(window.location.href);
+          if (value) { u.searchParams.set("section", value); } else { u.searchParams.delete("section"); }
+          window.history.replaceState({}, document.title, u.pathname + u.search + u.hash);
+        } catch (e) { /* URL/history unsupported -- navigation still works, just no deep-link */ }
+      }
+      function currentSectionParam() {
+        var nav = document.querySelector("[data-section].is-active");
+        var sec = nav ? nav.getAttribute("data-section") : "clients";
+        if (sec === "accounts") {
+          var st = document.querySelector(".subtab.is-active");
+          var sub = st ? st.getAttribute("data-subtab") : "requests";
+          return SUB_TO_SECTION[sub] || "accounts";
+        }
+        return sec;
+      }
+      function syncUrl() { setSectionParam(currentSectionParam()); }
+
       qsa("[data-open-console]").forEach(function (b) {
-        b.addEventListener("click", function (e) { e.preventDefault(); showView("console"); });
+        b.addEventListener("click", function (e) { e.preventDefault(); showView("console"); syncUrl(); });
       });
       qsa("[data-go-hub]").forEach(function (b) {
-        b.addEventListener("click", function () { showView("hub"); });
+        b.addEventListener("click", function () { showView("hub"); setSectionParam(null); });
       });
 
       // ---- Console pane switching (a nav button shows its matching pane). ----
@@ -1826,7 +1850,7 @@
         return matched;
       }
       qsa("[data-section]").forEach(function (b) {
-        b.addEventListener("click", function () { showSection(b.getAttribute("data-section")); });
+        b.addEventListener("click", function () { showSection(b.getAttribute("data-section")); syncUrl(); });
       });
 
       // ---- Bin badge = NEW items since you last opened the Bin (clears when you view it). ----
@@ -1910,7 +1934,7 @@
         qsa(".subtab").forEach(function (t) { t.classList.toggle("is-active", t.getAttribute("data-subtab") === name); });
       }
       qsa(".subtab").forEach(function (t) {
-        t.addEventListener("click", function () { showSub(t.getAttribute("data-subtab")); });
+        t.addEventListener("click", function () { showSub(t.getAttribute("data-subtab")); syncUrl(); });
       });
 
       // ---- Mailboxes: prove a connection (fetch/JSON), confirm disconnects, toggle the
