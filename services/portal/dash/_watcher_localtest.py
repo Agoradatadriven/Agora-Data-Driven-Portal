@@ -164,6 +164,59 @@ def run():
            n == 0 and blocked is True and blocked_vids[0]["error"] == "" and blocked_vids[1]["error"] == "")
     watcher.fetch_transcript = real_fetch_fn
 
+    # --- Parallel fetch path (proxy-gated concurrency for the Cloud Run "Fetch missing" loop) -----
+    _saved_proxy = os.environ.get("WATCHER_PROXY_URL")
+    os.environ["WATCHER_PROXY_URL"] = "http://user-rotate:pw@p.example:80"
+    _check("proxied() is True when WATCHER_PROXY_URL is set", watcher.proxied() is True)
+
+    # workers>1 fetches the whole batch concurrently; each distinct dict gets its OWN transcript --
+    # proves the thread pool's results are applied to the right video on the main thread.
+    watcher.fetch_transcript = lambda vid: {
+        "ok": True, "transcript": "t-" + vid, "language": "en", "generated": False,
+        "error": "", "permanent": False}
+    par_vids = [{"id": "v%02d" % i, "transcript": "", "error": ""} for i in range(20)]
+    n, blocked = watcher.fetch_transcripts_batch(par_vids, limit=40, workers=8)
+    _check("parallel path fetches the whole batch concurrently, results routed correctly",
+           n == 20 and blocked is False and all(v["transcript"] == "t-" + v["id"] for v in par_vids))
+
+    cap_vids = [{"id": "c%02d" % i, "transcript": "", "error": ""} for i in range(20)]
+    n, _b = watcher.fetch_transcripts_batch(cap_vids, limit=5, workers=8)
+    _check("parallel path honors the batch limit",
+           n == 5 and sum(1 for v in cap_vids if v["transcript"]) == 5)
+
+    # A stray rate-limit on SOME rotating IPs must NOT stop the run: the good ones land, the
+    # rate-limited stay pending (unpoisoned), blocked stays False because progress was made.
+    def _mixed(vid):
+        if vid.endswith(("1", "3")):
+            return {"ok": False, "transcript": "", "language": "", "generated": False,
+                    "error": "YouTube is rate-limiting or blocking this server right now.",
+                    "permanent": False}
+        return {"ok": True, "transcript": "t-" + vid, "language": "en", "generated": False,
+                "error": "", "permanent": False}
+    watcher.fetch_transcript = _mixed
+    mix_vids = [{"id": "m%d" % i, "transcript": "", "error": ""} for i in range(6)]
+    n, blocked = watcher.fetch_transcripts_batch(mix_vids, workers=8)
+    still_pending = [v for v in mix_vids if not v["transcript"] and not v["error"]]
+    _check("parallel: a partial rate-limit keeps the run going and leaves stragglers pending",
+           n == 4 and blocked is False and len(still_pending) == 2
+           and all(v["id"] in ("m1", "m3") for v in still_pending))
+
+    # Only when the WHOLE batch is rate-limited does parallel report blocked -- and poisons nothing.
+    watcher.fetch_transcript = lambda vid: {
+        "ok": False, "transcript": "", "language": "", "generated": False,
+        "error": "YouTube is rate-limiting or blocking this server right now.", "permanent": False}
+    allblk = [{"id": "z%d" % i, "transcript": "", "error": ""} for i in range(6)]
+    n, blocked = watcher.fetch_transcripts_batch(allblk, workers=8)
+    _check("parallel: a whole-batch rate-limit reports blocked and poisons nothing",
+           n == 0 and blocked is True and all(v["error"] == "" for v in allblk))
+
+    watcher.fetch_transcript = real_fetch_fn
+    if _saved_proxy is None:
+        os.environ.pop("WATCHER_PROXY_URL", None)
+        _check("proxied() is False when WATCHER_PROXY_URL is unset", watcher.proxied() is False)
+    else:
+        os.environ["WATCHER_PROXY_URL"] = _saved_proxy
+
     # --- watcher.py: transcript fetch error paths (package stubbed, no network) ------------------
     real_import = watcher._import_transcript_api
 

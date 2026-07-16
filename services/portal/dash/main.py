@@ -2545,7 +2545,14 @@ def atrium_admin_watcher(client):
             for v in videos:
                 if v.get("error") and not v.get("permanent"):
                     v["error"] = ""
-        fetched, blocked = watcher.fetch_transcripts_batch(videos)
+        # Behind a rotating proxy each concurrent request is a different IP, so fetch the batch in
+        # parallel (fast, ~a couple minutes for a whole channel); with no proxy keep the serial,
+        # politely-paced path that a datacenter IP needs to avoid an instant block.
+        if watcher.proxied():
+            fetched, blocked = watcher.fetch_transcripts_batch(
+                videos, limit=watcher.FETCH_BATCH, workers=watcher.FETCH_WORKERS)
+        else:
+            fetched, blocked = watcher.fetch_transcripts_batch(videos)
         workspace.write_watcher_videos(client, channel_id, videos)
         pending = _watcher_counts(client, channel_id, videos)
         if fetched:

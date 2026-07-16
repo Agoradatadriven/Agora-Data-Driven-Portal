@@ -417,39 +417,90 @@ def _snippet_text(snippet):
     return getattr(snippet, "text", "") or ""
 
 
-def fetch_transcripts_batch(videos, limit=8, pause=0.25):
+# Concurrency for the Cloud Run "Fetch missing" path. Fetching several transcripts at once is SAFE
+# ONLY behind a rotating proxy: each concurrent request then egresses from a DIFFERENT residential
+# IP, so YouTube sees one request per IP, not a burst from one address. The route enables this only
+# when WATCHER_PROXY_URL is set; a proxyless deploy keeps the original serial, politely-paced path.
+# Both knobs are env-tunable to a proxy plan's concurrent-connection limit.
+FETCH_WORKERS = max(1, int(os.environ.get("WATCHER_FETCH_WORKERS") or "8"))
+FETCH_BATCH = max(1, int(os.environ.get("WATCHER_FETCH_BATCH") or "40"))
+
+
+def proxied():
+    """True when an egress proxy is configured (WATCHER_PROXY_URL) -- gates parallel fetching."""
+    return bool(_proxies())
+
+
+def _apply_result(v, result, now):
+    """Record ONE fetch outcome onto a video dict IN PLACE (main-thread only). Returns:
+       "done"    -- a transcript, a permanent "no transcript", or another error was recorded.
+       "blocked" -- a rate-limit; the video is LEFT pending (a session condition, not a fact about
+                    the video), so the next call retries only the still-missing ones.
+    """
+    if not result["ok"] and "rate-limiting" in result["error"]:
+        return "blocked"
+    v["fetched_at"] = now
+    if result["ok"]:
+        v["transcript"] = result["transcript"]
+        v["language"] = result["language"]
+        v["generated"] = result["generated"]
+        v["error"] = ""
+        v["permanent"] = False
+    else:
+        v["error"] = result["error"]
+        v["permanent"] = bool(result["permanent"])
+    return "done"
+
+
+def fetch_transcripts_batch(videos, limit=8, pause=0.25, workers=1):
     """Fetch transcripts for up to `limit` pending videos IN PLACE (mutates the video dicts).
 
     A video is pending when it has neither a transcript nor a recorded error. Returns
-    (fetched, blocked): how many videos were resolved this call, and whether YouTube's
-    rate-limiting cut the batch short.
+    (fetched, blocked): how many videos were resolved this call, and whether the caller's loop
+    should stop on YouTube's rate-limiting.
 
-    A rate-limit is a SESSION condition, not a fact about the video -- so it never writes an
-    error onto the video (the video stays pending and the very next fetch resumes exactly where
-    this one stopped, retrying only the still-missing ones). Only real per-video outcomes are
-    recorded: a transcript, a permanent "no transcript exists", or a non-rate-limit fetch error.
+    A rate-limit is a SESSION condition, not a fact about the video -- so it never writes an error
+    onto the video (the video stays pending and the very next fetch resumes on the still-missing
+    ones). Only real per-video outcomes are recorded: a transcript, a permanent "no transcript
+    exists", or a non-rate-limit fetch error.
+
+    `workers` > 1 fetches the batch CONCURRENTLY -- only safe behind a rotating proxy, where each
+    concurrent request is a different IP (the route passes workers>1 only when a proxy is set).
+    `fetch_transcript` builds its own client and never raises, and every video-dict mutation happens
+    on THIS thread in the `as_completed` loop, so the parallel path shares no mutable state. Serial
+    mode (workers<=1) is the original politely-paced path, byte-for-byte unchanged in behavior. In
+    parallel mode a stray rate-limit on one IP does NOT stop the run (that video just waits for the
+    next wave with a fresh IP); `blocked` is reported only when the WHOLE batch made zero progress.
     """
     from workspace import now_iso  # local import: avoids a cycle at module load
-    done = 0
-    for v in videos:
-        if done >= limit:
-            break
-        if v.get("transcript") or v.get("error"):
-            continue
-        result = fetch_transcript(v.get("id", ""))
-        if not result["ok"] and "rate-limiting" in result["error"]:
-            return done, True
-        v["fetched_at"] = now_iso()
-        if result["ok"]:
-            v["transcript"] = result["transcript"]
-            v["language"] = result["language"]
-            v["generated"] = result["generated"]
-            v["error"] = ""
-            v["permanent"] = False
-        else:
-            v["error"] = result["error"]
-            v["permanent"] = bool(result["permanent"])
-        done += 1
-        if pause:
-            time.sleep(pause)
-    return done, False
+    pending = [v for v in videos if not (v.get("transcript") or v.get("error"))][:limit]
+    if not pending:
+        return 0, False
+
+    if workers <= 1:
+        done = 0
+        for v in pending:
+            if _apply_result(v, fetch_transcript(v.get("id", "")), now_iso()) == "blocked":
+                return done, True
+            done += 1
+            if pause:
+                time.sleep(pause)
+        return done, False
+
+    # Parallel path (rotating proxy). Fetch off-thread; mutate video dicts only here.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    done, rate_limited = 0, 0
+    with ThreadPoolExecutor(max_workers=min(workers, len(pending))) as pool:
+        futures = {pool.submit(fetch_transcript, v.get("id", "")): v for v in pending}
+        for fut in as_completed(futures):
+            try:
+                result = fut.result()
+            except Exception:
+                continue  # unexpected thread failure: leave the video pending, retried next wave
+            if _apply_result(futures[fut], result, now_iso()) == "blocked":
+                rate_limited += 1
+            else:
+                done += 1
+    # Halt the caller's loop only when nothing got through at all (proxy exhausted/failing);
+    # otherwise the still-pending rate-limited videos are retried next wave with fresh IPs.
+    return done, (done == 0 and rate_limited > 0)
