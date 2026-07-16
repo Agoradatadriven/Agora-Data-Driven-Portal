@@ -1502,7 +1502,18 @@
     .ax-as-bubble li { margin: 3px 0; }
     .ax-as-bubble code { background: rgba(16,24,40,.07); border-radius: 4px; padding: 1px 5px; font-size: .92em; }
     .ax-as-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .ax-as-schip { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); text-decoration: none; }
+    /* Collapsible "Sources (N)" -> a scrollable list (~5 visible, scroll for more). */
+    .ax-as-srcbox { margin-top: 9px; }
+    .ax-as-srcbox > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 800; color: var(--ax-sub); padding: 3px 11px; border: 1px solid var(--ax-line);
+      border-radius: 999px; background: var(--ax-canvas); width: max-content; }
+    .ax-as-srcbox > summary::-webkit-details-marker { display: none; }
+    .ax-as-srcbox > summary::after { content: "▸"; font-size: 9px; transition: transform .15s ease; }
+    .ax-as-srcbox[open] > summary::after { transform: rotate(90deg); }
+    .ax-as-srcbox > summary:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-as-srclist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 168px; overflow-y: auto; padding-right: 4px; }
+    .ax-as-schip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); text-decoration: none; line-height: 1.35; }
+    .ax-as-srclist .ax-as-schip { display: block; }
     a.ax-as-schip:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
     .ax-as-inputrow { display: flex; gap: 10px; align-items: flex-end; border-top: 1px solid var(--ax-line); padding-top: 12px; }
     .ax-as-input { flex: 1 1 auto; resize: vertical; min-height: 44px; }
@@ -1541,6 +1552,21 @@
     .ax-as-plan { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ax-sub); cursor: pointer; white-space: nowrap; }
     .ax-as-plan input { accent-color: var(--ax-purple, #9484FB); width: 15px; height: 15px; cursor: pointer; }
     .ax-aspanel-set .ax-as-plan { margin-top: 10px; }
+    /* ---- Conversation history: a list of past chats (team-shared) shown in place of the log ---- */
+    .ax-as-histpanel { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding: 4px 2px 10px; }
+    .ax-as-histpanel[hidden] { display: none; }
+    .ax-as-histhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+    .ax-as-histhead b { font-size: 13px; color: var(--ax-ink); }
+    .ax-as-histback { border: 0; background: none; color: var(--ax-sub); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 2px 4px; }
+    .ax-as-histback:hover { color: var(--ax-deep, #1856C9); }
+    .ax-as-histempty { color: var(--ax-sub); font-size: 13px; padding: 18px 6px; text-align: center; }
+    .ax-as-histitem { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid var(--ax-line); border-radius: 10px; background: var(--ax-canvas); cursor: pointer; }
+    .ax-as-histitem:hover { border-color: var(--ax-purple, #9484FB); background: #fff; }
+    .ax-as-histitem-main { flex: 1 1 auto; min-width: 0; }
+    .ax-as-histitem-t { font-size: 13px; font-weight: 700; color: var(--ax-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ax-as-histitem-m { font-size: 11px; color: var(--ax-sub); margin-top: 2px; }
+    .ax-as-histitem-del { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--ax-line); background: #fff; color: var(--ax-sub); font-size: 14px; cursor: pointer; line-height: 1; }
+    .ax-as-histitem-del:hover { color: #c0322f; border-color: rgba(229,65,62,.4); }
 
     /* ---- Floating assistant bubble (team-only): the same grounded chat, reachable from EVERY tab.
            Styled after the Mastery Engine study-assistant FAB: brand-green gradient circle
@@ -3531,11 +3557,13 @@
               <label>To <input class="ax-wt-fdate-in" type="date" id="ax-as-to"></label>
             </span>
             <button class="ax-btn" id="ax-as-reindex" type="button" title="Re-read every source now (also happens automatically when data changes)">Rebuild knowledge</button>
-            <button class="ax-btn" id="ax-as-new" type="button" title="Clear this conversation and start fresh (otherwise it is kept on this device)">New chat</button>
+            <button class="ax-btn" id="ax-as-hist" type="button" title="Browse and reopen past conversations (saved for the whole team)">History</button>
+            <button class="ax-btn" id="ax-as-new" type="button" title="Start a new conversation (this one is saved to History)">New chat</button>
           </div>
 
           <div class="ax-panel ax-as-chat">
             <div class="ax-as-log" id="ax-as-log" data-greeting="Hi &mdash; I can answer from everything in this workspace. Try &ldquo;What do Carson Reed and Nick Saraev say about pricing AI services?&rdquo; or &ldquo;Which content pieces are still awaiting approval?&rdquo;"></div>
+            <div class="ax-as-histpanel" id="ax-as-histpanel" hidden></div>
             <div class="ax-as-inputrow">
               <textarea class="ax-editbox ax-as-input" id="ax-as-input" rows="2" placeholder="Ask about campaigns, metrics, market intel, or anything a watched creator has said&hellip;"></textarea>
               <button class="ax-btn violet ax-as-send" id="ax-as-send" type="button">Ask</button>
@@ -3613,7 +3641,8 @@
       </div>
       <div class="ax-aspanel-actions">
         <button class="ax-aspanel-gear" id="ax-asfab-gear" type="button" title="AI model" aria-label="Choose the AI model">{{ ic('gear') }}</button>
-        <button class="ax-aspanel-new" id="ax-asfab-new" type="button" title="Start a new conversation">+ New</button>
+        <button class="ax-aspanel-new" id="ax-asfab-hist" type="button" title="Browse past conversations (saved for the whole team)">History</button>
+        <button class="ax-aspanel-new" id="ax-asfab-new" type="button" title="Start a new conversation (this one is saved to History)">+ New</button>
         <button class="ax-aspanel-x" id="ax-asfab-x" type="button" aria-label="Close">&times;</button>
       </div>
     </div>
@@ -3628,6 +3657,7 @@
       <p class="ax-aspanel-setnote">Both apply to the Assistant everywhere in this workspace &mdash; this bubble and the Assistant tab. Automatic follows the research brain's model; Deep analysis thinks before answering and digs for comparisons (slower, costs a little more). <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span></p>
     </div>
     <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab: campaigns, metrics, intel, conversations, and every Watcher transcript."></div>
+    <div class="ax-as-histpanel" id="ax-asfab-histpanel" hidden></div>
     <div class="ax-as-inputrow">
       <textarea class="ax-editbox ax-as-input" id="ax-asfab-input" rows="2" placeholder="Ask about campaigns, metrics, intel&hellip;"></textarea>
       <button class="ax-btn violet ax-as-send" id="ax-asfab-send" type="button">Ask</button>
@@ -4769,14 +4799,34 @@
     var history = [];
     var busy = false;
     var activeAbort = null;   // AbortController of the in-flight stream (Pause / New chat aborts it)
+    var convId = null;        // the current conversation's id (server-saved to History)
 
-    // Conversations are SESSION-scoped: they survive reloads WITHIN a browser session (sessionStorage)
-    // but a NEW session/tab starts fresh. (The old design used localStorage, which persisted forever.)
+    var histBtn = ids.hist ? document.getElementById(ids.hist) : null;
+    var histPanel = ids.histpanel ? document.getElementById(ids.histpanel) : null;
+
+    // The ACTIVE conversation is SESSION-scoped (survives reloads within a session, fresh on a new
+    // session/tab). PAST conversations are saved SERVER-SIDE (team-shared) and browsable via History.
     function store() { try { return window.sessionStorage; } catch (e) { return null; } }
+    function newConvId() {
+      return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+    function convTitle() {
+      var i;
+      for (i = 0; i < history.length; i++) {
+        if (history[i] && history[i].role === "user" && history[i].text) { return history[i].text; }
+      }
+      return "Conversation";
+    }
     function saveHistory() {
       var s = store();
       if (!s) { return; }
-      try { s.setItem(storeKey, JSON.stringify(history.slice(-40))); } catch (e) {}
+      try { s.setItem(storeKey, JSON.stringify({ id: convId, turns: history.slice(-40) })); } catch (e) {}
+    }
+    // Persist the current conversation to the team-shared server history (best-effort, fire-and-forget).
+    function saveConversation() {
+      if (!convId || !history.length) { return; }
+      post("/admin/assistant", { op: "history_save", conv_id: convId, title: convTitle(),
+                                 turns: JSON.stringify(history.slice(-40)) }).catch(function () {});
     }
     try { localStorage.removeItem(storeKey); } catch (e) {}   // retire any convo the old design left
 
@@ -4796,12 +4846,19 @@
         bub.parentNode.parentNode.removeChild(bub.parentNode);   // drop the whole .ax-as-msg wrap
       }
     }
+    // Sources render COLLAPSED behind a "Sources (N)" button; expanding reveals a scrollable list
+    // (~5 shown at a time, scroll for the rest) so a long citation list never clutters the answer.
     function makeSourcesRow(sources) {
       if (!sources || !sources.length) { return null; }
-      var row = document.createElement("div");
-      row.className = "ax-as-sources";
+      var box = document.createElement("details");
+      box.className = "ax-as-srcbox";
+      var sum = document.createElement("summary");
+      sum.className = "ax-as-srchdr";
+      sum.textContent = "Sources · " + sources.length;
+      var list = document.createElement("div");
+      list.className = "ax-as-srclist";
       var i;
-      for (i = 0; i < Math.min(sources.length, 8); i++) {
+      for (i = 0; i < sources.length; i++) {
         var s = sources[i];
         var chip;
         if (s.url) {
@@ -4810,10 +4867,11 @@
         } else { chip = document.createElement("span"); }
         chip.className = "ax-as-schip";
         var title = s.title || s.kind || "source";
-        chip.textContent = title.length > 60 ? title.slice(0, 57) + "…" : title;
-        row.appendChild(chip);
+        chip.textContent = title.length > 72 ? title.slice(0, 69) + "…" : title;
+        list.appendChild(chip);
       }
-      return row;
+      box.appendChild(sum); box.appendChild(list);
+      return box;
     }
     function mini(label, primary) {
       var b = document.createElement("button");
@@ -4823,17 +4881,23 @@
       return b;
     }
 
-    // Replay the saved conversation (session only); otherwise open with the surface's greeting.
+    // Replay the current-session conversation; otherwise open with the surface's greeting.
+    function replayTurns(turns) {
+      var si;
+      for (si = 0; si < turns.length; si++) {
+        if (turns[si] && turns[si].text) { addMsg(turns[si].role === "user" ? "user" : "bot", turns[si].text); }
+      }
+    }
     var restored = false;
     try {
       var s0 = store();
-      var saved = JSON.parse((s0 && s0.getItem(storeKey)) || "[]");
-      if (saved && saved.length) {
-        var si;
-        for (si = 0; si < saved.length; si++) {
-          if (saved[si] && saved[si].text) { addMsg(saved[si].role === "user" ? "user" : "bot", saved[si].text); }
-        }
-        history = saved; restored = true;
+      var saved = JSON.parse((s0 && s0.getItem(storeKey)) || "null");
+      // New shape {id,turns}; tolerate the earlier bare-array shape too.
+      var turns = saved && saved.turns ? saved.turns : (Object.prototype.toString.call(saved) === "[object Array]" ? saved : null);
+      if (turns && turns.length) {
+        convId = (saved && saved.id) || newConvId();
+        replayTurns(turns);
+        history = turns; restored = true;
       }
     } catch (e) {}
     if (!restored && greeting) { addMsg("bot", greeting); }
@@ -4938,6 +5002,7 @@
         answer.innerHTML = mdToHtml(rawAnswer);
         var srow = makeSourcesRow(sources); if (srow) { bubble.appendChild(srow); }
         history.push({ role: "bot", text: rawAnswer }); saveHistory();
+        saveConversation();   // persist to the team-shared server history
         log.scrollTop = log.scrollHeight;
       }
 
