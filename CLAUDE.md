@@ -541,9 +541,14 @@ fields (reach, link clicks, pixel-purchase bookings, revenue) and the creative i
 the shared `raw_windsor` mirror, and Meta rejects revenue on a breakdown query — so this client's
 export job pulls the Windsor connector API **directly** each run (main per-ad/day pull + separate
 age×gender + region breakdown pulls) and writes `riverdance.json` itself. There is no `sql/`, no
-dataset, and no freshness watermark; refresh is operator-driven (the Atrium console **Sync all
-dashboards** button → `services/portal/dash/sync_dash.py`, which triggers every `<c>-export` Cloud
-Run job via the Run Admin API — no scheduler). The dash service runs OPEN (no login) so it embeds in
+dataset, and no freshness watermark; refresh is **automatic** — the `sync-refresh` Cloud Run job
+(`services/portal/dash/sync_refresh.py` → `sync_dash.trigger_all`) runs on a Cloud Scheduler tick
+(every 6h, `sync-refresh-6h`) and triggers every `<c>-export` job via the Run Admin API. This
+REPLACED the console's manual "Sync all dashboards" button (removed 2026-07: a browser refresh must
+never trigger paid Windsor/Meta pulls); the console now shows a read-only "Last synced: Xh ago" from
+the same `sync_state.json`. Deploy/schedule it with `services/portal/dash/deploy_sync_refresh.ps1`
+(gated `SYNC_AUTO_ENABLED=1`, reuses the platform-dash image + web SA; `-Run` fires once now,
+`-Disable` turns it off). The dash service runs OPEN (no login) so it embeds in
 the gated Atrium. Stand it up with `clients/client_riverdance/deploy_riverdance.ps1`. Treat it as the
 pattern for any connector whose data isn't (yet) flowing through `raw_windsor`.
 
@@ -564,6 +569,9 @@ that fails). Use the per-stage scripts (all resolve paths from `$PSScriptRoot`, 
 - **Portal / Atrium change** → `services/portal/dash/deploy_dash_platform.ps1` (fast redeploy) or
   `services/portal/deploy.ps1` (full standup). **Ingest jobs** → `tools/deploy_ingest_jobs.ps1`.
   **Status dashboard** → `services/status-dashboard/deploy_status.ps1`.
+  **Automatic dashboard sync** → `services/portal/dash/deploy_sync_refresh.ps1` (the `sync-refresh`
+  Cloud Run job + 6-hourly scheduler that replaced the manual "Sync all dashboards" button; rerun
+  after any `sync_refresh`/`sync_dash` change, image-pinned).
 
 `FORCE_REBUILD=1` is mandatory for view-only / code / seed changes: they do **not** advance the
 upstream watermark, so without it the freshness gate no-ops and keeps serving stale JSON.

@@ -814,8 +814,7 @@
               <p class="lead">Your home base for every Agora client &mdash; click one to open its workspace and edit it in place.</p>
             </div>
             <div class="sync-inline">
-              <span class="meta" id="sync-when" data-iso="">Last synced: checking&hellip;</span>
-              <button type="button" class="btn-ghost" id="sync-btn" title="Re-run every client's dashboard export now">&#8635;&nbsp; Sync all dashboards</button>
+              <span class="meta" id="sync-when" data-iso="" title="Dashboards sync automatically every few hours">Last synced: checking&hellip;</span>
               <button type="button" class="btn" id="nc-new-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg>
                 New client
@@ -2085,8 +2084,10 @@
         });
       }
 
-      // ---- "Sync all dashboards": trigger every <c>-export job; show last-synced age. ----
-      var syncBtn = document.getElementById("sync-btn");
+      // ---- "Last synced" status (READ-ONLY). Syncing is now automatic + server-side (the
+      //      `sync-refresh` Cloud Run job on a Cloud Scheduler tick), so there is no manual button:
+      //      a browser refresh can never trigger the paid Windsor/Meta export pulls. We just show
+      //      how fresh the dashboards are, from the same sync_state.json the job writes. ----
       var syncWhen = document.getElementById("sync-when");
       function fmtAgo(iso) {
         if (!iso) { return "never"; }
@@ -2104,66 +2105,15 @@
         syncWhen.setAttribute("data-iso", iso || "");
         syncWhen.textContent = "Last synced: " + fmtAgo(iso);
       }
-      if (syncBtn && syncWhen) {
-        // Capture the pristine label ONCE, so restoring after a retry doesn't leave "Retry sync".
-        var syncOrigHTML = syncBtn.innerHTML;
-        var syncOrigTitle = syncBtn.getAttribute("title") || "";
+      if (syncWhen) {
         fetch("/admin/atrium/sync-status", { credentials: "same-origin" })
           .then(function (r) { return r.json(); })
           .then(function (j) { setWhen(j.last_sync); })
           .catch(function () { syncWhen.textContent = "Last synced: unknown"; });
         setInterval(function () {
           var iso = syncWhen.getAttribute("data-iso");
-          if (iso && syncWhen.getAttribute("data-iso") !== "err") { setWhen(iso); }
+          if (iso) { setWhen(iso); }
         }, 60000);
-        function syncRestore(delay) {
-          setTimeout(function () {
-            syncBtn.innerHTML = syncOrigHTML; syncBtn.disabled = false;
-            syncBtn.classList.remove("warn");
-            syncBtn.setAttribute("title", syncOrigTitle);
-          }, delay);
-        }
-        function syncFail(errText) {
-          // A total failure STAYS visible with a Retry (don't auto-revert), and the reason is shown
-          // inline (not buried in a tooltip) so the operator can actually act on it.
-          syncBtn.innerHTML = "&#8635;&nbsp; Retry sync";
-          syncBtn.disabled = false;
-          syncBtn.classList.add("warn");
-          syncBtn.setAttribute("title", errText || "Sync failed");
-          syncWhen.setAttribute("data-iso", "err");
-          syncWhen.classList.add("sync-err");
-          syncWhen.textContent = "Sync failed — " + (errText || "try again");
-        }
-        syncBtn.addEventListener("click", function () {
-          syncBtn.disabled = true;
-          syncBtn.classList.remove("warn");
-          syncWhen.classList.remove("sync-err");
-          syncBtn.textContent = "Syncing…";
-          fetch("/admin/atrium/sync-all", { method: "POST", credentials: "same-origin" })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              var n = (j.triggered || []).length;
-              var nf = (j.failed || []).length;
-              var firstErr = (nf && j.failed[0] && j.failed[0].error) ? j.failed[0].error : "";
-              // Truthful states: a failure never wears a green check.
-              if (nf && !n) {
-                syncFail(firstErr);              // total failure -> persistent Retry + visible reason
-              } else if (nf) {
-                setWhen(j.last_sync);
-                syncBtn.textContent = "⚠ Synced " + n + " · " + nf + " failed";
-                syncBtn.classList.add("warn");
-                if (firstErr) { syncBtn.setAttribute("title", firstErr); }
-                syncRestore(6000);
-              } else {
-                setWhen(j.last_sync);
-                syncBtn.textContent = "✓ Synced " + n + " dashboard" + (n === 1 ? "" : "s");
-                syncRestore(5200);
-              }
-            })
-            .catch(function () {
-              syncFail("Couldn't reach the server. Check your connection and retry.");
-            });
-        });
       }
     })();
   </script>

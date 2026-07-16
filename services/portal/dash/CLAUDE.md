@@ -181,6 +181,13 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   `xml.etree` + lazy `requests`, degrades to `[]`); `intel_refresh.main()` is the Cloud Run **job**
   entry point — it reuses THIS image + the web SA to write `ws["intel"]` (auto entries only; hand-
   added/edited ones are preserved). Deploy: `deploy_intel_refresh.ps1`. Test: `_intel_feed_localtest.py`.
+- **`sync_dash.py` / `sync_refresh.py`** — dashboard sync. `sync_dash.trigger_all()` DISCOVERS every
+  `<c>-export` Cloud Run job and POSTs each `:run` (Run Admin API, as the web SA), recording the
+  stamp in `sync_state.json`. `sync_refresh.main()` is the Cloud Run **job** entry point (gated
+  `SYNC_AUTO_ENABLED=1`) that calls it on a 6-hourly Cloud Scheduler tick — this is now the ONLY
+  sync trigger: the manual "Sync all dashboards" button was removed (a browser refresh must never
+  fire the paid Windsor/Meta pulls); the console shows a read-only "Last synced: Xh ago" via
+  `GET /admin/atrium/sync-status`. Deploy: `deploy_sync_refresh.ps1` (`-Run` once now, `-Disable` off).
 - **Task tracker (Delivery board + client Progress tab):** `ws["tasks"]` per client, helpers in
   `workspace.py` (stages `in_process|for_launch|launched|closed` — keys canonical; lead +
   `support_ids` never overlap; `move_task_stage` blocks `closed` while sub-tasks/change-requests
