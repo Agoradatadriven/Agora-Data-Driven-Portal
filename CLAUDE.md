@@ -190,8 +190,17 @@ auto-refresh (see those bullets below). Product name is one constant:
   budget, DeepSeek gets `thinking:{type:enabled}`; quick/standard pin the fast no-thinking path),
   and asks for a structured analysis; quick trims to a few sentences. Every depth's prompt allows
   cross-source synthesis (differing recommendations count as disagreement).
-  Answers cite sources; the UI shows them as chips. Routes: `POST /w/<c>/admin/assistant` (`op`
-  ask|reindex, gated `is_superadmin()`); tab gated like the other team tabs. The dashboard-data
+  Answers cite sources; the UI shows them as chips. **The chat STREAMS** (Server-Sent Events via
+  `POST /w/<c>/admin/assistant/stream`): the model's reasoning shows live in a collapsible thinking
+  panel, then the answer streams in. `intel_ai.stream_call` normalises Vertex/DeepSeek SSE to
+  thinking/answer/usage deltas; `assistant_ai.ask_stream` streams plain markdown (not the JSON
+  envelope). Two Claude-style controls: **Pause & steer** (abort the stream mid-thinking and restart
+  with guidance) and a **Plan first** toggle (`stage=plan` → `assistant_ai.plan_stage` shows the
+  planned sub-queries + sources and PAUSES for approve/steer BEFORE answering). Conversations are
+  **session-scoped** now (`sessionStorage` — a new session/tab starts fresh). The non-streamed
+  `op=ask` stays for tests/fallback. Routes: `POST /w/<c>/admin/assistant` (`op`
+  ask|settings|reindex) + `POST /w/<c>/admin/assistant/stream`, gated `is_superadmin()`; tab gated
+  like the other team tabs. The dashboard-data
   source needs a one-time grant: `services/portal/dash/enable_assistant_dash_data.ps1` gives the
   portal SA objectViewer on each client dash bucket (run 2026-07-12; re-run for new clients) —
   without it that source is silently skipped. `VERTEX_ACCESS_TOKEN` env (dev-only) lets the same

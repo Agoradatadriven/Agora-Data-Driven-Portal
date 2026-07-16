@@ -115,8 +115,24 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   newlines — so the UI is never handed a raw JSON envelope) with cited sources. Bot bubbles render
   the model's markdown via `mdToHtml` in `atrium.html` (headings/bold/lists; HTML-escaped first,
   esprima-safe).
-  `POST /w/<c>/admin/assistant` (op ask|settings|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs
-  Vertex off-cloud. Test: `python _assistant_localtest.py`. UI: the team-only floating bubble
+  `POST /w/<c>/admin/assistant` (op ask|settings|reindex — the non-streamed path, still used by
+  tests). **STREAMING chat (the live UI path):** `POST /w/<c>/admin/assistant/stream` returns
+  **Server-Sent Events** (`text/event-stream`, `stream_with_context`) so the reasoning + answer
+  arrive as deltas. `intel_ai.stream_call` normalises each provider's SSE (Vertex
+  `:streamGenerateContent?alt=sse` with `includeThoughts`; DeepSeek `stream:true`) to flat events
+  `{thinking|answer|usage|error}`; `assistant_ai.ask_stream` retrieves (hybrid) then streams the
+  answer as **plain markdown** (NOT the `{"answer":...}` envelope — a wrapper can't stream), honouring
+  a `steer` string. `stage=plan` (`assistant_ai.plan_stage`) is the Claude-style **plan-mode
+  checkpoint**: retrieve + (deep) plan the sub-queries and return them + the sources WITHOUT
+  answering, so the team approves/steers BEFORE any token is written. Frame types: `plan`, `sources`,
+  `thinking`, `answer`, `usage`, `error`, `done`. Frontend (`wireAssistantChat` in `atrium.html`,
+  esprima-safe): a `fetch` + `ReadableStream` reader parses the SSE; a collapsible **thinking panel**
+  streams live; **Pause & steer** aborts the stream (`AbortController`) and restarts with the steer;
+  **Plan first** (a per-browser localStorage toggle, `.ax-as-planmode` in both surfaces) switches on
+  the checkpoint. Conversations are now **session-scoped** (`sessionStorage`, fresh each new
+  session/tab; the old localStorage design persisted forever). Dev: `VERTEX_ACCESS_TOKEN` env runs
+  Vertex off-cloud (verified the full stream live via `run_local.ps1` + a real token).
+  Test: `python _assistant_localtest.py`. UI: the team-only floating bubble
   (`ax-asfab` FAB + `ax-aspanel` pop-up in `atrium.html`, inside `.atrium` so the vars/font
   inherit; brand-green 72px since 2026-07-13) is the PRIMARY surface, available on every tab; the
   Assistant tab pane still exists but is no longer in the nav (reach `/w/<c>/assistant` by URL for
