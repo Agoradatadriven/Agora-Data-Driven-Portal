@@ -190,6 +190,22 @@ def trash_get(entry_id):
     return None
 
 
+def trash_clear():
+    """Permanently remove EVERY trash entry (the 'Empty bin' action). Returns the count removed.
+
+    This is irreversible -- restore is no longer possible for anything purged here. Callers must
+    gate this behind an explicit, confirmed operator action."""
+    try:
+        data = load()
+        n = len(data.get("trash", []))
+        if n:
+            data["trash"] = []
+            save(data)
+        return n
+    except Exception:
+        return 0
+
+
 def trash_remove(entry_id):
     """Remove a trash entry by id (after a successful restore). Returns the removed entry, or None."""
     try:

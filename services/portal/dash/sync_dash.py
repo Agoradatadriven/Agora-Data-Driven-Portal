@@ -111,7 +111,21 @@ def trigger_all():
         sess = _session()
         jobs = list_export_jobs(sess)
     except Exception as e:  # noqa: BLE001 — no creds / API off: report, don't crash the console
-        return [], [{"job": "(job discovery)", "error": str(e)[:200]}], ts
+        raw = str(e)
+        low = raw.lower()
+        # Turn the raw auth/library exception into something an operator can act on. The most common
+        # cause off-cloud (and the local-preview case) is simply "no Google credentials".
+        if "default credentials" in low or "could not automatically determine" in low \
+                or "google.auth" in low or "adc" in low:
+            friendly = ("Couldn't reach Google Cloud (no credentials on this environment). "
+                        "This is expected in local preview; on the live deploy it means the service "
+                        "account can't list the export jobs.")
+        elif "permission" in low or "403" in low or "forbidden" in low:
+            friendly = ("Google Cloud denied access (permission) — the service account is missing "
+                        "run.jobs.list / run.jobs.run on the export jobs.")
+        else:
+            friendly = "Couldn't start the sync: " + raw[:180]
+        return [], [{"job": "(job discovery)", "error": friendly}], ts
 
     for job in jobs:
         url = "https://run.googleapis.com/v2/projects/%s/locations/%s/jobs/%s:run" % (PROJECT, REGION, job)

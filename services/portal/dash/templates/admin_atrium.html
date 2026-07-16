@@ -283,6 +283,15 @@
     /* Compact sync control + the pane's primary action in the Clients page head. */
     .sync-inline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
     .sync-inline .meta { font-size: 12px; color: var(--muted); font-weight: 600; margin: 0; white-space: nowrap; }
+    /* A failed sync shows its reason inline (not just a tooltip) so the operator can act on it. */
+    .sync-inline .meta.sync-err { color: #b3261e; white-space: normal; max-width: 420px; }
+    /* Small, non-blocking confirmation for the no-reload task actions (checkbox / assign). */
+    .tk-toast { position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 12px);
+      background: var(--ink, #1a1c1a); color: #fff; font-size: 12.5px; font-weight: 600;
+      padding: 8px 14px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.22);
+      opacity: 0; transition: opacity .22s ease, transform .22s ease; z-index: 4000; pointer-events: none; }
+    .tk-toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .tk-toast.bad { background: #b3261e; }
     .sync-inline .btn { margin: 0; display: inline-flex; align-items: center; gap: 7px; }
     .tk-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
     /* One toolbar: every header button is the SAME height + shape, so the green primary sits on the
@@ -327,6 +336,11 @@
     .tk-hold { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 800; letter-spacing: .03em;
       text-transform: uppercase; color: #9b6a12; background: #fdf3e3; border: 1px solid #f0dda2; border-radius: 999px; padding: 1px 7px; }
     .tk-hold svg { width: 10px; height: 10px; }
+    /* URGENT tag: a solid red filled pill (NOT a left accent bar — that treatment was rejected).
+       No motion; the fill + weight carry the signal. Urgent-first sort already floats these to top. */
+    .tk-urgent { font-family: var(--font-display); font-size: 9.5px; font-weight: 800; letter-spacing: .05em;
+      text-transform: uppercase; color: #fff; background: #d7263d; border-radius: 999px; padding: 2px 8px;
+      box-shadow: 0 1px 2px rgba(215,38,61,.35); }
     /* Card top line: the CLIENT leads (display caps, ink), pills sit right — hierarchy, not color. */
     .tk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-width: 0; }
     /* Card hierarchy by WEIGHT: the title is the card's one bold element; the client leads by
@@ -598,6 +612,40 @@
     .cal-more { font-size: 10.5px; font-weight: 700; color: var(--accent-600); background: transparent; border: 0; cursor: pointer; padding: 1px 4px; text-align: left; }
     .cal-foot { margin-top: 12px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
     .cal-foot b { color: var(--ink); }
+    /* Clickable day cells + the selected day (opens the detail panel below the grid). */
+    .cal-cell[data-day] { cursor: pointer; }
+    .cal-cell[data-day]:hover { background: var(--tint); }
+    .cal-cell.sel { box-shadow: inset 0 0 0 2px var(--brand-500); background: var(--tint); }
+    /* Day detail panel: the day's services in full, below the calendar. */
+    .cal-day-panel { margin-top: 14px; border: 1px solid var(--line, #e6e8e6); border-radius: 12px; background: var(--surface); overflow: hidden; }
+    .cal-day-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line, #e6e8e6); background: var(--canvas); }
+    .cal-day-title { font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--ink); }
+    .cal-day-close { border: 0; background: transparent; font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer; padding: 0 4px; }
+    .cal-day-close:hover { color: var(--ink); }
+    .cal-day-empty { padding: 20px 16px; color: var(--muted); font-size: 13px; }
+    .cal-day-list { display: flex; flex-direction: column; }
+    .cal-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line, #eef0ee); background: transparent; cursor: pointer; font: inherit; padding: 12px 16px; transition: background .12s; }
+    .cal-row:last-child { border-bottom: 0; }
+    .cal-row:hover { background: var(--canvas); }
+    .cal-row-disc { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 999px; margin-top: 5px; background: var(--muted); }
+    .cal-row-disc.lb-paid { background: var(--accent-500); }
+    .cal-row-disc.lb-organic { background: var(--brand-500); }
+    .cal-row-disc.lb-web { background: #2f6ecc; }
+    .cal-row-disc.lb-other { background: #8b8f8c; }
+    .cal-row-main { flex: 1 1 auto; min-width: 0; }
+    .cal-row-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .cal-row-client { font-family: var(--font-display); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+    .cal-row-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .cal-row.done .cal-row-title { color: var(--muted); text-decoration: line-through; }
+    .cal-row-hi { font-family: var(--font-display); font-size: 9.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #9b6a12; background: #fdf3e3; border-radius: 999px; padding: 2px 8px; }
+    .cal-row-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 5px; font-size: 11.5px; color: var(--muted); }
+    .cal-row-bit { display: inline-flex; align-items: center; gap: 4px; }
+    .cal-row-bit.ok { color: var(--brand-700); font-weight: 700; }
+    .cal-row-bit.bad { color: #b3261e; font-weight: 700; }
+    .cal-row-bit.hold { color: #9b6a12; font-weight: 700; }
+    .cal-row-bit.chg { color: #b3261e; font-weight: 700; }
+    .cal-row-lead { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); font-weight: 600; }
+    .cal-row-av { width: 18px; height: 18px; border-radius: 999px; background: var(--muted); color: #fff; font-size: 9.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
 
     /* ---- Responsive ---- */
     @media (max-width: 1000px) { .content { padding: 28px 22px 56px; } }
@@ -733,10 +781,11 @@
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>
             <span>Mailboxes</span>
           </button>
-          <button type="button" class="nav-item util" data-section="trash">
+          <button type="button" class="nav-item util" data-section="trash"
+                  data-bin-newest="{{ (trash|map(attribute='ts')|list|max) if trash else '' }}">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             <span>Bin</span>
-            {% if trash %}<span class="count quiet">{{ trash|length }}</span>{% endif %}
+            {% if trash %}<span class="count quiet" id="bin-badge" hidden>{{ trash|length }}</span>{% endif %}
           </button>
         </nav>
         <div class="side-foot">
@@ -1097,16 +1146,23 @@
         <section class="pane" data-pane="trash">
           <p class="eyebrow">Atrium Admin &middot; Workspaces</p>
           <h1 class="page">Bin</h1>
-          <p class="lead">Deleted content, campaigns, calendar events and clients are kept here for
-            {{ trash_ttl_days }} days, then removed automatically. <b>Restore</b> puts an item back where
-            it was.</p>
+          <p class="lead">Archived services, deleted content, campaigns, calendar events and clients are
+            kept here for {{ trash_ttl_days }} days, then removed automatically. <b>Restore</b> puts an
+            item back where it was. Times shown in your local timezone.</p>
           {% if trash %}
+          <div class="bin-tools" style="display:flex;justify-content:flex-end;margin:0 0 12px">
+            <form method="post" action="/admin/atrium/trash/empty" data-empty-bin data-count="{{ trash|length }}" style="margin:0">
+              <button type="submit" class="btn-ghost-danger small" title="Permanently delete everything in the Bin — cannot be undone">
+                Empty bin permanently
+              </button>
+            </form>
+          </div>
           <div class="panel feed">
             {% for t in trash %}
             <div class="req">
               <div class="req-main">
-                <div class="req-name"><span class="kind-tag">{{ t.kind }}</span> {{ t.label }}</div>
-                <div class="req-sub">{{ t.client_name }}{% if t.actor %} &middot; deleted by {{ t.actor }}{% endif %}{% if t.when %} &middot; {{ t.when }} UTC{% endif %} &middot; auto-deletes in {{ t.days_left }} day{{ '' if t.days_left == 1 else 's' }}</div>
+                <div class="req-name"><span class="kind-tag">{{ 'service' if t.kind == 'task' else t.kind }}</span> {{ t.label }}</div>
+                <div class="req-sub">{{ t.client_name }}{% if t.actor %} &middot; deleted by {{ t.actor }}{% endif %}{% if t.ts %} &middot; <span class="bin-when" data-utc="{{ t.ts }}" title="{{ t.when }} UTC">{{ t.when }} UTC</span>{% endif %} &middot; auto-deletes in {{ t.days_left }} day{{ '' if t.days_left == 1 else 's' }}</div>
               </div>
               <div class="req-actions">
                 <form method="post" action="/admin/atrium/restore">
@@ -1150,7 +1206,7 @@
             <div><label>Priority</label><select name="priority">
               {% for pr in ['Low','Medium','High','Urgent'] %}<option {{ 'selected' if t.priority|default('Medium') == pr else '' }}>{{ pr }}</option>{% endfor %}
             </select></div>
-            <div><label>Service charge ($)</label><input type="text" inputmode="decimal" name="service_charge" value="{{ t.service_charge|default('', true) }}" placeholder="0"></div>
+            <div><label>Service charge ($)</label><input type="text" inputmode="decimal" name="service_charge" value="{{ t.service_charge|default('', true) }}" placeholder="0" data-money pattern="[0-9]*[.]?[0-9]*" title="Numbers only (e.g. 4200 or 4200.50)"></div>
             <div><label>Start date</label><input type="date" name="start_date" value="{{ t.start_date|default('', true) }}"></div>
             <div><label>Launch date</label><input type="date" name="due_date" value="{{ t.due_date|default('', true) }}"></div>
           </div>
@@ -1243,12 +1299,13 @@
                       line in display caps, pills on the right — no extra color, just hierarchy. -#}
                   <div class="tk-top">
                     <span class="tk-client" title="{{ t.client_name }}">{{ t.client_name }}</span>
-                    {% if t.labels or t.on_hold %}<div class="tk-pills">{% for l in t.labels %}<span class="tk-pill {{ {'Paid Media': 'lb-paid', 'Organic': 'lb-organic', 'Website': 'lb-web'}.get(l, 'lb-other') }}">{{ l }}</span>{% endfor %}{% if t.on_hold %}<span class="tk-hold" title="On hold{{ ' — ' ~ t.hold_reason if t.hold_reason else '' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>{% endif %}</div>{% endif %}
+                    {% if t.labels or t.on_hold or t.priority == 'Urgent' %}<div class="tk-pills">{% if t.priority == 'Urgent' and not t.on_hold %}<span class="tk-urgent" title="Urgent priority">URGENT</span>{% endif %}{% for l in t.labels %}<span class="tk-pill {{ {'Paid Media': 'lb-paid', 'Organic': 'lb-organic', 'Website': 'lb-web'}.get(l, 'lb-other') }}">{{ l }}</span>{% endfor %}{% if t.on_hold %}<span class="tk-hold" title="On hold{{ ' — ' ~ t.hold_reason if t.hold_reason else '' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>On hold</span>{% endif %}</div>{% endif %}
                   </div>
                   <div class="tk-title">{{ t.title }}</div>
                   <div class="tk-meta">
-                    <span class="tk-pdot p-{{ t.priority }}"></span><span>{{ t.priority }}</span>
-                    {% if t.due_date %}<span class="tk-due {{ t.due_cls }}">&middot; {{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
+                    {%- set urgent_pill = (t.priority == 'Urgent' and not t.on_hold) -%}
+                    {%- if not urgent_pill %}<span class="tk-pdot p-{{ t.priority }}"></span><span>{{ t.priority }}</span>{% endif %}
+                    {% if t.due_date %}<span class="tk-due {{ t.due_cls }}">{% if not urgent_pill %}&middot; {% endif %}{{ (t.due_date ~ 'T00:00:00Z')|atrium_date }}</span>{% endif %}
                   </div>
                   <div class="tk-foot">
                     {#- Lead only on the card — support people live in the detail modal
@@ -1259,7 +1316,7 @@
                       {% else %}<span class="tk-lead-nm" style="color:var(--muted)">Unassigned</span>{% endif %}
                     </span>
                     <span class="tk-icons">
-                      {% if t.subs_total %}<span title="sub-tasks done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{{ t.subs_done }}/{{ t.subs_total }}</span>{% endif %}
+                      {% if t.subs_total %}<span title="sub-tasks done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-subs="{{ t.client_key }}:{{ t.id }}">{{ t.subs_done }}/{{ t.subs_total }}</span></span>{% endif %}
                       {% if t.subs_unassigned and col.key != 'closed' %}<span class="warn" title="{{ t.subs_unassigned }} sub-task(s) with no owner">⚠ {{ t.subs_unassigned }}</span>{% endif %}
                       {% if t.open_changes %}<span class="chg" title="open client change request">⚑ {{ t.open_changes }}</span>{% endif %}
                       {% if t.comment_count %}<span title="comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>{{ t.comment_count }}</span>{% endif %}
@@ -1485,7 +1542,7 @@
               <div class="tkd-foot">
                 <form method="post" action="/w/{{ t.client_key }}/admin/task/delete" data-tkdelete data-tktitle="{{ t.title }}">
                   <input type="hidden" name="redirect" value="console"><input type="hidden" name="task_id" value="{{ t.id }}">
-                  <button type="submit" class="btn-ghost-danger">Delete</button>
+                  <button type="submit" class="btn-ghost" title="Moves this service to the Bin — restorable for {{ trash_ttl_days }} days">Move to Archive</button>
                 </form>
                 <span class="spacer"></span>
                 <button type="button" class="btn-ghost" data-tkedit-open="{{ t.client_key }}:{{ t.id }}">Edit</button>
@@ -1603,6 +1660,9 @@
           <div class="cal-grid-wrap"><div class="cal-grid" id="cal-grid"></div></div>
           <div class="cal-foot" id="cal-foot"></div>
 
+          <!-- Click a day cell -> this panel lists that day's services in full detail (JS-built). -->
+          <div class="cal-day-panel" id="cal-day-panel" hidden></div>
+
           <!-- Hidden event store: one node per SCHEDULED service (has a launch date). JS reads these. -->
           <div id="cal-store" hidden>
             {% for col in task_cols %}{% for t in col.tasks %}{% if t.due_date %}
@@ -1610,7 +1670,10 @@
                  data-open="{{ t.client_key }}:{{ t.id }}" data-client="{{ t.client_key }}"
                  data-cname="{{ t.client_name }}" data-title="{{ t.title }}"
                  data-disc="{{ t.disc_class }}" data-stage="{{ t.stage }}"
-                 data-priority="{{ t.priority }}" data-hold="{{ '1' if t.on_hold else '0' }}"></div>
+                 data-priority="{{ t.priority }}" data-hold="{{ '1' if t.on_hold else '0' }}"
+                 data-lead="{{ t.lead_name|default('', true) }}" data-leadcolor="{{ t.lead_color|default('', true) }}"
+                 data-subsdone="{{ t.subs_done|default(0, true) }}" data-substotal="{{ t.subs_total|default(0, true) }}"
+                 data-changes="{{ t.open_changes|default(0, true) }}" data-comments="{{ t.comment_count|default(0, true) }}"></div>
             {% endif %}{% endfor %}{% endfor %}
           </div>
         </section>
@@ -1665,11 +1728,76 @@
     </div>
   </div>
 
+  <!-- Reusable confirm modal (window.agConfirm) — a styled replacement for window.confirm/prompt.
+       Used by "Move to Archive" and "Empty bin permanently"; supports an optional type-to-confirm. -->
+  <div class="modal-veil" id="ag-confirm-veil" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ag-confirm-title">
+      <h3 id="ag-confirm-title">Are you sure?</h3>
+      <p id="ag-confirm-msg"></p>
+      <div class="ag-confirm-field" id="ag-confirm-field" hidden>
+        <label for="ag-confirm-input" id="ag-confirm-label"></label>
+        <input type="text" id="ag-confirm-input" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="ag-confirm-cancel">Cancel</button>
+        <button type="button" class="btn" id="ag-confirm-ok">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Console behaviour. DOM-driven + esprima-4.x-safe (no ?. / ??), no Jinja inside this script.
     (function () {
       var qsa = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
       var body = document.body;
+
+      // ---- Reusable styled confirm modal (replaces window.confirm/prompt). window.agConfirm(opts):
+      //   {title, message, confirmText, danger, requireText, fieldLabel, onConfirm}. When requireText
+      //   is set, the confirm button stays disabled until the operator types that word (e.g. DELETE). ----
+      (function () {
+        var veil = document.getElementById("ag-confirm-veil");
+        if (!veil) { return; }
+        var titleEl = document.getElementById("ag-confirm-title");
+        var msgEl = document.getElementById("ag-confirm-msg");
+        var field = document.getElementById("ag-confirm-field");
+        var label = document.getElementById("ag-confirm-label");
+        var input = document.getElementById("ag-confirm-input");
+        var okBtn = document.getElementById("ag-confirm-ok");
+        var cancelBtn = document.getElementById("ag-confirm-cancel");
+        var onOk = null, needText = "";
+        function norm(s) { return s.replace(/^\s+|\s+$/g, "").toUpperCase(); }
+        function close() { veil.hidden = true; body.style.overflow = ""; onOk = null; needText = ""; input.value = ""; }
+        function tryOk() {
+          if (needText && norm(input.value) !== needText.toUpperCase()) { return; }
+          var cb = onOk; close(); if (cb) { cb(); }
+        }
+        okBtn.addEventListener("click", tryOk);
+        cancelBtn.addEventListener("click", close);
+        veil.addEventListener("click", function (e) { if (e.target === veil) { close(); } });
+        document.addEventListener("keydown", function (e) { if (!veil.hidden && e.key === "Escape") { close(); } });
+        input.addEventListener("input", function () {
+          if (needText) { okBtn.disabled = norm(input.value) !== needText.toUpperCase(); }
+        });
+        input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !okBtn.disabled) { e.preventDefault(); tryOk(); } });
+        window.agConfirm = function (opts) {
+          opts = opts || {};
+          titleEl.textContent = opts.title || "Are you sure?";
+          msgEl.textContent = opts.message || "";
+          okBtn.textContent = opts.confirmText || "Confirm";
+          okBtn.className = "btn" + (opts.danger ? " danger" : "");
+          needText = opts.requireText || "";
+          onOk = opts.onConfirm || null;
+          if (needText) {
+            field.hidden = false;
+            label.textContent = opts.fieldLabel || ("Type " + needText + " to confirm");
+            input.value = ""; okBtn.disabled = true;
+          } else {
+            field.hidden = true; okBtn.disabled = false;
+          }
+          veil.hidden = false; body.style.overflow = "hidden";
+          setTimeout(function () { (needText ? input : okBtn).focus(); }, 30);
+        };
+      })();
 
       // ---- Top-level view switch: Home hub <-> console. ----
       function showView(v) {
@@ -1694,10 +1822,86 @@
         qsa("[data-section]").forEach(function (b) {
           b.classList.toggle("is-active", b.getAttribute("data-section") === name);
         });
+        if (name === "trash") { markBinSeen(); }
         return matched;
       }
       qsa("[data-section]").forEach(function (b) {
         b.addEventListener("click", function () { showSection(b.getAttribute("data-section")); });
+      });
+
+      // ---- Bin badge = NEW items since you last opened the Bin (clears when you view it). ----
+      // The server-rendered count is "items in the Bin", which never dropped just by looking. We
+      // remember (per-browser) the newest item you've seen and only badge things newer than that,
+      // so opening the Bin genuinely clears the notification. localStorage key holds an ISO stamp.
+      var BIN_SEEN = "agora.binSeen";
+      var binNav = document.querySelector('[data-section="trash"][data-bin-newest]');
+      var binBadge = document.getElementById("bin-badge");
+      function binNewestSeen() {
+        try { return window.localStorage.getItem(BIN_SEEN) || ""; } catch (e) { return ""; }
+      }
+      function refreshBinBadge() {
+        if (!binBadge) { return; }
+        var seen = binNewestSeen();
+        var fresh = 0;
+        qsa(".bin-when[data-utc]").forEach(function (el) {
+          var ts = el.getAttribute("data-utc") || "";
+          if (ts && ts > seen) { fresh += 1; }   // ISO stamps compare correctly as strings
+        });
+        if (fresh > 0) { binBadge.textContent = fresh; binBadge.hidden = false; }
+        else { binBadge.hidden = true; }
+      }
+      function markBinSeen() {
+        if (!binNav) { return; }
+        var newest = binNav.getAttribute("data-bin-newest") || "";
+        try { if (newest) { window.localStorage.setItem(BIN_SEEN, newest); } } catch (e) { /* ignore */ }
+        if (binBadge) { binBadge.hidden = true; }
+      }
+      refreshBinBadge();
+
+      // ---- Bin timestamps: show them in the operator's LOCAL timezone (server stores UTC). ----
+      // The exact UTC value stays available on hover (the title attr set server-side).
+      qsa(".bin-when[data-utc]").forEach(function (el) {
+        var iso = el.getAttribute("data-utc") || "";
+        var d = iso ? new Date(iso) : null;
+        if (!d || isNaN(d.getTime())) { return; }
+        try {
+          var s = d.toLocaleString([], { month: "short", day: "numeric",
+                                          hour: "2-digit", minute: "2-digit" });
+          el.textContent = s;
+        } catch (e) { /* toLocaleString unsupported -- leave the server UTC text */ }
+      });
+
+      // ---- Empty bin: a deliberate, irreversible action -> styled modal + type DELETE to proceed. ----
+      qsa("form[data-empty-bin]").forEach(function (f) {
+        f.addEventListener("submit", function (e) {
+          e.preventDefault();
+          var n = f.getAttribute("data-count") || "0";
+          var msg = "This permanently deletes all " + n + " item" + (n === "1" ? "" : "s")
+            + " in the Bin. This cannot be undone — restore will no longer be possible.";
+          if (!window.agConfirm) {   // defensive fallback
+            if (window.confirm(msg)) { f.submit(); }
+            return;
+          }
+          window.agConfirm({
+            title: "Empty bin permanently",
+            message: msg,
+            confirmText: "Delete everything",
+            danger: true,
+            requireText: "DELETE",
+            fieldLabel: "Type DELETE to confirm",
+            onConfirm: function () { f.submit(); }
+          });
+        });
+      });
+
+      // ---- Service charge / amount: accept digits + one decimal point only (no letters). ----
+      qsa("input[data-money]").forEach(function (inp) {
+        inp.addEventListener("input", function () {
+          var v = this.value.replace(/[^0-9.]/g, "");         // strip anything not a digit or dot
+          var i = v.indexOf(".");
+          if (i !== -1) { v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, ""); }  // one dot max
+          if (v !== this.value) { this.value = v; }
+        });
       });
 
       // ---- Accounts inner tabs (Requests / People / Add new). ----
@@ -1877,51 +2081,63 @@
         syncWhen.textContent = "Last synced: " + fmtAgo(iso);
       }
       if (syncBtn && syncWhen) {
+        // Capture the pristine label ONCE, so restoring after a retry doesn't leave "Retry sync".
+        var syncOrigHTML = syncBtn.innerHTML;
+        var syncOrigTitle = syncBtn.getAttribute("title") || "";
         fetch("/admin/atrium/sync-status", { credentials: "same-origin" })
           .then(function (r) { return r.json(); })
           .then(function (j) { setWhen(j.last_sync); })
           .catch(function () { syncWhen.textContent = "Last synced: unknown"; });
         setInterval(function () {
           var iso = syncWhen.getAttribute("data-iso");
-          if (iso) { setWhen(iso); }
+          if (iso && syncWhen.getAttribute("data-iso") !== "err") { setWhen(iso); }
         }, 60000);
+        function syncRestore(delay) {
+          setTimeout(function () {
+            syncBtn.innerHTML = syncOrigHTML; syncBtn.disabled = false;
+            syncBtn.classList.remove("warn");
+            syncBtn.setAttribute("title", syncOrigTitle);
+          }, delay);
+        }
+        function syncFail(errText) {
+          // A total failure STAYS visible with a Retry (don't auto-revert), and the reason is shown
+          // inline (not buried in a tooltip) so the operator can actually act on it.
+          syncBtn.innerHTML = "&#8635;&nbsp; Retry sync";
+          syncBtn.disabled = false;
+          syncBtn.classList.add("warn");
+          syncBtn.setAttribute("title", errText || "Sync failed");
+          syncWhen.setAttribute("data-iso", "err");
+          syncWhen.classList.add("sync-err");
+          syncWhen.textContent = "Sync failed — " + (errText || "try again");
+        }
         syncBtn.addEventListener("click", function () {
-          var orig = syncBtn.innerHTML;
-          var origTitle = syncBtn.getAttribute("title") || "";
-          function restoreSync(delay) {
-            setTimeout(function () {
-              syncBtn.innerHTML = orig; syncBtn.disabled = false;
-              syncBtn.classList.remove("warn");
-              syncBtn.setAttribute("title", origTitle);
-            }, delay);
-          }
           syncBtn.disabled = true;
+          syncBtn.classList.remove("warn");
+          syncWhen.classList.remove("sync-err");
           syncBtn.textContent = "Syncing…";
           fetch("/admin/atrium/sync-all", { method: "POST", credentials: "same-origin" })
             .then(function (r) { return r.json(); })
             .then(function (j) {
-              setWhen(j.last_sync);
               var n = (j.triggered || []).length;
               var nf = (j.failed || []).length;
               var firstErr = (nf && j.failed[0] && j.failed[0].error) ? j.failed[0].error : "";
               // Truthful states: a failure never wears a green check.
               if (nf && !n) {
-                syncBtn.textContent = "⚠ Sync failed (" + nf + ")";
-                syncBtn.classList.add("warn");
-                if (firstErr) { syncBtn.setAttribute("title", firstErr); }
+                syncFail(firstErr);              // total failure -> persistent Retry + visible reason
               } else if (nf) {
+                setWhen(j.last_sync);
                 syncBtn.textContent = "⚠ Synced " + n + " · " + nf + " failed";
                 syncBtn.classList.add("warn");
                 if (firstErr) { syncBtn.setAttribute("title", firstErr); }
+                syncRestore(6000);
               } else {
+                setWhen(j.last_sync);
                 syncBtn.textContent = "✓ Synced " + n + " dashboard" + (n === 1 ? "" : "s");
+                syncRestore(5200);
               }
-              restoreSync(5200);
             })
             .catch(function () {
-              syncBtn.textContent = "⚠ Sync failed — try again";
-              syncBtn.classList.add("warn");
-              restoreSync(5200);
+              syncFail("Couldn't reach the server. Check your connection and retry.");
             });
         });
       }
@@ -2069,18 +2285,72 @@
         });
       });
 
-      // ---- Auto-submit mini-forms (sub-task done toggle + owner select). ----
+      // ---- Auto-submit mini-forms WITHOUT the full-page reload ("the blink"). ----
+      // Sub-task done toggles + owner/assignee selects + main-task rename post via fetch and the
+      // page STAYS PUT — the control already shows the new state, so it reads as instant (optimistic
+      // update). Only these high-frequency actions are converted; create/edit/move/delete still do a
+      // normal submit. The routes return JSON when `redirect` is absent (see _task_reply).
+      function tkToast(text, bad) {
+        var el = document.createElement("div");
+        el.className = "tk-toast" + (bad ? " bad" : "");
+        el.textContent = text;
+        document.body.appendChild(el);
+        void el.offsetWidth;                      // reflow so the transition runs
+        el.classList.add("show");
+        setTimeout(function () {
+          el.classList.remove("show");
+          setTimeout(function () { if (el.parentNode) { el.parentNode.removeChild(el); } }, 300);
+        }, bad ? 2400 : 1300);
+      }
+      // Keep the board card's "done/total" sub-task chip fresh after a toggle (no reload to do it).
+      function tkRefreshCounts(f) {
+        var store = f.closest ? f.closest("[data-tkd]") : null;
+        if (!store) { return; }
+        var key = store.getAttribute("data-tkd");
+        var boxes = qsa('input[type="checkbox"][name="done"]', store);
+        if (!boxes.length) { return; }
+        var done = 0;
+        boxes.forEach(function (b) { if (b.checked) { done += 1; } });
+        var chip = document.querySelector('[data-subs="' + key + '"]');
+        if (chip) { chip.textContent = done + "/" + boxes.length; }
+      }
+      function tkAjaxSubmit(f) {
+        var fd = new FormData(f);
+        fd.delete("redirect");                    // no redirect -> route returns JSON, page stays put
+        fd.delete("back_task"); fd.delete("back_tab");
+        fetch(f.getAttribute("action"), { method: "POST", credentials: "same-origin", body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j || !j.ok) { throw new Error((j && j.error) || "Save failed"); }
+            tkRefreshCounts(f);
+            tkToast("Saved");
+          })
+          .catch(function () {
+            // Never silently drop a change — resync by reloading so the UI can't lie.
+            tkToast("Couldn't save — refreshing", true);
+            setTimeout(function () { window.location.reload(); }, 950);
+          });
+      }
       qsa("form[data-autosubmit]").forEach(function (f) {
-        f.addEventListener("change", function () { f.submit(); });
+        f.addEventListener("change", function () { tkAjaxSubmit(f); });
       });
 
-      // ---- Confirm before a delete (soft-delete: the task lands in the Bin). ----
+      // ---- Confirm before archiving (soft-delete: the service lands in the Bin, restorable). ----
       qsa("form[data-tkdelete]").forEach(function (f) {
         f.addEventListener("submit", function (e) {
-          var title = f.getAttribute("data-tktitle") || "this task";
-          if (!window.confirm("Delete “" + title + "”?\n\nIt moves to the Bin and can be restored for 30 days.")) {
-            e.preventDefault();
+          e.preventDefault();
+          var title = f.getAttribute("data-tktitle") || "this service";
+          var msg = "“" + title + "” will move to the Bin. You can restore it for 30 days.";
+          if (!window.agConfirm) {   // defensive fallback
+            if (window.confirm(msg)) { f.submit(); }
+            return;
           }
+          window.agConfirm({
+            title: "Move to Archive",
+            message: msg,
+            confirmText: "Move to Archive",
+            onConfirm: function () { f.submit(); }
+          });
         });
       });
 
@@ -2177,6 +2447,13 @@
             var pb = PRIO_RANK[b.getAttribute("data-priority")]; if (pb == null) { pb = 9; }
             var da = a.getAttribute("data-due") || "9999-99-99";
             var db = b.getAttribute("data-due") || "9999-99-99";
+            var ha = a.getAttribute("data-hold") === "1" ? 1 : 0;
+            var hb = b.getAttribute("data-hold") === "1" ? 1 : 0;
+            // URGENT (and not on hold) ALWAYS floats to the top of its column, in EVERY sort mode —
+            // the whole point of "urgent" is that it can't be buried by a date/client sort.
+            var ua = (pa === 0 && ha === 0) ? 0 : 1;
+            var ub = (pb === 0 && hb === 0) ? 0 : 1;
+            if (ua !== ub) { return ua - ub; }
             if (mode === "due") {
               if (da !== db) { return da < db ? -1 : 1; }
               return pa - pb;
@@ -2187,9 +2464,7 @@
               return pa - pb;
             }
             if (pa !== pb) { return pa - pb; }               // priority (default)
-            var ha = a.getAttribute("data-hold") === "1" ? 1 : 0;   // active before on-hold
-            var hb = b.getAttribute("data-hold") === "1" ? 1 : 0;
-            if (ha !== hb) { return ha - hb; }
+            if (ha !== hb) { return ha - hb; }               // active before on-hold
             if (da !== db) { return da < db ? -1 : 1; }
             return 0;
           });
@@ -2277,8 +2552,21 @@
                    key: n.getAttribute("data-open"), client: n.getAttribute("data-client"),
                    cname: n.getAttribute("data-cname") || "", title: n.getAttribute("data-title") || "",
                    disc: n.getAttribute("data-disc") || "lb-other", hold: n.getAttribute("data-hold") === "1",
-                   stage: n.getAttribute("data-stage") || "", prio: n.getAttribute("data-priority") || "" };
+                   stage: n.getAttribute("data-stage") || "", prio: n.getAttribute("data-priority") || "",
+                   lead: n.getAttribute("data-lead") || "", leadColor: n.getAttribute("data-leadcolor") || "",
+                   subsDone: n.getAttribute("data-subsdone") || "0", subsTotal: n.getAttribute("data-substotal") || "0",
+                   changes: n.getAttribute("data-changes") || "0", comments: n.getAttribute("data-comments") || "0" };
         });
+        var STAGE_LABEL = { in_process: "In Process", for_launch: "For Launch", launched: "Launched", closed: "Closed" };
+        function discLabel(cls) { return { "lb-paid": "Paid Media", "lb-organic": "Organic", "lb-web": "Website" }[cls] || "Other"; }
+        function fmtDay(iso) {
+          if (!iso) { return ""; }
+          var p = iso.split("-");
+          if (p.length !== 3) { return iso; }
+          var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+          if (isNaN(d.getTime())) { return iso; }
+          return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        }
         var now = new Date();
         var calY = now.getFullYear(), calM = now.getMonth();
         function pad2(n) { return (n < 10 ? "0" : "") + n; }
@@ -2308,8 +2596,103 @@
           b.appendChild(cc);
           var mark = isLaunched(ev) ? "✓ " : (overdue(ev) ? "⚠ " : (ev.hold ? "⏸ " : ""));
           b.appendChild(document.createTextNode(mark + ev.title));
-          b.addEventListener("click", function () { tkOpen(findNode("data-tkd", ev.key)); });
+          b.addEventListener("click", function (e) { e.stopPropagation(); tkOpen(findNode("data-tkd", ev.key)); });
           return b;
+        }
+
+        // ---- Day detail panel: click a day cell -> list that day's services in full below the grid. ----
+        var panelEl = document.getElementById("cal-day-panel");
+        var selDay = null;
+        function daySort(list) {
+          list.sort(function (a, b) {
+            var sa = isLaunched(a) ? 1 : 0, sb = isLaunched(b) ? 1 : 0;
+            if (sa !== sb) { return sa - sb; }
+            var pa = PRIO_RANK[a.prio]; if (pa == null) { pa = 9; }
+            var pb = PRIO_RANK[b.prio]; if (pb == null) { pb = 9; }
+            return pa - pb;
+          });
+          return list;
+        }
+        function dayRow(ev) {
+          var row = document.createElement("button");
+          row.type = "button";
+          row.className = "cal-row " + ev.disc + (ev.hold ? " held" : "")
+            + (isLaunched(ev) ? " done" : (overdue(ev) ? " over" : ""));
+          var dot = document.createElement("span"); dot.className = "cal-row-disc " + ev.disc; row.appendChild(dot);
+          var main = document.createElement("div"); main.className = "cal-row-main";
+          var top = document.createElement("div"); top.className = "cal-row-top";
+          var cl = document.createElement("span"); cl.className = "cal-row-client"; cl.textContent = ev.cname; top.appendChild(cl);
+          var ti = document.createElement("span"); ti.className = "cal-row-title"; ti.textContent = ev.title; top.appendChild(ti);
+          if (ev.prio === "Urgent" && !ev.hold) {
+            var up = document.createElement("span"); up.className = "tk-urgent"; up.textContent = "URGENT"; top.appendChild(up);
+          } else if (ev.prio === "High") {
+            var hp = document.createElement("span"); hp.className = "cal-row-hi"; hp.textContent = "High"; top.appendChild(hp);
+          }
+          var pill = document.createElement("span"); pill.className = "tk-pill " + ev.disc; pill.textContent = discLabel(ev.disc); top.appendChild(pill);
+          main.appendChild(top);
+          var sub = document.createElement("div"); sub.className = "cal-row-sub";
+          function bit(text, cls) {
+            var s = document.createElement("span"); s.className = "cal-row-bit" + (cls ? " " + cls : ""); s.textContent = text; sub.appendChild(s);
+          }
+          if (isLaunched(ev)) { bit("✓ Launched", "ok"); }
+          else if (overdue(ev)) { bit("⚠ Overdue", "bad"); }
+          else if (ev.hold) { bit("⏸ On hold", "hold"); }
+          bit(STAGE_LABEL[ev.stage] || ev.stage);
+          if (Number(ev.changes) > 0) { bit("⛑ " + ev.changes + " change" + (ev.changes === "1" ? "" : "s"), "chg"); }
+          if (Number(ev.comments) > 0) { bit("💬 " + ev.comments); }
+          if (ev.lead) {
+            var lw = document.createElement("span"); lw.className = "cal-row-lead";
+            var av = document.createElement("span"); av.className = "cal-row-av";
+            if (ev.leadColor) { av.style.background = ev.leadColor; }
+            av.textContent = ev.lead.slice(0, 1).toUpperCase(); lw.appendChild(av);
+            var ln = document.createElement("span"); ln.textContent = ev.lead; lw.appendChild(ln);
+            sub.appendChild(lw);
+          }
+          if (Number(ev.subsTotal) > 0) { bit("✓ " + ev.subsDone + "/" + ev.subsTotal); }
+          if (ev.start) { bit(fmtDay(ev.start) + " → " + fmtDay(ev.date)); }
+          else { bit("Launches " + fmtDay(ev.date)); }
+          main.appendChild(sub);
+          row.appendChild(main);
+          row.addEventListener("click", function () { tkOpen(findNode("data-tkd", ev.key)); });
+          return row;
+        }
+        function highlightDay() {
+          qsa(".cal-cell", grid).forEach(function (c) {
+            c.classList.toggle("sel", !!(selDay && c.getAttribute("data-day") === selDay));
+          });
+        }
+        function renderDayPanel(ds) {
+          if (!panelEl) { return; }
+          var cf = fCal ? fCal.value : "";
+          var todays = daySort(events.filter(function (ev) { return ev.date === ds && (!cf || ev.client === cf); }));
+          panelEl.innerHTML = ""; panelEl.hidden = false;
+          var head = document.createElement("div"); head.className = "cal-day-head";
+          var h = document.createElement("span"); h.className = "cal-day-title";
+          var p = ds.split("-");
+          var dd = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+          h.textContent = dd.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+            + "  ·  " + todays.length + " service" + (todays.length === 1 ? "" : "s");
+          head.appendChild(h);
+          var x = document.createElement("button"); x.type = "button"; x.className = "cal-day-close";
+          x.setAttribute("aria-label", "Close"); x.textContent = "×";
+          x.addEventListener("click", clearDay);
+          head.appendChild(x); panelEl.appendChild(head);
+          if (!todays.length) {
+            var empty = document.createElement("div"); empty.className = "cal-day-empty";
+            empty.textContent = "No services launching on this day."; panelEl.appendChild(empty); return;
+          }
+          var listEl = document.createElement("div"); listEl.className = "cal-day-list";
+          todays.forEach(function (ev) { listEl.appendChild(dayRow(ev)); });
+          panelEl.appendChild(listEl);
+        }
+        function selectDay(ds) {
+          if (selDay === ds) { clearDay(); return; }   // click the same day again -> close
+          selDay = ds; highlightDay(); renderDayPanel(ds);
+          if (panelEl && panelEl.scrollIntoView) { panelEl.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+        }
+        function clearDay() {
+          selDay = null; highlightDay();
+          if (panelEl) { panelEl.hidden = true; panelEl.innerHTML = ""; }
         }
         function build() {
           var cf = fCal ? fCal.value : "";
@@ -2328,6 +2711,8 @@
             var ds = ymd(calY, calM, day);
             if (ds === todayStr) { cell.className += " today"; }
             var num = document.createElement("div"); num.className = "cal-daynum"; num.textContent = String(day); cell.appendChild(num);
+            cell.setAttribute("data-day", ds);
+            (function (dd) { cell.addEventListener("click", function () { selectDay(dd); }); })(ds);
             var todays = events.filter(function (ev) { return ev.date === ds && (!cf || ev.client === cf); });
             // Urgent first inside a day (same rank the board uses), launched work last.
             todays.sort(function (a, b) {
@@ -2343,10 +2728,15 @@
               var more = document.createElement("button");
               more.type = "button"; more.className = "cal-more";
               more.textContent = "+" + (todays.length - 3) + " more";
-              more.addEventListener("click", function () {
-                more.parentNode.removeChild(more);
-                todays.slice(3).forEach(function (ev) { cell.appendChild(chip(ev)); });
-              });
+              // IIFE captures THIS day's cell/list (var-scoped loop vars would otherwise all point
+              // at the last day) and stops the click from also selecting the day.
+              (function (cellRef, todaysRef, moreRef) {
+                moreRef.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  moreRef.parentNode.removeChild(moreRef);
+                  todaysRef.slice(3).forEach(function (ev) { cellRef.appendChild(chip(ev)); });
+                });
+              })(cell, todays, more);
               cell.appendChild(more);
             }
             grid.appendChild(cell);
@@ -2372,6 +2762,14 @@
               build();
             });
             footEl.appendChild(jump);
+          }
+          // Re-apply the day selection: keep the panel in sync if the selected day is in THIS month
+          // (e.g. after a client-filter change); otherwise close it (e.g. after month navigation).
+          if (selDay && selDay.slice(0, 7) === (calY + "-" + pad2(calM + 1))) {
+            highlightDay();
+            renderDayPanel(selDay);
+          } else if (panelEl && !panelEl.hidden) {
+            selDay = null; panelEl.hidden = true; panelEl.innerHTML = "";
           }
         }
         document.getElementById("cal-prev").addEventListener("click", function () { calM--; if (calM < 0) { calM = 11; calY--; } build(); });

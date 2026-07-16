@@ -3121,17 +3121,57 @@ TASK_CLIENT_STAGES = (("in_process", "In progress"), ("for_launch", "In review")
                       ("launched", "Live"), ("closed", "Completed"))
 
 
-def _team_roster():
-    """The assignable team: ACTIVE admin/superadmin accounts as [{id: email, name}] (spec §3.3).
+# Canonical Atrium delivery team -- these people must ALWAYS be assignable on the board, on EVERY
+# deploy, even before their login account is fully provisioned (active admin). Real accounts take
+# precedence (matched by name OR email, case-insensitive) so their actual login id is used; anyone
+# here without a matching live account still appears so work can be assigned to them. The emails are
+# the ids an assignment stores -- keep them equal to each person's real login email so the two line
+# up once the account exists. EDIT THIS LIST as the team changes.
+ATRIUM_TEAM = (
+    {"name": "Charles", "email": "charles@100.digital"},
+    {"name": "Christian", "email": "christian@agoradatadriven.com"},
+    {"name": "Ehjay", "email": "ehjay@agoradatadriven.com"},
+    {"name": "Ian", "email": "ian@100.digital"},
+    {"name": "Jerome", "email": "jerome@agoradatadriven.com"},
+    {"name": "John", "email": "john@bidbrain.com"},
+    {"name": "Justine", "email": "justine@agoradatadriven.com"},
+    {"name": "Lance", "email": "lance@agoradatadriven.com"},
+    {"name": "Nico", "email": "nico@agoradatadriven.com"},
+    {"name": "Paulo", "email": "paulo@agoradatadriven.com"},
+    {"name": "Samuel", "email": "samuel@agoradatadriven.com"},
+    {"name": "Zhen", "email": "zhen@100.digital"},
+)
 
-    Lead / support / sub-task owners reference these ids (emails). Sorted by name so every
-    dropdown renders in a stable, human order."""
-    out = []
+
+def _team_roster():
+    """The assignable team as [{id: email, name}] (spec §3.3), sorted by name.
+
+    Two sources, merged so a person is never dropped:
+      1. LIVE admin/superadmin accounts (`active` OR `pending` -- an invited-but-not-yet-activated
+         teammate is still a real person you may assign work to; dropping them silently is what
+         caused the "not all names show up" report). Client-role accounts are never included.
+      2. The canonical ATRIUM_TEAM -- guarantees every delivery-team member is assignable on EVERY
+         deploy even if their account isn't provisioned yet. A live account (matched by name OR
+         email, case-insensitive) always wins, so its real login id is used; anyone in the list
+         without a live account is added with the id above.
+
+    Lead / support / sub-task owners reference these ids (emails)."""
+    out, seen_ids, seen_names = [], set(), set()
     for a in store.list_accounts():
-        if a.get("status") == "active" and a.get("role") in ("admin", "superadmin"):
+        if a.get("status") in ("active", "pending") and a.get("role") in ("admin", "superadmin"):
             email = a.get("email") or ""
             name = a.get("name") or (email.split("@")[0].split(".")[0].title() if email else "?")
             out.append({"id": email, "name": name})
+            if email:
+                seen_ids.add(email.lower())
+            seen_names.add(name.strip().lower())
+    for m in ATRIUM_TEAM:
+        nm, em = m["name"].strip().lower(), m["email"].strip().lower()
+        if nm in seen_names or em in seen_ids:
+            continue  # a live account already covers this person -- keep the real id
+        out.append({"id": m["email"], "name": m["name"]})
+        seen_names.add(nm)
+        seen_ids.add(em)
     out.sort(key=lambda p: p["name"].lower())
     return out
 
@@ -4140,7 +4180,7 @@ def admin_atrium_restore():
     """Restore a soft-deleted item from the Trash (super-admin only).
 
     Re-inserts the stashed payload via the right workspace/store helper, then removes the Trash entry.
-    Major item types only: content, campaign, calendar event, and whole client."""
+    Handles content, campaign, calendar event, task, and whole client."""
     if not is_superadmin():
         return Response("Forbidden", status=403, mimetype="text/plain")
     entry = audit.trash_get(request.form.get("entry_id", "").strip())
@@ -4165,14 +4205,36 @@ def admin_atrium_restore():
         else:
             return _atrium_redirect_list("Can't restore that item type.", section="trash", err=True)
     except KeyError:
+        # A KeyError means the parent container is gone. Only CONTENT has a parent (its campaign);
+        # for every other kind the workspace/client itself is missing -- so give a truthful reason.
+        if kind == "content":
+            reason = "Its campaign was deleted too (restore the campaign first)."
+        elif kind == "client":
+            reason = "Its registry entry could not be rebuilt."
+        else:
+            reason = "Its workspace no longer exists (restore or recreate the client first)."
         return _atrium_redirect_list(
-            "Couldn't restore '%s'. Its campaign was deleted too (restore the campaign first)." % label,
-            section="trash", err=True)
+            "Couldn't restore '%s'. %s" % (label, reason), section="trash", err=True)
     except Exception:
         return _atrium_redirect_list("Couldn't restore '%s'." % label, section="trash", err=True)
     audit.trash_remove(entry.get("id"))
     _audit(client, "restored %s" % kind, label)
     return _atrium_redirect_list("Restored '%s'." % label, section="trash")
+
+
+@app.route("/admin/atrium/trash/empty", methods=["POST"])
+def admin_atrium_trash_empty():
+    """Permanently empty the Bin (super-admin only). IRREVERSIBLE -- nothing here can be restored
+    afterwards, so the UI double-confirms before posting here."""
+    if not is_superadmin():
+        return Response("Forbidden", status=403, mimetype="text/plain")
+    n = audit.trash_clear()
+    _audit("", "emptied the bin", "%d item%s permanently deleted" % (n, "" if n == 1 else "s"))
+    if n:
+        return _atrium_redirect_list(
+            "Emptied the Bin — %d item%s permanently deleted." % (n, "" if n == 1 else "s"),
+            section="trash")
+    return _atrium_redirect_list("The Bin was already empty.", section="trash")
 
 
 @app.route("/healthz", methods=["GET"])
