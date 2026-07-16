@@ -45,6 +45,13 @@ os.makedirs(TMP, exist_ok=True)
 BUCKET = "gs://agora-data-driven-platform-dash"
 LOCK = os.path.join(TMP, "scrape.lock")
 
+# The platform-dash bucket is owned by the agora-data-driven project and is NOT visible to
+# ian@100.digital. gcloud's ambient active account flips between Agora tasks, so relying on it
+# silently crash-loops the scheduled queue agent the moment it isn't info@ (it dies at list_clients
+# on a permission error, before ever touching the queue). Pin every gcloud call to the deploy
+# account instead; override with WATCHER_GCLOUD_ACCOUNT if ever needed.
+GCLOUD_ACCOUNT = os.environ.get("WATCHER_GCLOUD_ACCOUNT", "info@agoradatadriven.com")
+
 PAUSE_MIN, PAUSE_MAX = 12, 20
 COOLDOWNS = [300, 600, 1200, 2400, 3600]
 SYNC_EVERY = 5
@@ -87,7 +94,8 @@ def acquire_lock():
 
 
 def run_gcloud(args):
-    proc = subprocess.run("gcloud " + args, shell=True, capture_output=True, text=True)
+    acct = (" --account=%s" % GCLOUD_ACCOUNT) if GCLOUD_ACCOUNT else ""
+    proc = subprocess.run("gcloud " + args + acct, shell=True, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError("gcloud failed: %s\n%s" % (args, proc.stderr[-400:]))
     return proc.stdout
