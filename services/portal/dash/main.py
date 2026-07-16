@@ -25,6 +25,7 @@ Org policy forbids public Cloud Run: deploy with --no-invoker-iam-check (never
 """
 
 import datetime
+import gzip as _gzip
 import json
 import os
 import re
@@ -325,7 +326,58 @@ _GTM_BODY = (
 )
 
 
+# Response bodies worth gzipping: text-shaped types only. Already-compressed binaries (images,
+# fonts, zip) are skipped -- re-compressing them just burns CPU for no gain.
+_COMPRESSIBLE_TYPES = (
+    "text/html", "text/plain", "text/css", "text/javascript",
+    "application/javascript", "application/json", "application/xml",
+    "image/svg+xml",
+)
+# Below this many bytes the gzip framing overhead + round-trip isn't worth it.
+_GZIP_MIN_BYTES = 1024
+
+
+def _maybe_gzip(resp):
+    """gzip a text response in place when the client accepts it -- the biggest transfer win.
+
+    Runs on EVERY response (including the reverse-proxied /d/ dashboards, which _inject_head skips),
+    so the 456 KB atrium shell, the ~1 MB client dashboards, and the data JSON all go over the wire
+    ~85% smaller. No-op for streamed responses, already-encoded bodies, tiny bodies, non-text types,
+    or a client that didn't send Accept-Encoding: gzip."""
+    if resp.direct_passthrough:
+        return resp
+    if resp.headers.get("Content-Encoding"):
+        return resp
+    if "gzip" not in (request.headers.get("Accept-Encoding") or "").lower():
+        return resp
+    ctype = (resp.content_type or "").split(";", 1)[0].strip().lower()
+    if ctype not in _COMPRESSIBLE_TYPES:
+        return resp
+    try:
+        data = resp.get_data()
+    except RuntimeError:                       # streamed / passthrough body -- leave it alone
+        return resp
+    if len(data) < _GZIP_MIN_BYTES:
+        return resp
+    resp.set_data(_gzip.compress(data, compresslevel=6))
+    resp.headers["Content-Encoding"] = "gzip"
+    resp.headers["Content-Length"] = str(len(resp.get_data()))
+    # Caches must key on Accept-Encoding so a gzipped body is never served to a client that can't
+    # decode it (and vice versa).
+    vary = resp.headers.get("Vary", "")
+    if "accept-encoding" not in vary.lower():
+        resp.headers["Vary"] = "%s, Accept-Encoding" % vary if vary else "Accept-Encoding"
+    return resp
+
+
 @app.after_request
+def _finalize_response(resp):
+    """Post-process every response: inject the shared <head> chrome, then gzip it.
+
+    Head injection is skipped for proxied /d/ pages; gzip applies to everything (see _maybe_gzip)."""
+    return _maybe_gzip(_inject_head(resp))
+
+
 def _inject_head(resp):
     """Inject the brand web font (always) + GTM (when GTM_CONTAINER_ID is set) into every HTML page.
 

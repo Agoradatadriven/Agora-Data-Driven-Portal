@@ -243,6 +243,17 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   when env `GTM_CONTAINER_ID` is set — unset = no tag (so local preview stays untracked). GA4 is
   configured INSIDE the container in the GTM UI. The container ID ships from `deploy_dash_platform.ps1`
   (`$GTM_CONTAINER_ID`); reverse-proxied client dashboards (`/d/<c>/`) are skipped.
+- **Response pipeline / performance:** the single `@app.after_request` (`_finalize_response`) runs
+  `_inject_head` (the brand font + GTM + impersonation banner injection above; skips `/d/`) and then
+  `_maybe_gzip`. **gzip** compresses every text response (html/json/js/css/svg/xml ≥1 KB) when the
+  client sends `Accept-Encoding: gzip` — the biggest load-time win, since the atrium shell (~456 KB)
+  and the ~1 MB client dashboards were shipped uncompressed (Cloud Run/gunicorn don't compress). It
+  applies to the proxied `/d/` dashboards too (which `_inject_head` skips), sets `Content-Encoding` +
+  `Vary: Accept-Encoding`, and no-ops on already-encoded/tiny/non-text/streamed responses. The
+  per-client dash (`clients/client_template/dash/main.py`) has the SAME `_maybe_gzip` hook (so direct
+  `<c>.agoradatadriven.com` hits AND the portal→upstream proxy hop are compressed). GCS reads on the
+  request hot path (`store.load_registry`, `workspace._read_object`) do ONE round-trip — download +
+  catch `NotFound` — not the old `exists()`-then-`download()` two-trip pattern.
 
 **Deploy:** `deploy_dash_platform.ps1` (build → `gcloud run deploy platform-dash --no-invoker-iam-check`).
 It mounts the Google sign-in secrets (`google-oauth-client-id` / `google-oauth-client-secret`) ONLY if

@@ -96,10 +96,14 @@ def _read_object(name):
             return None
         with open(path, "rb") as fh:
             return fh.read()
+    # ONE GCS round-trip: download and treat a missing object as None. The old exists()-then-download
+    # did two round-trips on a per-request hot path (every workspace load reads its <c>.json here).
+    from google.cloud.exceptions import NotFound  # lazy: only the GCS backend needs the package
     blob = _gcs_client().bucket(_bucket_name()).blob(name)
-    if not blob.exists():
+    try:
+        return blob.download_as_bytes()
+    except NotFound:
         return None
-    return blob.download_as_bytes()
 
 
 def _write_object(name, data, content_type="application/json"):
