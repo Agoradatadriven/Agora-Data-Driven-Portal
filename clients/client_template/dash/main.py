@@ -15,6 +15,7 @@ dict keys -> the `data.*` keys this app's dashboard.html reads. dashboard.html i
 the image and read relative to __file__ so there is no filesystem dependency at runtime.
 """
 
+import gzip as _gzip
 import hmac
 import os
 
@@ -64,6 +65,45 @@ with open(os.path.join(_HERE, "dashboard.html"), "r", encoding="utf-8") as _fh:
 
 # A single GCS client, reused across requests (it is thread-safe for reads).
 _storage_client = storage.Client()
+
+
+# --- Response compression ----------------------------------------------------------------
+# The dashboard HTML (baked into the image) and the private data JSON are both large text bodies.
+# gzip cuts them ~85% on the wire -- the biggest single load-time win -- and Cloud Run/gunicorn do
+# NOT compress automatically. Applies to direct <c>.agoradatadriven.com hits AND the portal proxy
+# hop (the portal decompresses upstream then re-gzips to the browser).
+_COMPRESSIBLE_TYPES = (
+    "text/html", "text/plain", "text/css", "text/javascript",
+    "application/javascript", "application/json", "application/xml",
+    "image/svg+xml",
+)
+_GZIP_MIN_BYTES = 1024
+
+
+@app.after_request
+def _maybe_gzip(resp):
+    """gzip a text response in place when the client accepts it. No-op for streamed/already-encoded/
+    tiny/non-text responses or a client that didn't send Accept-Encoding: gzip."""
+    if resp.direct_passthrough or resp.headers.get("Content-Encoding"):
+        return resp
+    if "gzip" not in (request.headers.get("Accept-Encoding") or "").lower():
+        return resp
+    ctype = (resp.content_type or "").split(";", 1)[0].strip().lower()
+    if ctype not in _COMPRESSIBLE_TYPES:
+        return resp
+    try:
+        data = resp.get_data()
+    except RuntimeError:
+        return resp
+    if len(data) < _GZIP_MIN_BYTES:
+        return resp
+    resp.set_data(_gzip.compress(data, compresslevel=6))
+    resp.headers["Content-Encoding"] = "gzip"
+    resp.headers["Content-Length"] = str(len(resp.get_data()))
+    vary = resp.headers.get("Vary", "")
+    if "accept-encoding" not in vary.lower():
+        resp.headers["Vary"] = "%s, Accept-Encoding" % vary if vary else "Accept-Encoding"
+    return resp
 
 
 def authed():
