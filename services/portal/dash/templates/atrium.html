@@ -1518,6 +1518,13 @@
     .ax-as-inputrow { display: flex; gap: 10px; align-items: flex-end; border-top: 1px solid var(--ax-line); padding-top: 12px; }
     .ax-as-input { flex: 1 1 auto; resize: vertical; min-height: 44px; }
     .ax-as-send { flex: 0 0 auto; }
+    /* Voice input: dictate into the box via the Web Speech API. Hidden by JS when unsupported. */
+    .ax-as-mic { flex: 0 0 auto; width: 40px; height: 40px; align-self: flex-end; border-radius: 10px;
+      border: 1px solid var(--ax-line); background: var(--ax-canvas); color: var(--ax-sub); font-size: 17px;
+      cursor: pointer; line-height: 1; padding: 0; }
+    .ax-as-mic:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-as-mic.recording { background: #E5413E; border-color: #E5413E; color: #fff; animation: ax-mic-pulse 1.1s ease-in-out infinite; }
+    @keyframes ax-mic-pulse { 50% { box-shadow: 0 0 0 5px rgba(229,65,62,.28); } }
 
     /* ---- Live streaming: a collapsible "thinking" panel, pause/steer controls, plan checkpoint ---- */
     /* The reasoning the model streams before its answer -- a <details> the user can open/close, auto-
@@ -3566,6 +3573,7 @@
             <div class="ax-as-histpanel" id="ax-as-histpanel" hidden></div>
             <div class="ax-as-inputrow">
               <textarea class="ax-editbox ax-as-input" id="ax-as-input" rows="2" placeholder="Ask about campaigns, metrics, market intel, or anything a watched creator has said&hellip;"></textarea>
+              <button class="ax-as-mic" type="button" title="Dictate with your voice" aria-label="Voice input">🎤</button>
               <button class="ax-btn violet ax-as-send" id="ax-as-send" type="button">Ask</button>
             </div>
           </div>
@@ -3660,6 +3668,7 @@
     <div class="ax-as-histpanel" id="ax-asfab-histpanel" hidden></div>
     <div class="ax-as-inputrow">
       <textarea class="ax-editbox ax-as-input" id="ax-asfab-input" rows="2" placeholder="Ask about campaigns, metrics, intel&hellip;"></textarea>
+      <button class="ax-as-mic" type="button" title="Dictate with your voice" aria-label="Voice input">🎤</button>
       <button class="ax-btn violet ax-as-send" id="ax-asfab-send" type="button">Ask</button>
     </div>
   </div>
@@ -5239,6 +5248,36 @@
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askNow(); }
     });
+
+    // ---- Voice input: dictate into the box (Web Speech API; the button hides if unsupported) ------
+    (function () {
+      var micBtn = input.parentNode ? input.parentNode.querySelector(".ax-as-mic") : null;
+      if (!micBtn) { return; }
+      var SpeechCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+      if (!SpeechCtor) { micBtn.style.display = "none"; return; }
+      var recog = null, recording = false, baseText = "";
+      micBtn.addEventListener("click", function () {
+        if (recording) { if (recog) { try { recog.stop(); } catch (e) {} } return; }
+        recog = new SpeechCtor();
+        recog.lang = "en-US"; recog.interimResults = true; recog.continuous = true;
+        baseText = input.value ? input.value.replace(/\s+$/, "") + " " : "";
+        recog.onstart = function () {
+          recording = true; micBtn.classList.add("recording");
+          micBtn.setAttribute("title", "Stop dictation");
+        };
+        recog.onresult = function (e) {
+          var t = "", i;
+          for (i = 0; i < e.results.length; i++) { t += e.results[i][0].transcript; }
+          input.value = baseText + t;
+        };
+        recog.onerror = function () { recording = false; micBtn.classList.remove("recording"); };
+        recog.onend = function () {
+          recording = false; micBtn.classList.remove("recording");
+          micBtn.setAttribute("title", "Dictate with your voice"); input.focus();
+        };
+        try { recog.start(); } catch (err) { recording = false; micBtn.classList.remove("recording"); }
+      });
+    })();
 
     // ---- Conversation history: browse/reopen/delete past chats (server-side, team-shared) --------
     function hideHistory() {
