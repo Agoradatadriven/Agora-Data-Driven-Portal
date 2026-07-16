@@ -236,6 +236,46 @@ def run():
         reranker=lambda q, recs, n: (recs, "rerank error"))
     _check("failing reranker degrades gracefully", err == "" and answer == "ok" and sources)
 
+    # --- Streaming ask: sources first, live thinking+answer deltas, steer injection ---------------
+    seen_prompt = {}
+
+    def _stream_caller(system, user):
+        seen_prompt["system"] = system
+        seen_prompt["user"] = user
+        yield {"type": "thinking", "text": "weighing loyalty vs cold email"}
+        yield {"type": "answer", "text": "Lean on "}
+        yield {"type": "answer", "text": "loyalty."}
+        yield {"type": "usage", "input_tokens": 12, "output_tokens": 5}
+
+    evs = list(assistant_ai.ask_stream(
+        "X", hidx, "how do we keep customers", steer="focus on retention only",
+        query_embedder=lambda q: (_fake_embed([q])[0][0], ""), stream_caller=_stream_caller))
+    types = [e["type"] for e in evs]
+    _check("stream emits sources FIRST, then thinking, answer, usage",
+           types[0] == "sources" and "thinking" in types and "answer" in types and "usage" in types)
+    _check("stream answer deltas assemble the reply",
+           "".join(e["text"] for e in evs if e["type"] == "answer") == "Lean on loyalty.")
+    _check("streaming prompt is plain-markdown (no JSON envelope)",
+           '"answer"' not in seen_prompt["system"] and "markdown" in seen_prompt["system"].lower())
+    _check("the steer is injected into the answer prompt",
+           "focus on retention only" in seen_prompt["user"])
+    empty = list(assistant_ai.ask_stream("X", hidx, "zzqx nomatch qqq",
+                                         stream_caller=_stream_caller))
+    _check("stream with no hits -> a single error event",
+           len(empty) == 1 and empty[0]["type"] == "error")
+
+    # --- Plan checkpoint: returns the sub-questions + sources WITHOUT answering -------------------
+    def _plan_caller(system, user):
+        if "search queries" in system:
+            return ('{"queries": ["loyalty retention", "cold email outreach"]}', "")
+        return ("", "")
+
+    queries, psources = assistant_ai.plan_stage(
+        hidx, "keep customers vs win new ones", depth="deep",
+        query_embedder=lambda q: (_fake_embed([q])[0][0], ""), plan_caller=_plan_caller)
+    _check("plan_stage returns the planned sub-questions + sources",
+           "keep customers vs win new ones" in queries and len(queries) >= 2 and psources)
+
     # --- The route: lazy rebuild, reindex, ask (stubbed), gating ---------------------------------
     main.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False, SESSION_COOKIE_SAMESITE="Lax")
     c = main.app.test_client()
@@ -273,6 +313,33 @@ def run():
            and data["sources"][0]["kind"] == "campaign")
     assistant_ai.ask = real_ask
 
+    # --- The streaming route: SSE frames for the answer stage AND the plan checkpoint ------------
+    real_stream = assistant_ai.ask_stream
+    assistant_ai.ask_stream = lambda name, idx, q, **kw: iter([
+        {"type": "sources", "sources": [{"title": "Carson Reed", "kind": "video", "date": "", "url": ""}]},
+        {"type": "thinking", "text": "considering the transcripts"},
+        {"type": "answer", "text": "Monthly retainers."},
+        {"type": "usage", "input_tokens": 3, "output_tokens": 2},
+    ])
+    r = c.post("/w/%s/admin/assistant/stream" % CLIENT,
+               data={"question": "how to price?", "stage": "answer"})
+    sse = r.get_data(as_text=True)
+    _check("stream route emits SSE content-type", r.mimetype == "text/event-stream")
+    _check("stream route forwards sources/thinking/answer + a priced usage + done",
+           "event: sources" in sse and "event: thinking" in sse and "event: answer" in sse
+           and "event: usage" in sse and "cost_usd" in sse and "event: done" in sse)
+    assistant_ai.ask_stream = real_stream
+
+    real_plan = assistant_ai.plan_stage
+    assistant_ai.plan_stage = lambda idx, q, *a, **kw: (
+        ["price retainers", "cold email"], [{"title": "Carson Reed", "kind": "video", "date": "", "url": ""}])
+    r = c.post("/w/%s/admin/assistant/stream" % CLIENT,
+               data={"question": "compare", "stage": "plan"})
+    sse = r.get_data(as_text=True)
+    _check("plan stage returns plan + sources, no answer",
+           "event: plan" in sse and "event: sources" in sse and "event: answer" not in sse)
+    assistant_ai.plan_stage = real_plan
+
     body = c.get("/w/%s/assistant" % CLIENT).get_data(as_text=True)
     _check("assistant pane renders for the team",
            'data-pane="assistant"' in body and 'id="ax-as-send"' in body)
@@ -289,6 +356,9 @@ def run():
     _check("client POST is forbidden",
            c.post("/w/%s/admin/assistant" % CLIENT,
                   data={"op": "ask", "question": "hi"}).status_code == 403)
+    _check("client streaming POST is forbidden",
+           c.post("/w/%s/admin/assistant/stream" % CLIENT,
+                  data={"question": "hi"}).status_code == 403)
 
 
 if __name__ == "__main__":
