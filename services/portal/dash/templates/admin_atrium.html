@@ -274,6 +274,17 @@
     .modal-actions .btn { margin-top: 0; }
     .modal-actions .btn.danger { background: var(--danger); box-shadow: 0 6px 16px rgba(192,69,59,.24); }
     .modal-actions .btn.danger:hover { background: #a93a31; }
+    .modal-actions .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    /* The reusable confirm modal must sit ABOVE the task-board overlay (.tk-veil = z-index 210),
+       since "Move to Archive" opens it from INSIDE that overlay (otherwise it hides behind it). */
+    #ag-confirm-veil { z-index: 300; }
+    /* Type-to-confirm field inside the reusable confirm modal (window.agConfirm). */
+    .ag-confirm-field { margin: 0 0 20px; text-align: left; }
+    .ag-confirm-field[hidden] { display: none; }
+    .ag-confirm-field label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .ag-confirm-field input { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--line);
+      border-radius: 8px; font: inherit; font-size: 13.5px; letter-spacing: .04em; }
+    .ag-confirm-field input:focus { outline: 0; border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--tint); }
 
     /* ---- Delivery / Task Board (spec: TASK_TRACKER_INTEGRATION.md; look = the approved
        task_tracker_prototype.html, restyled onto the console shell) ---- */
