@@ -381,6 +381,91 @@ def write_assistant_index(client, index):
                   json.dumps(index, sort_keys=True).encode("utf-8"))
 
 
+# The Assistant's saved CONVERSATIONS (team-shared chat history) are ONE private object per client,
+# separate from workspace/<c>.json (they can grow with long transcripts of Q&A). Team-shared: any
+# admin sees the same history for a client. Capped so the object stays small.
+ASSISTANT_MAX_CONVERSATIONS = 60
+ASSISTANT_MAX_TURNS = 60
+
+
+def assistant_conversations_name(client):
+    """Object name for a client's saved Assistant conversations."""
+    return "%sassistant/%s/conversations.json" % (_prefix(), client)
+
+
+def read_assistant_conversations(client):
+    """The stored conversations dict `{"conversations": [...]}` (empty shape when none/corrupt)."""
+    raw = _read_object(assistant_conversations_name(client))
+    if raw is None:
+        return {"conversations": []}
+    try:
+        data = json.loads(raw.decode("utf-8"))
+        return data if isinstance(data, dict) and isinstance(data.get("conversations"), list) \
+            else {"conversations": []}
+    except (ValueError, AttributeError):
+        return {"conversations": []}
+
+
+def _conversation_meta(c):
+    """The list-view fields of a conversation (no turns) -- what history_list returns."""
+    return {"id": c.get("id", ""), "title": c.get("title", "") or "Conversation",
+            "updated": c.get("updated", ""), "created": c.get("created", ""),
+            "turn_count": len(c.get("turns") or [])}
+
+
+def list_assistant_conversations(client):
+    """Metadata for every saved conversation, WITHOUT the turns (small payload). The stored list is
+    kept newest-first by `save_assistant_conversation` (front-insertion), so no re-sort is needed --
+    which also avoids ties when several are saved in the same second."""
+    data = read_assistant_conversations(client)
+    return [_conversation_meta(c) for c in (data.get("conversations") or [])]
+
+
+def get_assistant_conversation(client, conv_id):
+    """One full conversation (with turns) by id, or None."""
+    for c in read_assistant_conversations(client).get("conversations") or []:
+        if c.get("id") == conv_id:
+            return c
+    return None
+
+
+def save_assistant_conversation(client, conv_id, title, turns):
+    """Upsert a conversation by id (create or replace its turns/title/updated). Returns the metadata
+    list (newest first). Turns are capped; the conversation list is capped to the newest N."""
+    if not conv_id:
+        return list_assistant_conversations(client)
+    turns = [{"role": ("user" if (t or {}).get("role") == "user" else "bot"),
+              "text": str((t or {}).get("text") or "")}
+             for t in (turns or [])][-ASSISTANT_MAX_TURNS:]
+    data = read_assistant_conversations(client)
+    convs = data.get("conversations") or []
+    now = now_iso()
+    title = (title or "").strip()[:120] or "Conversation"
+    created = now
+    for c in convs:                       # preserve the original created stamp on an upsert
+        if c.get("id") == conv_id:
+            created = c.get("created") or now
+            break
+    rest = [c for c in convs if c.get("id") != conv_id]
+    # Front-insert (newest first, deterministic regardless of same-second timestamps), then cap.
+    convs = ([{"id": conv_id, "title": title, "turns": turns, "created": created, "updated": now}]
+             + rest)[:ASSISTANT_MAX_CONVERSATIONS]
+    data["conversations"] = convs
+    _write_object(assistant_conversations_name(client),
+                  json.dumps(data).encode("utf-8"))
+    return list_assistant_conversations(client)
+
+
+def delete_assistant_conversation(client, conv_id):
+    """Remove a saved conversation by id. Returns the remaining metadata list."""
+    data = read_assistant_conversations(client)
+    data["conversations"] = [c for c in (data.get("conversations") or [])
+                             if c.get("id") != conv_id]
+    _write_object(assistant_conversations_name(client),
+                  json.dumps(data).encode("utf-8"))
+    return list_assistant_conversations(client)
+
+
 # --- Mail (team-only tab: client email archive + AI digest) --------------------------------------
 # Two layers, mirroring the Watcher posture exactly:
 #   * The GLOBAL mailbox registry (which agency mailboxes are connected, agency-wide -- NOT

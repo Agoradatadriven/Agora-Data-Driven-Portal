@@ -2737,6 +2737,34 @@ def atrium_admin_assistant(client):
         _audit(client, "asked the assistant", question[:80])
         return jsonify(ok=True, answer=answer, sources=sources, usage=usage, totals=totals)
 
+    # --- Conversation history (team-shared, server-side; new sessions still start fresh) ----------
+    if op == "history_list":
+        return jsonify(ok=True, conversations=workspace.list_assistant_conversations(client))
+
+    if op == "history_get":
+        conv = workspace.get_assistant_conversation(client, request.form.get("conv_id", "").strip())
+        if conv is None:
+            return jsonify(ok=False, message="That conversation is no longer available.")
+        return jsonify(ok=True, conversation=conv)
+
+    if op == "history_save":
+        conv_id = request.form.get("conv_id", "").strip()
+        if not conv_id:
+            return jsonify(ok=False, message="Missing conversation id.")
+        try:
+            turns = json.loads(request.form.get("turns", "") or "[]")
+        except ValueError:
+            turns = []
+        convs = workspace.save_assistant_conversation(
+            client, conv_id, request.form.get("title", ""),
+            turns if isinstance(turns, list) else [])
+        return jsonify(ok=True, conversations=convs)
+
+    if op == "history_delete":
+        convs = workspace.delete_assistant_conversation(client, request.form.get("conv_id", "").strip())
+        _audit(client, "deleted an assistant conversation", "")
+        return jsonify(ok=True, conversations=convs)
+
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 
 

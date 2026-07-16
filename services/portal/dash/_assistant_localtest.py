@@ -360,6 +360,53 @@ def run():
            c.post("/w/%s/admin/assistant/stream" % CLIENT,
                   data={"question": "hi"}).status_code == 403)
 
+    # --- Conversation history: server-side team-shared save/list/get/delete -----------------------
+    # workspace layer: upsert by id, newest-first, turns/list caps.
+    workspace.save_assistant_conversation(CLIENT, "cv1", "Pricing chat",
+                                          [{"role": "user", "text": "how to price?"},
+                                           {"role": "bot", "text": "Monthly retainers."}])
+    workspace.save_assistant_conversation(CLIENT, "cv2", "Campaigns chat",
+                                          [{"role": "user", "text": "what campaigns?"}])
+    lst = workspace.list_assistant_conversations(CLIENT)
+    _check("history list returns both, newest first, without turns",
+           len(lst) == 2 and lst[0]["id"] == "cv2" and "turns" not in lst[0]
+           and lst[0]["turn_count"] == 1)
+    workspace.save_assistant_conversation(CLIENT, "cv1", "Pricing chat v2",
+                                          [{"role": "user", "text": "how to price?"},
+                                           {"role": "bot", "text": "Monthly retainers."},
+                                           {"role": "user", "text": "and support?"}])
+    _check("saving same id UPSERTS (no duplicate) + bumps it to newest",
+           len(workspace.list_assistant_conversations(CLIENT)) == 2
+           and workspace.list_assistant_conversations(CLIENT)[0]["id"] == "cv1")
+    got = workspace.get_assistant_conversation(CLIENT, "cv1")
+    _check("get returns the full turns", got and len(got["turns"]) == 3
+           and got["title"] == "Pricing chat v2")
+    workspace.delete_assistant_conversation(CLIENT, "cv2")
+    _check("delete removes just that conversation",
+           [x["id"] for x in workspace.list_assistant_conversations(CLIENT)] == ["cv1"])
+
+    # route ops (as the team; client is still logged in as CLIENT here -> must be forbidden first).
+    _check("client history POST is forbidden",
+           c.post("/w/%s/admin/assistant" % CLIENT,
+                  data={"op": "history_list"}).status_code == 403)
+    with c.session_transaction() as s:
+        s.clear(); s.update(SUPER)
+    r = c.post("/w/%s/admin/assistant" % CLIENT,
+               data={"op": "history_save", "conv_id": "cv3", "title": "Route saved",
+                     "turns": '[{"role":"user","text":"hi"},{"role":"bot","text":"hello"}]'})
+    _check("op=history_save persists + returns the list",
+           r.get_json()["ok"] is True
+           and any(x["id"] == "cv3" for x in r.get_json()["conversations"]))
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "history_get", "conv_id": "cv3"})
+    _check("op=history_get returns the turns",
+           r.get_json()["ok"] is True and len(r.get_json()["conversation"]["turns"]) == 2)
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "history_get", "conv_id": "nope"})
+    _check("op=history_get on a missing id -> friendly not-ok", r.get_json()["ok"] is False)
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "history_delete", "conv_id": "cv3"})
+    _check("op=history_delete removes it",
+           r.get_json()["ok"] is True
+           and not any(x["id"] == "cv3" for x in r.get_json()["conversations"]))
+
 
 if __name__ == "__main__":
     try:
