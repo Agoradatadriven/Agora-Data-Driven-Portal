@@ -3437,9 +3437,9 @@
                 {% endif %}
                 <button class="ax-btn" type="button" data-wtdelete="{{ ch.id }}" data-wtname="{{ ch.title }}">Remove</button>
               </div>
-              <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" {% if not ch.safe_queued %}hidden{% endif %}>
+              <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" {% if ch.safe_queued %}data-safe-queued="1"{% endif %} {% if not ch.safe_queued %}hidden{% endif %}>
                 <div class="ax-wt-bar" {% if ch.safe_queued %}hidden{% endif %}><span></span></div>
-                <div class="ax-wt-ptext">{% if ch.safe_queued %}Safe pull queued — the safe scraper fetches these slowly from a home IP (no rate-limits). Transcripts land here automatically; check back later.{% endif %}</div>
+                <div class="ax-wt-ptext">{% if ch.safe_queued %}Safe pull queued — checking the scraper’s progress…{% endif %}</div>
               </div>
 
               <div class="ax-wt-recent">
@@ -4208,7 +4208,103 @@
 
     // Safe pull: queue the channel for the LOCAL safe scraper (slow home-IP pacing, never
     // rate-limited). The scheduled task on the scrape machine picks the queue up within minutes;
-    // transcripts sync back on their own, so this just confirms and leaves a note.
+    // transcripts sync back on their own. After queuing we poll /watcher/safe-pull-status so the
+    // card shows LIVE progress (what it's fetching now, rate-limit cooldowns, counts) instead of a
+    // static "check back later".
+    // ---- Live Safe-pull status poller (one poll for the whole tab, updates every queued card) ----
+    function agoWords(secs) {
+      if (secs === null || secs === undefined) { return ""; }
+      if (secs < 45) { return "just now"; }
+      if (secs < 3600) { return Math.round(secs / 60) + " min ago"; }
+      if (secs < 86400) { return Math.round(secs / 3600) + " hr ago"; }
+      return Math.round(secs / 86400) + " d ago";
+    }
+    // A human sentence for one queued channel from the status payload. `stillQueued` is false once
+    // the scraper has cleared it from the queue (i.e. the channel is done).
+    function safePullSentence(ch, agent, cid, stillQueued) {
+      var done = ch.done || 0, total = ch.total || 0, pending = ch.pending || 0, failed = ch.failed || 0;
+      var prog = done + " of " + total + " transcripts";
+      if (!stillQueued || ch.complete) {
+        var tail = failed ? (" (" + failed + " have no captions)") : "";
+        return "Safe pull complete ✓ — " + done + " transcripts ready" + tail + ". Reload the page to read them.";
+      }
+      var onThis = agent && agent.active && agent.on_this_client && agent.channel_id === cid;
+      if (onThis && agent.phase === "cooldown") {
+        var mins = Math.max(1, Math.ceil((agent.cooldown_seconds || 0) / 60));
+        return "⏳ YouTube rate-limited the scraper — cooling down ~" + mins + " min, then it resumes automatically. " + prog + " so far.";
+      }
+      if (onThis && agent.phase === "fetching") {
+        var now = agent.current_video ? ("“" + agent.current_video + "”") : "the next video";
+        return "▶ Fetching now: " + now + " — " + prog + ", " + pending + " to go (safe pace ~15s/video to avoid blocks).";
+      }
+      if (onThis) {
+        return "▶ Working through this channel — " + prog + ", " + pending + " to go.";
+      }
+      if (agent && agent.active) {
+        return "Scraper is busy on another channel right now — this one is next in line. " + prog + " so far, " + pending + " to go.";
+      }
+      if (agent && agent.present) {
+        return "Scraper idle (last active " + agoWords(agent.seconds_ago) + "). It runs every ~5 min from a home IP. " + prog + " so far, " + pending + " to go.";
+      }
+      return "Queued for the safe scraper — it runs every ~5 min from a home IP (no rate-limits). " + prog + " so far. If nothing moves for a while, the scrape agent may not be running on the office machine.";
+    }
+    var safePollTimer = null, safePollBusy = false, safePullReloaded = false;
+    function renderSafeCard(cid, ch, agent, stillQueued) {
+      var wrap = document.querySelector('[data-wtprogress="' + aq(cid) + '"]');
+      if (!wrap) { return; }
+      wrap.hidden = false;
+      var bar = wrap.querySelector(".ax-wt-bar");
+      var barSpan = bar ? bar.querySelector("span") : null;
+      var ptext = wrap.querySelector(".ax-wt-ptext");
+      if (bar) { bar.hidden = false; }
+      if (barSpan && ch.total > 0) {
+        barSpan.style.width = Math.round(((ch.done + ch.failed) / ch.total) * 100) + "%";
+      }
+      if (ptext) { ptext.textContent = safePullSentence(ch, agent, cid, stillQueued); }
+    }
+    function safePollTick() {
+      if (safePollBusy) { return; }
+      safePollBusy = true;
+      fetch(base + "/watcher/safe-pull-status", { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          safePollBusy = false;
+          if (!data || data.ok === false) { return; }
+          var queued = data.queued || [];
+          var agent = data.agent || {};
+          var channels = data.channels || {};
+          // Update every card we're tracking (rendered as safe-queued OR still in the queue).
+          var tracked = {};
+          qsa('[data-wtprogress][data-safe-queued="1"]').forEach(function (w) {
+            tracked[w.getAttribute("data-wtprogress")] = true;
+          });
+          queued.forEach(function (cid) { tracked[cid] = true; });
+          var anyCompleted = false, anyActive = false;
+          var cid;
+          for (cid in tracked) {
+            if (!tracked.hasOwnProperty(cid)) { continue; }
+            var stillQueued = queued.indexOf(cid) !== -1;
+            var ch = channels[cid] || { done: 0, total: 0, pending: 0, failed: 0, complete: false };
+            renderSafeCard(cid, ch, agent, stillQueued);
+            if (stillQueued) { anyActive = true; } else { anyCompleted = true; }
+          }
+          // A channel that dropped out of the queue is finished; refresh once so its transcripts
+          // become readable in the grid (non-disruptive: only when nothing is left in flight).
+          if (anyCompleted && !anyActive && !safePullReloaded) {
+            safePullReloaded = true;
+            setTimeout(function () { window.location.reload(); }, 4000);
+          }
+          if (anyActive) { safePollTimer = setTimeout(safePollTick, 12000); }
+        })
+        .catch(function () {
+          safePollBusy = false;
+          safePollTimer = setTimeout(safePollTick, 20000);  // network blip: back off, keep trying
+        });
+    }
+    function startSafePoll() {
+      if (safePollTimer) { return; }  // already polling
+      safePollTimer = setTimeout(safePollTick, 1);
+    }
     qsa("[data-wtsafe]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var chan = btn.getAttribute("data-wtsafe");
@@ -4226,10 +4322,12 @@
               return;
             }
             btn.textContent = "Safe pull queued ✓";
-            if (ptext) {
+            if (wrap) {
               wrap.hidden = false;
-              ptext.textContent = "Safe pull queued — the safe scraper fetches these slowly from a home IP (no rate-limits). Transcripts land here automatically; check back later.";
+              wrap.setAttribute("data-safe-queued", "1");
             }
+            if (ptext) { ptext.textContent = "Safe pull queued — checking the scraper’s progress…"; }
+            startSafePoll();  // begin live status updates immediately
           })
           .catch(function () {
             btn.removeAttribute("disabled");
@@ -4240,6 +4338,8 @@
           });
       });
     });
+    // If any channel was already queued when the tab loaded, start polling straight away.
+    if (qsa('[data-wtprogress][data-safe-queued="1"]').length) { startSafePoll(); }
 
     qsa("[data-wtrefresh]").forEach(function (btn) {
       btn.addEventListener("click", function () {

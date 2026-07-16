@@ -74,10 +74,14 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   transcripts in its own `workspace/watcher/<c>/<id>.json` object. `POST /w/<c>/admin/watcher`
   (op add|add_video|fetch|safe_pull|refresh|meta|label|delete; fetch = MISSING-only batches of 8, page JS
   loops it; a rate-limit reports `blocked` and never marks videos failed) +
-  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards).
+  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards) +
+  `GET /w/<c>/watcher/safe-pull-status` (live Safe-pull progress the tab polls; see Safe pull below).
   **Single-video scraper (`op=add_video`):** paste ONE video link → `watcher.resolve_video`
   (`extract_video_id` handles watch/youtu.be/shorts/embed/live + a bare id; keyless oEmbed for the
-  title) → fetch transcript inline → save under the per-client "Saved videos" pseudo-channel
+  title, then a watch-page `og:title` scrape via `_scrape_video_meta` when oEmbed 401s — lots of
+  videos block oEmbed but still carry a real title, so the archive shows the actual name, not
+  "Video <id>"; re-adding heals an entry that saved before a title resolved) → fetch transcript
+  inline → save under the per-client "Saved videos" pseudo-channel
   (`workspace.ensure_loose_channel`, marked `loose`, `channel_id=""`); the response carries the
   transcript so the reader pops immediately (the tab's 2nd add-card; on success it reloads + auto-
   opens the modal). A rate-limit saves the video pending + reports `blocked` (Fetch missing / Safe
@@ -91,7 +95,16 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   machine's scheduled task (`install_safe_pull_task.ps1` → `safe_pull_agent.vbs`, 5-min tick,
   hidden) runs `safe_scrape_local.py --queue` — slow residential-IP scrape (12–20s pacing,
   5→60 min ladder, %TEMP% PID lock, syncs to the bucket every 5 transcripts, clears the queue
-  entry per finished channel; no args = full sweep). Test: `python _watcher_localtest.py`.
+  entry per finished channel; no args = full sweep). **Why it's slow (by design):** up to a 5-min
+  wait for the next scheduled tick + ~15s/video pacing + a 5→60 min cooldown on any YouTube
+  rate-limit — deliberately gentle so the home IP never gets blocked. **Live status:** the scraper
+  writes ONE global heartbeat object `workspace/watcher_safe_pull_status.json` per video (phase /
+  current video / done-total / cooldown-until; `write_status` in `safe_scrape_local.py`, read by
+  `workspace.read_safe_pull_status`). `GET /w/<c>/watcher/safe-pull-status` (team-only) fuses that
+  heartbeat with the queued channels' registry counts; the Watcher tab polls it every ~12s while a
+  card is queued and shows what's happening ("Fetching now: …", "cooling down ~10 min", "idle, last
+  active 3 min ago", counts + a progress bar) instead of a static "check back later", auto-refreshing
+  once a channel clears the queue. Test: `python _watcher_localtest.py`.
 - **`assistant_ai.py`** — the team-only Assistant tab: RAG chat over EVERY workspace source
   (watcher transcripts, intel, campaigns/content, metrics, calendar, conversations, health, plus
   the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Index stored as

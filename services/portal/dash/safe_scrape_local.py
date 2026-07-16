@@ -25,6 +25,7 @@ Launch detached (survives closing the session that started it):
       CommandLine = 'cmd /c ""<python>" -u "<this script>" > "%TEMP%\\watcher_safe_scrape\\run.log" 2>&1"' }
 """
 
+import datetime
 import io
 import json
 import os
@@ -44,6 +45,11 @@ TMP = os.path.join(tempfile.gettempdir(), "watcher_safe_scrape")
 os.makedirs(TMP, exist_ok=True)
 BUCKET = "gs://agora-data-driven-platform-dash"
 LOCK = os.path.join(TMP, "scrape.lock")
+# ONE global heartbeat object the Watcher tab polls for live Safe-pull progress (see
+# workspace.read_safe_pull_status + the /watcher/safe-pull-status route). Best-effort: a failed
+# write never interrupts a scrape.
+STATUS_GS = "%s/workspace/watcher_safe_pull_status.json" % BUCKET
+MODE = "full"  # set to "queue" in main() when serving the Safe-pull queue
 
 # The platform-dash bucket is owned by the agora-data-driven project and is NOT visible to
 # ian@100.digital. gcloud's ambient active account flips between Agora tasks, so relying on it
@@ -59,6 +65,36 @@ SYNC_EVERY = 5
 
 def log(msg):
     print("[%s] %s" % (time.strftime("%m-%d %H:%M:%S"), msg), flush=True)
+
+
+def _iso_in(seconds):
+    """now + `seconds`, as an ISO-8601 'Z' stamp (matches workspace.now_iso's shape)."""
+    t = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)
+    return t.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _counts(videos):
+    """(done, pending, total) for a video list -- transcripts / still-missing / all."""
+    done = sum(1 for v in videos if v.get("transcript"))
+    pending = sum(1 for v in videos if not v.get("transcript") and not v.get("error"))
+    return done, pending, len(videos)
+
+
+def write_status(**fields):
+    """Upload the live-progress heartbeat (best-effort; a failure is logged, never fatal).
+
+    Written per video at scrape pace so the Watcher tab can show what's happening right now.
+    `updated`/`pid`/`mode` are always stamped; callers pass phase + client/channel/counts/etc.
+    """
+    try:
+        base = {"updated": now_iso(), "pid": os.getpid(), "mode": MODE,
+                "client": "", "channel_id": "", "channel_title": "", "current_video": "",
+                "phase": "", "done": 0, "pending": 0, "total": 0, "fetched_this_run": 0,
+                "cooldown_until": ""}
+        base.update(fields)
+        gcs_upload_json(base, STATUS_GS, "safe_pull_status.json")
+    except Exception as exc:  # a heartbeat must never sink a scrape
+        log("  (status heartbeat failed: %s)" % exc)
 
 
 def _pid_alive(pid):
@@ -143,6 +179,15 @@ def sync(client, channel, videos):
         % (channel.get("title", "?"), sum(1 for v in videos if v.get("transcript")), len(videos)))
 
 
+def _status_for(client, channel, videos, phase, current_video="", fetched_here=0, cooldown_until=""):
+    """Emit one heartbeat for `channel` with fresh counts (keeps the per-video call sites short)."""
+    done, pending, total = _counts(videos)
+    write_status(phase=phase, client=client, channel_id=channel.get("id", ""),
+                 channel_title=channel.get("title", ""), current_video=current_video,
+                 done=done, pending=pending, total=total, fetched_this_run=fetched_here,
+                 cooldown_until=cooldown_until)
+
+
 def scrape_channel(client, channel):
     arch_gs = "%s/workspace/watcher/%s/%s.json" % (BUCKET, client, channel["id"])
     videos = gcs_download_json(arch_gs, "in_%s.json" % channel["id"]).get("videos") or []
@@ -152,16 +197,22 @@ def scrape_channel(client, channel):
            sum(1 for v in videos if v.get("transcript")), len(pending)))
     if not pending:
         return 0
+    _status_for(client, channel, videos, "channel")
     fetched_here, new_since_sync, cool_step = 0, 0, 0
     for v in videos:
         if v.get("transcript") or v.get("error"):
             continue
+        # Heartbeat BEFORE the fetch so the tab shows the title we're pulling right now.
+        _status_for(client, channel, videos, "fetching", current_video=v.get("title", ""),
+                    fetched_here=fetched_here)
         while True:
             result = watcher.fetch_transcript(v["id"])
             if not result["ok"] and "rate-limiting" in result["error"]:
                 wait = COOLDOWNS[min(cool_step, len(COOLDOWNS) - 1)]
                 cool_step += 1
                 log("  throttled -- cooling down %d min (video: %s)" % (wait // 60, v["title"][:48]))
+                _status_for(client, channel, videos, "cooldown", current_video=v.get("title", ""),
+                            fetched_here=fetched_here, cooldown_until=_iso_in(wait))
                 if new_since_sync:
                     sync(client, channel, videos)
                     new_since_sync = 0
@@ -239,8 +290,10 @@ def run_all(clients):
 
 
 def main():
+    global MODE
     args = [a.strip() for a in sys.argv[1:] if a.strip()]
     queue_mode = "--queue" in args
+    MODE = "queue" if queue_mode else "full"
     clients = [a for a in args if not a.startswith("--")]
     if not acquire_lock():
         log("another safe scrape is already running -- exiting")

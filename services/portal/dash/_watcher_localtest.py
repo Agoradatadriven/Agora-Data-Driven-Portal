@@ -128,8 +128,18 @@ def run():
     _check("resolve_video reads oEmbed title/author",
            rv["ok"] and rv["video_id"] == "dQw4w9WgXcQ" and rv["title"] == "A & B talk"
            and rv["url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    # oEmbed 401s (embedding-restricted) but the watch page still carries the real title -> scrape it.
+    def _oembed_401_page_ok(url):
+        if "/oembed" in url:
+            raise IOError("401")
+        return ('<meta property="og:title" content="Learn Email Marketing in 39 Minutes!">'
+                '"ownerChannelName":"Alex Hormozi"')
+    rv = watcher.resolve_video("pLhQOYMGa88", fetcher=_oembed_401_page_ok)
+    _check("resolve_video falls back to watch-page og:title when oEmbed fails",
+           rv["ok"] and rv["title"] == "Learn Email Marketing in 39 Minutes!"
+           and rv["author"] == "Alex Hormozi")
     rv = watcher.resolve_video("dQw4w9WgXcQ", fetcher=lambda url: (_ for _ in ()).throw(IOError()))
-    _check("resolve_video degrades to id title when oEmbed fails",
+    _check("resolve_video degrades to id title when both oEmbed and the page fail",
            rv["ok"] and rv["title"] == "Video dQw4w9WgXcQ")
     _check("resolve_video rejects a non-video link",
            watcher.resolve_video("https://example.com/foo")["ok"] is False)
@@ -345,6 +355,27 @@ def run():
     body = c.get("/w/%s/watcher" % CLIENT).get_data(as_text=True)
     _check("queued card renders the Safe-pull note", "Safe pull queued" in body)
 
+    # --- Live Safe-pull status: queued counts + the local scraper's heartbeat --------------------
+    st = c.get("/w/%s/watcher/safe-pull-status" % CLIENT).get_json()
+    _check("safe-pull-status lists the queued channel with counts",
+           st["ok"] and st["queued"] == [chan] and chan in st["channels"]
+           and "done" in st["channels"][chan] and "total" in st["channels"][chan])
+    _check("safe-pull-status agent absent before the scraper ever runs",
+           st["agent"]["present"] is False and st["agent"]["active"] is False)
+    # Simulate a fresh heartbeat from the local scraper fetching THIS channel right now.
+    import json as _json
+    workspace._write_object(workspace.safe_pull_status_name(), _json.dumps({
+        "updated": workspace.now_iso(), "mode": "queue", "phase": "fetching", "client": CLIENT,
+        "channel_id": chan, "channel_title": "Data With Dana", "current_video": "How to model churn",
+        "done": 2, "pending": 3, "total": 5, "cooldown_until": "",
+    }).encode("utf-8"))
+    st = c.get("/w/%s/watcher/safe-pull-status" % CLIENT).get_json()
+    _check("safe-pull-status reflects a live scraper heartbeat",
+           st["agent"]["active"] is True and st["agent"]["on_this_client"] is True
+           and st["agent"]["phase"] == "fetching"
+           and st["agent"]["current_video"] == "How to model churn")
+    workspace._delete_object(workspace.safe_pull_status_name())
+
     # --- Team-only gating: a client must never see or touch Watcher ------------------------------
     with c.session_transaction() as s:
         s.clear()
@@ -357,6 +388,8 @@ def run():
                   data={"op": "delete", "channel_id": chan}).status_code == 403)
     _check("client transcript GET is forbidden",
            c.get("/w/%s/watcher/video/%s/vid00000001" % (CLIENT, chan)).status_code == 403)
+    _check("client safe-pull-status GET is forbidden",
+           c.get("/w/%s/watcher/safe-pull-status" % CLIENT).status_code == 403)
 
     with c.session_transaction() as s:
         s.clear()

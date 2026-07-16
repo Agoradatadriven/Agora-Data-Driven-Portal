@@ -141,10 +141,13 @@ def extract_video_id(url):
 def resolve_video(url, fetcher=None):
     """Resolve a SINGLE video link to {ok, video_id, title, author, url, error}.
 
-    Reads the title/author from YouTube's keyless oEmbed endpoint; that lookup is best-effort, so a
-    private/removed video (oEmbed 401/404) or a network hiccup still resolves -- the title just
-    falls back to the id and the transcript fetch decides the real outcome. Only an unparseable link
-    fails here."""
+    Tries YouTube's keyless oEmbed endpoint first (cleanest title + author), then FALLS BACK to
+    scraping the watch page's own metadata (og:title + channel name) when oEmbed gives nothing --
+    lots of videos 401 on oEmbed (embedding-restricted) while their watch page still carries a
+    perfectly good title, so the page scrape is what keeps the archive from showing "Video <id>".
+    Both lookups are best-effort: a private/removed video or a datacenter-IP block still resolves,
+    the title just falls back to the id and the transcript fetch decides the real outcome. Only an
+    unparseable link fails here."""
     fetcher = fetcher or _http_get
     video_id = extract_video_id(url)
     if not video_id:
@@ -158,9 +161,30 @@ def resolve_video(url, fetcher=None):
         title = _unescape((meta.get("title") or "").strip())
         author = _unescape((meta.get("author_name") or "").strip())
     except Exception:
-        pass  # title/author are a nicety; the transcript is what the operator is after
+        pass  # oEmbed is best-effort (many videos 401 here); the page scrape below is the backstop
+    if not title:
+        page_title, page_author = _scrape_video_meta(watch_url, fetcher)
+        title, author = title or page_title, author or page_author
     return {"ok": True, "video_id": video_id, "title": title or ("Video " + video_id),
             "author": author, "url": watch_url, "error": ""}
+
+
+def _scrape_video_meta(watch_url, fetcher):
+    """(title, author) read from a watch page's HTML metadata; ('', '') if unreachable.
+
+    The video's real title is its og:title (same tag resolve_channel reads); the channel name comes
+    from the page's ownerChannelName, with itemprop/author fallbacks. Best-effort -- a block or a
+    network hiccup just yields empties, so the caller keeps the id fallback."""
+    try:
+        html = fetcher(watch_url) or ""
+    except Exception:
+        return "", ""
+    t = re.search(r'<meta property="og:title" content="([^"]*)"', html)
+    a = (re.search(r'"ownerChannelName"\s*:\s*"([^"]+)"', html)
+         or re.search(r'<link itemprop="name" content="([^"]+)"', html)
+         or re.search(r'"author"\s*:\s*"([^"]+)"', html))
+    return (_unescape(t.group(1)) if t else "",
+            _unescape(a.group(1)) if a else "")
 
 
 def list_videos(channel_id, poster=None):

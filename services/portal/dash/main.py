@@ -2453,12 +2453,15 @@ def atrium_admin_watcher(client):
         videos = workspace.read_watcher_videos(client, channel["id"])
         entry = next((v for v in videos if v.get("id") == info["video_id"]), None)
         already = entry is not None
+        fallback_title = "Video " + info["video_id"]
         if entry is None:
             entry = {"id": info["video_id"], "title": info["title"], "url": info["url"],
                      "transcript": "", "language": "", "generated": False,
                      "error": "", "permanent": False, "fetched_at": "",
                      "published_text": "", "published": ""}
             videos.insert(0, entry)
+        elif info["title"] != fallback_title and (not entry.get("title") or entry["title"] == fallback_title):
+            entry["title"] = info["title"]  # heal a video saved before oEmbed/page scrape got a title
         # Fetch inline. A rate-limit is a session condition (not a fact about the video): leave the
         # entry pending so Fetch missing / Safe pull can finish it later, exactly like a channel.
         result = watcher.fetch_transcript(info["video_id"])
@@ -2563,6 +2566,91 @@ def atrium_admin_watcher(client):
         return jsonify(ok=True)
 
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
+
+
+def _parse_iso(ts):
+    """Parse an ISO-8601 stamp (trailing Z ok) to an aware datetime, or None."""
+    try:
+        return datetime.datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _seconds_since(ts):
+    """Whole seconds between `ts` and now (>=0), or None when `ts` is unparseable."""
+    dt = _parse_iso(ts)
+    if dt is None:
+        return None
+    return max(0, int((datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds()))
+
+
+def _seconds_until(ts):
+    """Whole seconds from now until `ts` (0 if past/unparseable)."""
+    dt = _parse_iso(ts)
+    if dt is None:
+        return 0
+    return max(0, int((dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+
+
+# The safe scraper is considered "live" if its last heartbeat is this fresh (it writes one per
+# video at ~12-20s pacing, so a 3-min window comfortably covers a fetch + cooldown-onset gap).
+_SAFE_PULL_LIVE_SECONDS = 180
+
+
+def _safe_pull_agent_view(status, client):
+    """Shape the local scraper's raw heartbeat into what the status route returns: is it live right
+    now, what is it fetching, is it cooling down, and (if idle) how long since it last worked."""
+    if not status or not status.get("updated"):
+        return {"present": False, "active": False}
+    secs = _seconds_since(status.get("updated", ""))
+    return {
+        "present": True,
+        "active": secs is not None and secs < _SAFE_PULL_LIVE_SECONDS,
+        "seconds_ago": secs,
+        "phase": status.get("phase", ""),
+        "mode": status.get("mode", ""),
+        "on_this_client": status.get("client", "") == client,
+        "channel_id": status.get("channel_id", ""),
+        "channel_title": status.get("channel_title", ""),
+        "current_video": status.get("current_video", ""),
+        "cooldown_seconds": _seconds_until(status.get("cooldown_until", "")),
+        "fetched_this_run": status.get("fetched_this_run", 0),
+    }
+
+
+@app.route("/w/<client>/watcher/safe-pull-status", methods=["GET"])
+def atrium_watcher_safe_pull_status(client):
+    """Live Safe-pull progress for the Watcher tab (team-only), polled while a card is queued.
+
+    Combines two facts the queued card needs: the per-channel transcript counts (synced back to the
+    registry by the scraper every few transcripts) and the scraper's own heartbeat (what it is
+    fetching right now, whether it is cooling down after a rate-limit, or how long since it last ran).
+    A channel that has dropped out of the queue is reported `complete` so the poller can stop.
+    """
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    queued = workspace.watcher_safe_pull_queue(ws)
+    channels = {}
+    for cid in queued:
+        ch = workspace.find_watcher_channel(ws, cid)
+        if ch is None:
+            continue
+        total = int(ch.get("video_count", 0) or 0)
+        done = int(ch.get("transcript_count", 0) or 0)
+        failed = int(ch.get("failed_count", 0) or 0)
+        channels[cid] = {
+            "title": ch.get("title", ""),
+            "done": done, "total": total, "failed": failed,
+            "pending": max(0, total - done - failed),
+            "last_fetch": ch.get("last_fetch", ""),
+            "complete": total > 0 and (done + failed) >= total,
+        }
+    agent = _safe_pull_agent_view(workspace.read_safe_pull_status(), client)
+    return jsonify(ok=True, queued=queued, channels=channels, agent=agent)
 
 
 # --- Assistant (team-only tab: RAG chat over EVERY workspace source) -----------------------------
