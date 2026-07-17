@@ -23,9 +23,22 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   trust a Google login identically. Authorization-code flow, confidential client, **no new dependency**
   (token exchange via `requests`; the id_token came over TLS so we decode it + re-check iss/aud/exp/
   email_verified, no JWKS). OFF unless `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` are set (login page hides the
-  button; routes fall back to password). An **unknown** email is routed to `request_access.html` -> `POST
-  /auth/request-access` files a **passwordless pending** account that lands in the console's Access
-  requests tab. Redirect URI: `${PORTAL_BASE_URL}/auth/google/callback` (or `GOOGLE_OAUTH_REDIRECT_URI`).
+  button; routes fall back to password). Redirect URI: `${PORTAL_BASE_URL}/auth/google/callback` (or
+  `GOOGLE_OAUTH_REDIRECT_URI`).
+  - **Authorization = `_resolve_login_email` (main.py), resolve order:** THE super admin -> `["*"]`;
+    an **active portal account** (`store.resolve_google_login`) -> its client keys; else **defer to
+    Sentinel** — `sentinel_directory.is_active_user(email)` asks Sentinel (the source of truth for
+    staff) whether the email is an active user and, if so, authorizes them with `[]` (a valid session
+    + `ag_sso`, no client dashboards). So **adding someone in Sentinel (People -> Add Employee) is all
+    it takes to enable their Google login**, with no copy duplicated into `platform.json`; deactivating
+    them in Sentinel blocks it immediately. A grant may legitimately be `[]`, so the callback tests
+    `granted is None` (authorized nowhere -> `request_access.html` / `POST /auth/request-access` files a
+    **passwordless pending** account in the console's Access-requests tab), NOT falsiness.
+  - **`sentinel_directory.py`** is the client: it HMAC-signs `"user-lookup:{ts}"` with `SSO_SECRET`
+    (the shared `platform-sso-key`) and GETs `${SENTINEL_API_URL||SENTINEL_URL sans /login}/api/internal/
+    user-lookup`. Same HMAC pattern the mastery engine uses against `/api/internal/people`; **no new
+    secret**. Best-effort + gated: unset secret/URL, a non-200, a timeout, or an outage all return
+    `None` (login falls through to its old behavior) so a Sentinel outage can never break portal login.
 - **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a **Home hub + focused console**
   (Concept B, see `ATRIUM_CONSOLE_REDESIGN_PLAN.md`), styled to the website design system (green
   `#4FA84A` primary + purple `#6A6AEA` informational). A fresh visit lands on the branded **Home hub**

@@ -53,6 +53,7 @@ import intel_ai
 import intel_refresh
 import notify
 import platform_sso
+import sentinel_directory
 import store
 import sync_dash
 import workspace
@@ -248,12 +249,24 @@ def is_root_admin():
 
 
 def _resolve_login_email(email):
-    """Client keys a VERIFIED email may open, or None if there's no active account for it.
+    """Client keys a VERIFIED email may open, or None if the email is authorized nowhere.
 
     Used by the Google sign-in callback and by 'stop impersonating' to re-derive a real identity's
-    grant. THE super admin (SUPER_ADMIN_EMAIL) always resolves to "*"; everyone else is looked up in
-    the accounts registry (active only). None means "no account yet" -> route to request-access."""
-    return store.resolve_google_login(email, super_admin_email=SUPER_ADMIN_EMAIL)
+    grant. Resolve order: THE super admin (SUPER_ADMIN_EMAIL) -> "*"; an active portal account ->
+    its client keys; else DEFER TO SENTINEL -- an active Sentinel user (People -> Add Employee) is
+    authorized with no client-dashboard keys ([]), which is what makes "added in Sentinel" mean "can
+    sign in with Google" without duplicating the record into the portal registry.
+
+    Returns a list of client keys (possibly empty for authorized internal staff) or None. None means
+    "authorized nowhere" -> route to request-access. An empty list is DIFFERENT from None: it is an
+    authorized login with zero client dashboards, so callers must test `is None`, not falsiness."""
+    granted = store.resolve_google_login(email, super_admin_email=SUPER_ADMIN_EMAIL)
+    if granted is not None:
+        return granted
+    # No active portal account: Sentinel is the source of truth for internal staff.
+    if sentinel_directory.is_active_user(email):
+        return []
+    return None
 
 
 def _actor_role():
@@ -572,8 +585,11 @@ def google_callback():
                                **_brand_ctx()), 400
     next_url = session.pop("oauth_next", "/") or "/"
     granted = _resolve_login_email(email)
-    if not granted:
-        # No active account yet -> let them file a request an admin approves in the console.
+    if granted is None:
+        # Authorized nowhere (not a portal account, not an active Sentinel user) -> let them file a
+        # request an admin approves in the console. NOTE: an empty list is an AUTHORIZED login with
+        # no client dashboards (e.g. Sentinel-added internal staff), so we test `is None`, not
+        # falsiness -- otherwise a valid clientless staff member would be bounced to request-access.
         pending = store.get_account(email)
         return render_template("request_access.html", email=email, next=next_url, sent=False,
                                pending=(pending is not None and pending.get("status") == "pending"),
@@ -4275,7 +4291,7 @@ def admin_stop_impersonating():
         return redirect(url_for("index"))
     was = current_user() or ""     # who we were acting as (capture before we restore ourselves)
     granted = _resolve_login_email(real)
-    if not granted:
+    if granted is None:            # authorized nowhere anymore -> log out ([] is still authorized)
         session.clear()
         return redirect(url_for("login"))
     _establish_session(real, granted)

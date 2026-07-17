@@ -136,6 +136,75 @@ def main():
     check("granted admin resolves to '*'",
           store.resolve_google_login("teammate@gmail.com", super_admin_email=SA) == ["*"])
 
+    # --- sentinel_directory: graceful gating (no network, no crash) -----------------------------
+    import sentinel_directory as sd
+
+    os.environ.pop("SSO_SECRET", None)
+    os.environ["SENTINEL_URL"] = "https://sentinel.agoradatadriven.com/login"
+    check("no SSO_SECRET -> lookup returns None (disabled, never crashes login)",
+          sd.lookup_user("anyone@agora.ph") is None)
+    check("no SSO_SECRET -> is_active_user False", sd.is_active_user("anyone@agora.ph") is False)
+
+    os.environ["SSO_SECRET"] = "test-shared-secret"
+    os.environ.pop("SENTINEL_URL", None)
+    os.environ.pop("SENTINEL_API_URL", None)
+    check("no Sentinel URL -> lookup returns None (nothing to call)",
+          sd.lookup_user("anyone@agora.ph") is None)
+
+    # SENTINEL_URL (login page) is the fallback base; /login is stripped to reach the API root.
+    os.environ["SENTINEL_URL"] = "https://sentinel.agoradatadriven.com/login"
+    check("api base strips a trailing /login",
+          sd._api_base() == "https://sentinel.agoradatadriven.com")
+    os.environ["SENTINEL_API_URL"] = "https://sentinel.example.com/"
+    check("explicit SENTINEL_API_URL wins and is normalized",
+          sd._api_base() == "https://sentinel.example.com")
+
+    # A successful call is parsed into is_active_user via an INJECTED requests.get (no network).
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"found": True, "active": True, "name": "Staff", "role": "employee"}
+
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["url"] = url
+        captured["params"] = params
+        captured["headers"] = headers
+        return _Resp()
+
+    _orig_get = sd.requests.get
+    sd.requests.get = fake_get
+    try:
+        check("active Sentinel user -> is_active_user True", sd.is_active_user("Staff@Agora.ph") is True)
+        check("lookup lowercases the email in the query",
+              captured.get("params", {}).get("email") == "staff@agora.ph")
+        check("lookup signs with the shared-secret HMAC headers",
+              bool(captured.get("headers", {}).get("X-Academy-Sig"))
+              and bool(captured.get("headers", {}).get("X-Academy-Ts")))
+        check("lookup targets the internal endpoint on the API base",
+              captured.get("url") == "https://sentinel.example.com/api/internal/user-lookup")
+
+        # A non-200 (e.g. bad signature) degrades to "no answer", never an exception.
+        class _Resp401:
+            status_code = 401
+
+            def json(self):
+                return {}
+
+        sd.requests.get = lambda *a, **k: _Resp401()
+        check("non-200 -> is_active_user False (graceful)", sd.is_active_user("staff@agora.ph") is False)
+
+        # A network error degrades to None, never breaking login.
+        def boom_get(*a, **k):
+            raise sd.requests.RequestException("network down")
+
+        sd.requests.get = boom_get
+        check("network error -> lookup None (login never breaks)", sd.lookup_user("staff@agora.ph") is None)
+    finally:
+        sd.requests.get = _orig_get
+
     if FAILS:
         print("\n[localtest] FAIL (%d): %s" % (len(FAILS), ", ".join(FAILS)))
         return 1

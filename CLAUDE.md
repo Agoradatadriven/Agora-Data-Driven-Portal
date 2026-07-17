@@ -494,9 +494,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   Google OAuth (`google_oauth.py`, `/auth/google/{login,callback}`) and, on a verified email, mints
   the SAME session + shared `ag_sso` cookie as a password login — so the website editor and every
   dashboard trust a Google login identically. OPT-IN: off unless `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`
-  are set. An unknown email files a **passwordless pending request** (`/auth/request-access`) an admin
-  approves in the console's Access-requests tab via `POST /admin/accounts/grant-google` (assign to a
-  new/existing client OR a role). `/admin/atrium` IS the admin landing (`/` redirects here; the legacy
+  are set. **Sentinel is the source of truth for staff:** on a verified email with no active portal
+  account, the callback defers to Sentinel (`sentinel_directory.py` → Sentinel's HMAC-gated
+  `/api/internal/user-lookup`) and signs in any **active Sentinel user** with no client-dashboard keys
+  — so adding someone in Sentinel (People → Add Employee) enables their Google login with no portal
+  record to maintain, and deactivating them there blocks it. An email authorized nowhere files a
+  **passwordless pending request** (`/auth/request-access`) an admin approves in the console's
+  Access-requests tab via `POST /admin/accounts/grant-google` (assign to a new/existing client OR a role). `/admin/atrium` IS the admin landing (`/` redirects here; the legacy
   `/admin` + `/superadmin` pages now just redirect here too). THE super admin (`info@…` / role
   `superadmin`) can **act as any user** (`/admin/impersonate`; a site-wide "Stop acting as" banner is
   injected by the `after_request` hook). Full details + OAuth/secret setup: `services/portal/dash/CLAUDE.md`.
