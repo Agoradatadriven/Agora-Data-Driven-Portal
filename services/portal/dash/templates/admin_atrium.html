@@ -144,19 +144,40 @@
     .nav-item.util .ic { opacity: .6; }
     .nav-item .count.quiet { color: var(--muted); background: var(--canvas); border: 1px solid var(--line); }
     .nav-item.is-active .count.quiet { color: var(--brand-700); background: #dcefdb; border-color: transparent; }
-    .side-foot { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .side-foot { position: relative; border-top: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
     .acct-btn { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer; border: 0; background: transparent;
       font: inherit; padding: 8px; border-radius: var(--r-md); transition: background .13s; }
-    .acct-btn:hover, .acct-btn.is-active { background: var(--canvas); }
+    .acct-btn:hover, .acct-btn.is-active, .acct-btn[aria-expanded="true"] { background: var(--canvas); }
     .acct-av { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
       font-size: 12.5px; font-weight: 800; color: #fff; background: var(--brand-500); }
     .acct-who { min-width: 0; line-height: 1.25; }
     .acct-who b { display: block; font-size: 13px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .acct-who em { font-style: normal; font-size: 11px; color: var(--muted); }
-    .acct-caret { margin-left: auto; color: var(--muted); }
-    .signout { display: block; text-align: center; padding: 9px; border-radius: var(--r-md); border: 1px solid var(--line);
-      background: var(--surface); color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 700; }
-    .signout:hover { border-color: rgba(192,69,59,.4); color: var(--danger); }
+    .acct-caret { margin-left: auto; width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); transition: transform .13s; }
+    .acct-btn[aria-expanded="true"] .acct-caret { transform: rotate(180deg); }
+    /* App-switcher / account dropdown, anchored above the account button (bottom of the rail). */
+    .acct-menu { position: absolute; left: 12px; right: 12px; bottom: calc(100% - 4px); z-index: 30;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+      box-shadow: 0 12px 32px rgba(16,24,40,.16); padding: 6px; }
+    .acct-menu[hidden] { display: none; }
+    .acct-menu-label { font-size: 10.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+      color: var(--muted); padding: 6px 8px 4px; }
+    .acct-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+      border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+      text-decoration: none; padding: 9px 8px; border-radius: var(--r-sm); transition: background .12s, color .12s; }
+    .acct-menu-item svg { width: 17px; height: 17px; flex: 0 0 auto; color: var(--muted); }
+    .acct-menu-item:hover { background: var(--canvas); color: var(--brand-700); }
+    .acct-menu-item:hover svg { color: var(--brand-600); }
+    .acct-menu-item.is-current { cursor: default; }
+    .acct-menu-item.is-current:hover { background: transparent; color: var(--ink); }
+    .acct-menu-item.is-current:hover svg { color: var(--muted); }
+    .acct-menu-tag { margin-left: auto; font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .3px;
+      color: var(--brand-700); background: var(--canvas); border-radius: 999px; padding: 2px 8px; }
+    .acct-menu-item.danger { color: var(--danger); }
+    .acct-menu-item.danger svg { color: var(--danger); }
+    .acct-menu-item.danger:hover { background: rgba(192,69,59,.08); color: var(--danger); }
+    .acct-menu-item.danger:hover svg { color: var(--danger); }
+    .acct-menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 
     .content { flex: 1 1 auto; min-width: 0; padding: 40px 44px 72px; max-width: 1120px; }
     .pane { display: none; } .pane.is-active { display: block; animation: rise .5s cubic-bezier(.22,1,.36,1); }
@@ -672,7 +693,9 @@
       .nav-group { display: none; }
       .nav-item { width: auto; flex: 0 0 auto; white-space: nowrap; }
       .side-foot { flex-direction: row; align-items: center; justify-content: space-between; }
-      .acct-btn { width: auto; } .signout { flex: 0 0 auto; }
+      .acct-btn { width: auto; }
+      /* Sidebar is a strip at the TOP on mobile -> the account menu drops DOWN, not up. */
+      .acct-menu { top: calc(100% + 4px); bottom: auto; }
       .content { padding: 22px 16px 44px; max-width: none; }
     }
     @media (max-width: 520px) {
@@ -699,63 +722,12 @@
     </select>
   {% endmacro %}
 
-  <!-- ===================== HOME HUB (landing) ===================== -->
-  <div class="view" data-view="hub">
-    <div class="hub">
-      <div class="aurora" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
-      <header class="hub-top">
-        <a class="ag-logo-link" href="https://agoradatadriven.com" aria-label="Back to the Agora Data Driven website"><span class="ag-logo">{{ agora_logo|safe }}</span></a>
-        <div class="hub-acct">
-          {% if user %}<span class="who"><b>{{ profile.name|default(user, true) }}</b> &middot; {{ 'Super admin' if profile.role == 'superadmin' else 'Administrator' }}</span>{% endif %}
-          <span class="hub-av">{{ (profile.name|default(user, true)|default('?', true))[:1]|upper }}</span>
-        </div>
-      </header>
-      <main class="hub-main">
-        <p class="eyebrow">Welcome back{% if profile.name %}, {{ profile.name.split()[0] }}{% endif %}</p>
-        <h1 class="hub-h1">Your <span class="g">Agora</span> suite.</h1>
-        <p class="hub-lead">One login opens everything. Pick a product to jump in &mdash; your session
-          carries across, no second sign-in.</p>
-        <div class="suite">
-          <a class="app primary" href="#" data-open-console>
-            <span class="app-cta"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
-            <div class="app-name">Atrium Admin</div>
-            <div class="app-desc">Client workspaces, accounts, access requests and activity &mdash; your day-to-day console.</div>
-            <div class="app-meta"><span class="app-stat tnum">{{ clients|length }} client workspace{{ '' if clients|length == 1 else 's' }}</span>{% if awaiting_total %}<span class="app-flag tnum">{{ awaiting_total }} awaiting approval</span>{% endif %}</div>
-          </a>
-          <a class="app info" href="{{ skill_mastery_url }}" target="_blank" rel="noopener">
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-            <div class="app-name">Skill Mastery</div>
-            <div class="app-desc">The spaced-repetition mastery engine &mdash; quizzes, priority drills and progress.</div>
-            <div class="app-meta"><span class="app-open">Open Skill Mastery &rarr;</span></div>
-          </a>
-          <a class="app plain" href="{{ website_editor_url }}" target="_blank" rel="noopener">
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
-            <div class="app-name">Website Editor</div>
-            <div class="app-desc">Edit the public site in place &mdash; swap images and text, save to publish live.</div>
-            <div class="app-meta"><span class="app-open">Open the site &rarr;</span></div>
-          </a>
-          <a class="app amber" href="{{ sentinel_url }}" target="_blank" rel="noopener">
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-            <div class="app-name">Sentinel</div>
-            <div class="app-desc">The internal operations command center &mdash; attendance, tasks, leave and team reporting.</div>
-            <div class="app-meta"><span class="app-open">Open Sentinel &rarr;</span></div>
-          </a>
-        </div>
-      </main>
-    </div>
-  </div>
-
-  <!-- ===================== CONSOLE ===================== -->
+  <!-- ===================== CONSOLE (the only landing) ===================== -->
   <div class="view" data-view="console">
     <div class="layout">
       <aside class="side">
         <div class="side-top">
-          <button type="button" class="home-link" data-go-hub>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>
-            All apps
-          </button>
-          <span class="ag-logo">{{ agora_logo|safe }}</span>
+          <a class="ag-logo-link" href="https://agoradatadriven.com" title="Agora Data Driven website" aria-label="Back to the Agora Data Driven website"><span class="ag-logo">{{ agora_logo|safe }}</span></a>
         </div>
         <nav class="nav" id="side-nav">
           {#- Rail ordered by frequency of use: daily work on top (Clients, Task Board, Calendar),
@@ -800,14 +772,41 @@
           </button>
         </nav>
         <div class="side-foot">
-          <button type="button" class="acct-btn" data-section="profile" title="Your profile">
+          {#- The account block doubles as the app switcher: one login carries across Atrium /
+              Sentinel / the Website Editor, so the dropdown jumps between them (no second sign-in).
+              Skill Mastery lives inside Sentinel now, so it is not listed here. -#}
+          <button type="button" class="acct-btn" id="acct-toggle" aria-haspopup="true" aria-expanded="false" title="Switch app / your account">
             <span class="acct-av">{{ (profile.name|default(user, true)|default('?', true))[:1]|upper }}</span>
             <span class="acct-who">
               <b>{{ profile.name|default(user, true) }}</b>
               <em>{{ 'Super admin' if profile.role == 'superadmin' else 'Administrator' }}</em>
             </span>
+            <svg class="acct-caret" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"/></svg>
           </button>
-          <a class="signout" href="/logout" data-signout>Sign out</a>
+          <div class="acct-menu" id="acct-menu" hidden>
+            <div class="acct-menu-label">Switch app</div>
+            <button type="button" class="acct-menu-item is-current" data-section="clients">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              <span>Atrium</span><em class="acct-menu-tag">Current</em>
+            </button>
+            <a class="acct-menu-item" href="{{ sentinel_url }}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Sentinel</span>
+            </a>
+            <a class="acct-menu-item" href="{{ website_editor_url }}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              <span>Website Editor</span>
+            </a>
+            <div class="acct-menu-sep"></div>
+            <button type="button" class="acct-menu-item" data-section="profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Your profile</span>
+            </button>
+            <a class="acct-menu-item danger" href="/logout" data-signout>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+              <span>Sign out</span>
+            </a>
+          </div>
         </div>
       </aside>
 
@@ -1729,7 +1728,7 @@
   <div class="modal-veil" id="signout-veil" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="signout-title">
       <h3 id="signout-title">Sign out?</h3>
-      <p>You'll be signed out of the Agora suite &mdash; Atrium, Skill Mastery and the Website Editor
+      <p>You'll be signed out of the Agora suite &mdash; Atrium, Sentinel and the Website Editor
         all share this login.</p>
       <div class="modal-actions">
         <button type="button" class="btn-ghost" id="signout-cancel">Cancel</button>
@@ -1809,14 +1808,13 @@
         };
       })();
 
-      // ---- Top-level view switch: Home hub <-> console. ----
+      // ---- Show the console (the only top-level view now the Home hub is gone). ----
       function showView(v) {
         qsa(".view").forEach(function (el) { el.classList.toggle("is-view", el.getAttribute("data-view") === v); });
         window.scrollTo(0, 0);
       }
 
-      // ---- Keep the URL's ?section= in sync with the open pane, so a RELOAD stays put instead of
-      //      bouncing back to the Home hub (the server reads ?section into data-initial-section).
+      // ---- Keep the URL's ?section= in sync with the open pane, so a RELOAD stays put.
       //      Also makes each pane a shareable/bookmarkable link. Accounts encodes its sub-tab. ----
       var SUB_TO_SECTION = { requests: "requests", people: "accounts", add: "create" };
       function setSectionParam(value) {
@@ -1838,12 +1836,32 @@
       }
       function syncUrl() { setSectionParam(currentSectionParam()); }
 
-      qsa("[data-open-console]").forEach(function (b) {
-        b.addEventListener("click", function (e) { e.preventDefault(); showView("console"); syncUrl(); });
-      });
-      qsa("[data-go-hub]").forEach(function (b) {
-        b.addEventListener("click", function () { showView("hub"); setSectionParam(null); });
-      });
+      // ---- Account / app-switcher dropdown (bottom of the rail, under the username). ----
+      var acctToggle = document.getElementById("acct-toggle");
+      var acctMenu = document.getElementById("acct-menu");
+      function closeAcctMenu() {
+        if (acctMenu) { acctMenu.hidden = true; }
+        if (acctToggle) { acctToggle.setAttribute("aria-expanded", "false"); }
+      }
+      if (acctToggle && acctMenu) {
+        acctToggle.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var open = acctMenu.hidden;
+          acctMenu.hidden = !open;
+          acctToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+        // Switching to a console pane from the menu (Atrium / Your profile) closes the popover.
+        qsa("#acct-menu [data-section]").forEach(function (b) {
+          b.addEventListener("click", closeAcctMenu);
+        });
+        document.addEventListener("click", function (e) {
+          if (acctMenu.hidden) { return; }
+          if (!acctToggle.contains(e.target) && !acctMenu.contains(e.target)) { closeAcctMenu(); }
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") { closeAcctMenu(); }
+        });
+      }
 
       // ---- Console pane switching (a nav button shows its matching pane). ----
       function showSection(name) {
@@ -1987,7 +2005,6 @@
       // Server sections that map into the merged Accounts page:
       var SUB_FOR = { requests: "requests", create: "add", accounts: "people" };
       var want = body.getAttribute("data-initial-section") || "clients";
-      var hasMsg = body.getAttribute("data-has-msg") === "1";
 
       // Default sub for the Accounts page, and resolve the section a redirect asked for.
       var sub = SUB_FOR[want] || "requests";
@@ -1995,16 +2012,13 @@
       var section = SUB_FOR[want] ? "accounts" : want;
       if (!showSection(section)) { showSection("clients"); }
 
-      // Fresh visit (no ?section= and no flash) opens the HUB; an explicit ?section= (e.g. the
-      // workspace Back button's ?section=clients) or any flash message opens the CONSOLE in place.
-      var hasSection = body.getAttribute("data-has-section") === "1";
-      var startConsole = hasMsg || hasSection || (want !== "clients");
-      showView(startConsole ? "console" : "hub");
+      // The console is the only view now (the Home hub was removed) -- always land on it; the
+      // resolved section above decides which pane opens.
+      showView("console");
 
       // ---- Flash = transient toast, NOT a banner stuck at the top. ----
       // Auto-dismiss the flash, then strip ?msg/?err from the URL so reloading or switching panes
-      // (client-side view state) can never re-surface the same notification. (startConsole above
-      // already read data-has-msg from the server-rendered body, so clearing the URL is safe.)
+      // (client-side view state) can never re-surface the same notification.
       var flashEl = document.querySelector(".flash");
       if (flashEl) {
         setTimeout(function () { flashEl.classList.add("flash-out"); }, 3600);

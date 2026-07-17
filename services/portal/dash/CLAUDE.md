@@ -39,21 +39,20 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
     user-lookup`. Same HMAC pattern the mastery engine uses against `/api/internal/people`; **no new
     secret**. Best-effort + gated: unset secret/URL, a non-200, a timeout, or an outage all return
     `None` (login falls through to its old behavior) so a Sentinel outage can never break portal login.
-- **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a **Home hub + focused console**
-  (Concept B, see `ATRIUM_CONSOLE_REDESIGN_PLAN.md`), styled to the website design system (green
-  `#4FA84A` primary + purple `#6A6AEA` informational). A fresh visit lands on the branded **Home hub**
-  (Agora logo + greeting + the suite as cards: Atrium Admin · Skill Mastery · Website Editor ·
-  Sentinel); **Atrium Admin** enters the console, **← All apps** returns. The switch is client-side
-  view state only (`data-view` divs; a `?section=`/flash redirect opens the console directly, so every
-  deep-link and POST redirect still lands on its pane). Inside: the rail is ordered by frequency of
-  use (2026-07-14 IA pass) — **Workspaces** (Clients) / **Delivery** (Task Board · Calendar) /
-  **People & access** (**Accounts** — one pane with inner subtabs Requests · People · Add new) /
-  **System** (Activity · Mailboxes · **Bin**, restorable soft-deletes; utility items render muted
-  via `.nav-item.util`, and the Bin count uses the neutral `.count.quiet` — purple badges are
-  reserved for ACTIONABLE counts) — and the operator account block at the bottom (opens
-  Profile; themed sign-out confirm). Client cards carry an attention chip — purple **"N awaiting
-  approval"** (count computed in `admin_atrium()` from each already-loaded workspace, cards needing
-  attention sorted first; total shown on the hub's Atrium Admin card) or green **"All caught up"**.
+- **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a **focused console** styled to the
+  website design system (green `#4FA84A` primary + purple `#6A6AEA` informational). The old Home-hub
+  landing (the "Your Agora suite" card grid) was **removed 2026-07-17** — the console is now the ONLY
+  view (`showView("console")` on load); the app switcher (Atrium / Sentinel / Website Editor — Skill
+  Mastery lives inside Sentinel, so it is NOT listed) lives in the **account dropdown under the
+  username** (`#acct-toggle`/`#acct-menu` in `.side-foot`, opens upward, also holds Your profile +
+  Sign out) and the **Agora logo (top of the rail) links back to `agoradatadriven.com`**. Inside: the
+  rail is ordered by frequency of use (2026-07-14 IA pass) — **Workspaces** (Clients) / **Delivery**
+  (Task Board · Calendar) / **People & access** (**Accounts** — one pane with inner subtabs Requests ·
+  People · Add new) / **System** (Activity · Mailboxes · **Bin**, restorable soft-deletes; utility
+  items render muted via `.nav-item.util`, and the Bin count uses the neutral `.count.quiet` — purple
+  badges are reserved for ACTIONABLE counts). Client cards carry an attention chip — purple **"N
+  awaiting approval"** (count computed in `admin_atrium()` from each already-loaded workspace, cards
+  needing attention sorted first) or green **"All caught up"**.
   It IS the admin landing: `/` redirects a super-admin here and the legacy `/admin` + `/superadmin`
   routes now just redirect here too (their client-add / password-reveal
   functions live in the console). Account routes

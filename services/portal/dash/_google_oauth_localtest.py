@@ -148,8 +148,8 @@ def main():
     os.environ["SSO_SECRET"] = "test-shared-secret"
     os.environ.pop("SENTINEL_URL", None)
     os.environ.pop("SENTINEL_API_URL", None)
-    check("no Sentinel URL -> lookup returns None (nothing to call)",
-          sd.lookup_user("anyone@agora.ph") is None)
+    check("api base falls back to the sentinel custom domain when env unset (deploy has no SENTINEL_URL)",
+          sd._api_base() == "https://sentinel.agoradatadriven.com")
 
     # SENTINEL_URL (login page) is the fallback base; /login is stripped to reach the API root.
     os.environ["SENTINEL_URL"] = "https://sentinel.agoradatadriven.com/login"

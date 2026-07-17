@@ -35,17 +35,27 @@ def _secret() -> str:
     return (os.environ.get("SSO_SECRET", "") or "").strip()
 
 
+# The portal's canonical Sentinel host. Kept in sync with main.py's SENTINEL_URL default: neither is
+# set as an env var in the deploy, so we must carry the custom-domain default here too, or the
+# Sentinel fallback silently no-ops (SENTINEL_URL="" -> no base -> lookup returns None).
+_DEFAULT_SENTINEL_BASE = "https://sentinel.agoradatadriven.com"
+
+
 def _api_base() -> str:
     """Base URL for Sentinel's API (no trailing slash).
 
     Prefers an explicit SENTINEL_API_URL; otherwise derives from SENTINEL_URL (which points at the
-    login page, e.g. https://sentinel.agoradatadriven.com/login) by stripping a trailing /login.
+    login page, e.g. https://sentinel.agoradatadriven.com/login) by stripping a trailing /login;
+    otherwise falls back to the known custom domain so the fallback works even when neither env var
+    is set (which is the case in the live deploy — main.py relies on the same code default).
     """
     base = (os.environ.get("SENTINEL_API_URL", "") or "").strip()
     if not base:
         base = (os.environ.get("SENTINEL_URL", "") or "").strip()
         if base.endswith("/login"):
             base = base[: -len("/login")]
+    if not base:
+        base = _DEFAULT_SENTINEL_BASE
     return base.rstrip("/")
 
 

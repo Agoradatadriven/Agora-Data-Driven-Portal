@@ -471,12 +471,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   dashboard, leadgen, organic, calendar, conversations, intel, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify,logo}` +
   creative GET above; team-only POSTs `/w/<c>/resolve-comment` + `/w/<c>/admin/*` gated `is_superadmin()`. The team console
-  (`GET /admin/atrium`, gated `is_superadmin()`) is a **Home hub + focused console** (Concept B —
-  `ATRIUM_CONSOLE_REDESIGN_PLAN.md`): a fresh visit lands on the branded hub (suite cards: Atrium
-  Admin · Skill Mastery · Website Editor · Sentinel); **Atrium Admin** opens the console — grouped
-  rail *Workspaces* (Clients · Activity · Bin) / *People & access* (Accounts with subtabs Requests ·
-  People · Add new) — all client-side view state, so `?section=`/flash redirects still land on the
-  right pane. The Clients pane shows one card per client (the worked-example `template` client is
+  (`GET /admin/atrium`, gated `is_superadmin()`) is a **focused console** (the old "Your Agora suite"
+  Home hub was removed 2026-07-17 — the console is the only view now). The **app switcher** (Atrium /
+  Sentinel / Website Editor — Skill Mastery lives inside Sentinel, so it is not listed) lives in the
+  **account dropdown under the username** at the bottom of the rail, and the **Agora logo links back
+  to `agoradatadriven.com`**. Grouped rail *Workspaces* (Clients · Activity · Bin) / *People & access*
+  (Accounts with subtabs Requests · People · Add new) — all client-side view state, so `?section=`/flash
+  redirects still land on the right pane. The Clients pane shows one card per client (the worked-example `template` client is
   filtered out) with an attention chip (purple **"N awaiting approval"**, attention-first sort, or
   green **"All caught up"**). **Clicking a card opens that
   client's workspace `/w/<c>/` directly** (where all editing happens in place). Each card also carries
