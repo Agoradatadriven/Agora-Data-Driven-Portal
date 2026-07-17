@@ -82,7 +82,10 @@ SKILL_MASTERY_URL = os.environ.get(
     "SKILL_MASTERY_URL", "https://mastery-engine-c732u7m57a-uc.a.run.app")
 WEBSITE_EDITOR_URL = os.environ.get("WEBSITE_EDITOR_URL", "https://agoradatadriven.com/?edit=1")
 SENTINEL_URL = os.environ.get(
-    "SENTINEL_URL", "https://sentinel-585951669065.asia-southeast1.run.app/login")
+    # Must be the custom domain: the portal `ag_sso` cookie is scoped to
+    # .agoradatadriven.com, so on a raw *.run.app host SSO is inert and the user
+    # hits a bare login form instead of being carried straight into Sentinel.
+    "SENTINEL_URL", "https://sentinel.agoradatadriven.com/login")
 
 app = Flask(__name__)
 app.secret_key = SESSION_SECRET
