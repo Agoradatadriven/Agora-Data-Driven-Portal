@@ -2977,35 +2977,45 @@ def atrium_admin_assistant_stream(client):
     if not isinstance(history, list):
         history = []
     name = ws.get("display_name") or client
-    depth = _assistant_depth(ws)
-    mid = _assistant_model(ws) or intel_ai.default_model()
-    meta = intel_ai.model_meta(mid)
-    index = _assistant_index(ws, client)
-    q_emb = _assistant_query_embedder(index)
-    reranker = _assistant_reranker()
-
-    def plan_caller(system, user):
-        if not meta or not intel_ai.model_available(mid):
-            return "", "no AI provider configured"
-        text, err, _t = intel_ai._call(meta, system, user, None, 8192, think=False)
-        return text, err
-
-    def stream_caller(system, user):
-        if not meta or not intel_ai.model_available(mid):
-            yield {"type": "error", "message": "no AI provider configured — pick a model."}
-            return
-        for ev in intel_ai.stream_call(
-                meta, system, user, show_thinking=True,
-                think_budget=_ASSISTANT_THINK_BUDGET.get(depth, 1024),
-                think=(depth == "deep")):
-            yield ev
 
     def generate():
         usage = {}
+        mid = ""
         try:
             if not question:
                 yield _sse("error", {"message": "Ask a question first."})
                 return
+            # Establish the stream IMMEDIATELY with a comment heartbeat, BEFORE the (sometimes heavy)
+            # setup below. Building the knowledge index can rebuild + re-embed every chunk -- e.g. the
+            # one-time reindex forced by an INDEX_VERSION bump -- which for a data-rich client takes a
+            # while. Doing it here (inside the generator, after the first byte) means a slow or failing
+            # build shows live progress / a graceful error event instead of looking like a dropped
+            # connection ("network error") to the browser, and any exception degrades to an `error`
+            # frame rather than a raw 500 emitted before the streaming Response.
+            yield ": ok\n\n"
+            depth = _assistant_depth(ws)
+            mid = _assistant_model(ws) or intel_ai.default_model()
+            meta = intel_ai.model_meta(mid)
+            index = _assistant_index(ws, client)
+            q_emb = _assistant_query_embedder(index)
+            reranker = _assistant_reranker()
+
+            def plan_caller(system, user):
+                if not meta or not intel_ai.model_available(mid):
+                    return "", "no AI provider configured"
+                text, err, _t = intel_ai._call(meta, system, user, None, 8192, think=False)
+                return text, err
+
+            def stream_caller(system, user):
+                if not meta or not intel_ai.model_available(mid):
+                    yield {"type": "error", "message": "no AI provider configured — pick a model."}
+                    return
+                for ev in intel_ai.stream_call(
+                        meta, system, user, show_thinking=True,
+                        think_budget=_ASSISTANT_THINK_BUDGET.get(depth, 1024),
+                        think=(depth == "deep")):
+                    yield ev
+
             if stage == "plan":
                 queries, sources = assistant_ai.plan_stage(
                     index, question, history, depth, date_from, date_to, q_emb, reranker, plan_caller)
