@@ -704,7 +704,7 @@
     <div class="hub">
       <div class="aurora" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
       <header class="hub-top">
-        <span class="ag-logo">{{ agora_logo|safe }}</span>
+        <a class="ag-logo-link" href="https://agoradatadriven.com" aria-label="Back to the Agora Data Driven website"><span class="ag-logo">{{ agora_logo|safe }}</span></a>
         <div class="hub-acct">
           {% if user %}<span class="who"><b>{{ profile.name|default(user, true) }}</b> &middot; {{ 'Super admin' if profile.role == 'superadmin' else 'Administrator' }}</span>{% endif %}
           <span class="hub-av">{{ (profile.name|default(user, true)|default('?', true))[:1]|upper }}</span>
