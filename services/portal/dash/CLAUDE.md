@@ -130,7 +130,10 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   2026-07 "no Fuel Your Wander content" miss). **HYBRID retrieval:**
   BM25 (pure-Python, precomputed once per ask — the old per-query re-tokenisation is gone) + a
   SEMANTIC leg (`embed_index` → Vertex `text-embedding-005`, unit vectors packed as base64 float16
-  into the same object; same SA auth as the Gemini brain, NO new API/IAM) are fused with **RRF**
+  into the same object; same SA auth as the Gemini brain, NO new API/IAM — **INCREMENTAL: a rebuild
+  reuses the stored vector of any chunk whose id+content signature (`emb_sig`) is unchanged and
+  embeds only new/changed chunks, so a Watcher fetch no longer re-embeds the whole corpus on the ask
+  request's critical path**) are fused with **RRF**
   (`_rrf`, rank-only), the pool optionally **reranked** by a cross-encoder (Vertex Ranking API,
   `intel_ai.rerank` → `semantic-ranker-fast-004`), and a **metadata pre-filter** (`_infer_kinds`,
   single-source questions only — but a question that NAMES a watched creator, `_question_names_creator`,

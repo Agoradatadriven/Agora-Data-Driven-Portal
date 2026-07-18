@@ -2781,21 +2781,25 @@ def _assistant_index(ws, client, force=False):
     archives = _assistant_archives(ws, client)
     fp = assistant_ai.fingerprint(ws, archives)
     want_emb = intel_ai.embeddings_configured()
-    index = None if force else workspace.read_assistant_index(client)
-    if index is not None and index.get("fingerprint") == fp \
-            and index.get("v") == assistant_ai.INDEX_VERSION:
-        if not want_emb or assistant_ai.has_embeddings(index):
-            return index
+    # Always read the previous index: reused as-is when nothing changed, and as the SOURCE OF
+    # CARRIED-OVER VECTORS when the data moved -- so a rebuild only embeds the chunks that changed
+    # (a Watcher fetch adds a handful, not thousands), instead of re-embedding the whole corpus on
+    # the ask request's critical path.
+    prev = workspace.read_assistant_index(client)
+    if not force and prev is not None and prev.get("fingerprint") == fp \
+            and prev.get("v") == assistant_ai.INDEX_VERSION:
+        if not want_emb or assistant_ai.has_embeddings(prev):
+            return prev
         # Data unchanged, embeddings newly enabled: add the semantic leg without rebuilding chunks.
-        assistant_ai.embed_index(index, _assistant_embedder())
-        workspace.write_assistant_index(client, index)
-        return index
+        assistant_ai.embed_index(prev, _assistant_embedder())
+        workspace.write_assistant_index(client, prev)
+        return prev
     chunks = assistant_ai.build_chunks(ws, archives,
                                        dash_data=assistant_ai.read_client_dash_data(client),
                                        mail_threads=_assistant_mail(ws, client))
     index = assistant_ai.build_index(chunks, fp=fp)
     if want_emb:
-        assistant_ai.embed_index(index, _assistant_embedder())
+        assistant_ai.embed_index(index, _assistant_embedder(), prev=prev)
     workspace.write_assistant_index(client, index)
     return index
 

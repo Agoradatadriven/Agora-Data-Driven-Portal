@@ -44,6 +44,7 @@ embeddings behaves exactly like the old BM25-only path. Every failure degrades t
 """
 
 import base64
+import hashlib
 import json
 import math
 import re
@@ -272,8 +273,22 @@ def _unpack_vec(b64, dim):
         return None
 
 
-def embed_index(index, embedder):
+def _emb_sig(chunk):
+    """A short content signature for a chunk's searchable text. Used to decide whether a carried-over
+    vector is still valid: a chunk id can be REUSED with new content (e.g. the 'metrics' snapshot
+    changes every refresh, a transcript chunk is re-fetched), so reuse must key on content, not id."""
+    return hashlib.md5(_searchable(chunk).encode("utf-8")).hexdigest()
+
+
+def embed_index(index, embedder, prev=None):
     """Attach a semantic leg to `index` IN PLACE: embed every chunk's text and store packed vectors.
+
+    INCREMENTAL: when `prev` (this client's previous index) carries a semantic leg, any chunk whose id
+    AND content signature are unchanged REUSES its stored vector instead of re-embedding. So a Watcher
+    fetch that adds a few transcripts embeds only the handful of new chunks, not the whole corpus --
+    the fix for the "was fast, now unusable" stall where every fetch re-embedded thousands of chunks
+    synchronously inside the ask request. With no `prev` (or a `prev` without embeddings) this embeds
+    everything, exactly as before.
 
     `embedder(list_of_texts) -> (list_of_vectors, error)` is injected (the default caller wires it to
     intel_ai.embed_texts). A per-chunk vector may be None (its batch failed) -- those chunks just
@@ -282,20 +297,39 @@ def embed_index(index, embedder):
     chunks = index.get("chunks") or []
     if not chunks or embedder is None:
         return index
-    try:
-        vectors, _err = embedder([_searchable(c) for c in chunks])
-    except Exception:
-        vectors = None
-    if not vectors:
-        return index
-    emb, dim = {}, 0
-    for c, v in zip(chunks, vectors):
-        if not v:
-            continue
-        dim = dim or len(v)
-        emb[c["id"]] = _pack_vec(v)
+    prev = prev or {}
+    prev_emb = prev.get("emb") or {}
+    prev_sig = prev.get("emb_sig") or {}
+    prev_dim = prev.get("emb_dim") or 0
+
+    emb, sig, dim = {}, {}, 0
+    to_embed = []                     # (chunk_id, searchable_text) for the chunks that actually need it
+    for c in chunks:
+        cid = c["id"]
+        s = _emb_sig(c)
+        packed = prev_emb.get(cid)
+        if packed is not None and prev_dim and prev_sig.get(cid) == s:
+            emb[cid] = packed         # unchanged -> reuse the stored vector, skip the embed call
+            sig[cid] = s
+            dim = dim or prev_dim
+        else:
+            to_embed.append((cid, _searchable(c), s))
+
+    if to_embed:
+        try:
+            vectors, _err = embedder([t for _cid, t, _s in to_embed])
+        except Exception:
+            vectors = None
+        for (cid, _t, s), v in zip(to_embed, vectors or []):
+            if not v:
+                continue
+            dim = dim or len(v)
+            emb[cid] = _pack_vec(v)
+            sig[cid] = s
+
     if emb:
         index["emb"] = emb
+        index["emb_sig"] = sig        # per-embedded-chunk content signature (powers the next reuse)
         index["emb_dim"] = dim
         index["emb_count"] = len(emb)
     return index

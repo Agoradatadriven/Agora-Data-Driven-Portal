@@ -195,6 +195,37 @@ def run():
            assistant_ai.has_embeddings(hidx) and hidx["emb_count"] == 3 and hidx["emb_dim"] == 3)
     _check("packed vectors round-trip",
            assistant_ai._unpack_vec(hidx["emb"]["h_cold"], 3) is not None)
+
+    # --- Incremental embedding: a rebuild reuses unchanged vectors, embeds only what changed --------
+    # (the "was fast, now unusable" fix -- a Watcher fetch must not re-embed the whole corpus).
+    embed_calls = []
+
+    def _counting_embed(texts):
+        embed_calls.append(list(texts))
+        return _fake_embed(texts)
+
+    # One new chunk, one changed chunk, one unchanged -> exactly two embed calls, one reused vector.
+    hchunks2 = [
+        dict(hchunks[0]),                                        # h_loyal: unchanged -> reuse
+        {"id": "h_cold", "kind": "content", "title": "Cold email", "url": "", "date": "",
+         "text": "cold outreach emails to WARM prospects now"},  # h_cold: content changed -> re-embed
+        {"id": "h_new", "kind": "content", "title": "Upsell", "url": "", "date": "",
+         "text": "upsell existing customers into a higher tier"},  # brand new -> embed
+    ]
+    hidx2 = assistant_ai.build_index(hchunks2)
+    reused_vec = hidx["emb"]["h_loyal"]
+    assistant_ai.embed_index(hidx2, _counting_embed, prev=hidx)
+    embedded_texts = [t for batch in embed_calls for t in batch]
+    _check("incremental embed skips unchanged chunks, embeds only new/changed ones",
+           hidx2["emb_count"] == 3 and len(embedded_texts) == 2)
+    _check("the unchanged chunk's stored vector is carried over verbatim (no re-embed)",
+           hidx2["emb"]["h_loyal"] == reused_vec
+           and not any("loyalty program" in t.lower() for t in embedded_texts))
+    _check("a changed chunk IS re-embedded (stale vector never reused)",
+           any("warm prospects" in t.lower() for t in embedded_texts))
+    _check("first-ever embed (no prev) still embeds everything",
+           (lambda i: (assistant_ai.embed_index(i, _fake_embed), i["emb_count"])[1])(
+               assistant_ai.build_index(hchunks)) == 3)
     answer, sources, err = assistant_ai.ask(
         "X", hidx, "how do we get customers coming back",
         caller=lambda system, user: ('{"answer": "Lean on loyalty."}', ""),
