@@ -22,7 +22,7 @@
 #   .\deploy_dash_platform.ps1 -SkipBuild # reuse current image, redeploy only
 # =============================================================================
 
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [switch]$Force)
 
 # --- Constants (use literally; never invent alternatives) --------------------
 $PROJECT  = "agora-data-driven"
@@ -71,6 +71,34 @@ function Must([string]$what) {
 # Resolve the build dir from THIS script's own location (the Dockerfile/main.py sit next
 # to this script) so it works regardless of the caller's current directory.
 $DASH_DIR = $PSScriptRoot
+
+# =============================================================================
+# Step 0 -- STALE-DEPLOY GUARD. Cloud Run is last-deploy-wins: deploying an out-of-date or
+# divergent local tree silently REVERTS production to whatever you have (this bit us repeatedly
+# 2026-07-16 -- teammates deploying unpushed local commits kept rolling back live features). So
+# refuse to deploy unless HEAD == origin/main. Bypass with -Force ONLY when you are certain your
+# tree is the intended one (e.g. a hotfix you have not pushed yet).
+# =============================================================================
+if (-not $Force) {
+    git -C $DASH_DIR fetch origin --quiet 2>$null
+    $head = (git -C $DASH_DIR rev-parse HEAD 2>$null)
+    $origin = (git -C $DASH_DIR rev-parse origin/main 2>$null)
+    if ($head -and $origin -and ($head.Trim() -ne $origin.Trim())) {
+        Write-Host "[BLOCKED] Your HEAD is not origin/main:" -ForegroundColor Red
+        Write-Host "            HEAD       = $($head.Trim().Substring(0,7))" -ForegroundColor Red
+        Write-Host "            origin/main= $($origin.Trim().Substring(0,7))" -ForegroundColor Red
+        Write-Host "          Deploying now would REVERT production to your tree. Run 'git pull' (or" -ForegroundColor Red
+        Write-Host "          land your branch on main) first. Use -Force only if you KNOW this tree is right." -ForegroundColor Red
+        exit 1
+    }
+    $dirty = (git -C $DASH_DIR status --porcelain 2>$null)
+    if ($dirty) {
+        Write-Host "[WARN] Working tree has uncommitted changes -- they WILL be built into the image" -ForegroundColor Yellow
+        Write-Host "       but are NOT committed. Commit + push after deploying, or another machine's" -ForegroundColor Yellow
+        Write-Host "       sync/deploy may clobber them." -ForegroundColor Yellow
+    }
+    Write-Host "[OK] tree matches origin/main -- safe to deploy" -ForegroundColor Green
+}
 
 # =============================================================================
 # Step 1 -- Resolve a short git SHA for the image tag.

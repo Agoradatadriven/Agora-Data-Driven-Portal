@@ -128,8 +128,18 @@ def run():
     _check("resolve_video reads oEmbed title/author",
            rv["ok"] and rv["video_id"] == "dQw4w9WgXcQ" and rv["title"] == "A & B talk"
            and rv["url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    # oEmbed 401s (embedding-restricted) but the watch page still carries the real title -> scrape it.
+    def _oembed_401_page_ok(url):
+        if "/oembed" in url:
+            raise IOError("401")
+        return ('<meta property="og:title" content="Learn Email Marketing in 39 Minutes!">'
+                '"ownerChannelName":"Alex Hormozi"')
+    rv = watcher.resolve_video("pLhQOYMGa88", fetcher=_oembed_401_page_ok)
+    _check("resolve_video falls back to watch-page og:title when oEmbed fails",
+           rv["ok"] and rv["title"] == "Learn Email Marketing in 39 Minutes!"
+           and rv["author"] == "Alex Hormozi")
     rv = watcher.resolve_video("dQw4w9WgXcQ", fetcher=lambda url: (_ for _ in ()).throw(IOError()))
-    _check("resolve_video degrades to id title when oEmbed fails",
+    _check("resolve_video degrades to id title when both oEmbed and the page fail",
            rv["ok"] and rv["title"] == "Video dQw4w9WgXcQ")
     _check("resolve_video rejects a non-video link",
            watcher.resolve_video("https://example.com/foo")["ok"] is False)
@@ -153,6 +163,59 @@ def run():
     _check("rate-limit stops the batch WITHOUT poisoning videos",
            n == 0 and blocked is True and blocked_vids[0]["error"] == "" and blocked_vids[1]["error"] == "")
     watcher.fetch_transcript = real_fetch_fn
+
+    # --- Parallel fetch path (proxy-gated concurrency for the Cloud Run "Fetch missing" loop) -----
+    _saved_proxy = os.environ.get("WATCHER_PROXY_URL")
+    os.environ["WATCHER_PROXY_URL"] = "http://user-rotate:pw@p.example:80"
+    _check("proxied() is True when WATCHER_PROXY_URL is set", watcher.proxied() is True)
+
+    # workers>1 fetches the whole batch concurrently; each distinct dict gets its OWN transcript --
+    # proves the thread pool's results are applied to the right video on the main thread.
+    watcher.fetch_transcript = lambda vid: {
+        "ok": True, "transcript": "t-" + vid, "language": "en", "generated": False,
+        "error": "", "permanent": False}
+    par_vids = [{"id": "v%02d" % i, "transcript": "", "error": ""} for i in range(20)]
+    n, blocked = watcher.fetch_transcripts_batch(par_vids, limit=40, workers=8)
+    _check("parallel path fetches the whole batch concurrently, results routed correctly",
+           n == 20 and blocked is False and all(v["transcript"] == "t-" + v["id"] for v in par_vids))
+
+    cap_vids = [{"id": "c%02d" % i, "transcript": "", "error": ""} for i in range(20)]
+    n, _b = watcher.fetch_transcripts_batch(cap_vids, limit=5, workers=8)
+    _check("parallel path honors the batch limit",
+           n == 5 and sum(1 for v in cap_vids if v["transcript"]) == 5)
+
+    # A stray rate-limit on SOME rotating IPs must NOT stop the run: the good ones land, the
+    # rate-limited stay pending (unpoisoned), blocked stays False because progress was made.
+    def _mixed(vid):
+        if vid.endswith(("1", "3")):
+            return {"ok": False, "transcript": "", "language": "", "generated": False,
+                    "error": "YouTube is rate-limiting or blocking this server right now.",
+                    "permanent": False}
+        return {"ok": True, "transcript": "t-" + vid, "language": "en", "generated": False,
+                "error": "", "permanent": False}
+    watcher.fetch_transcript = _mixed
+    mix_vids = [{"id": "m%d" % i, "transcript": "", "error": ""} for i in range(6)]
+    n, blocked = watcher.fetch_transcripts_batch(mix_vids, workers=8)
+    still_pending = [v for v in mix_vids if not v["transcript"] and not v["error"]]
+    _check("parallel: a partial rate-limit keeps the run going and leaves stragglers pending",
+           n == 4 and blocked is False and len(still_pending) == 2
+           and all(v["id"] in ("m1", "m3") for v in still_pending))
+
+    # Only when the WHOLE batch is rate-limited does parallel report blocked -- and poisons nothing.
+    watcher.fetch_transcript = lambda vid: {
+        "ok": False, "transcript": "", "language": "", "generated": False,
+        "error": "YouTube is rate-limiting or blocking this server right now.", "permanent": False}
+    allblk = [{"id": "z%d" % i, "transcript": "", "error": ""} for i in range(6)]
+    n, blocked = watcher.fetch_transcripts_batch(allblk, workers=8)
+    _check("parallel: a whole-batch rate-limit reports blocked and poisons nothing",
+           n == 0 and blocked is True and all(v["error"] == "" for v in allblk))
+
+    watcher.fetch_transcript = real_fetch_fn
+    if _saved_proxy is None:
+        os.environ.pop("WATCHER_PROXY_URL", None)
+        _check("proxied() is False when WATCHER_PROXY_URL is unset", watcher.proxied() is False)
+    else:
+        os.environ["WATCHER_PROXY_URL"] = _saved_proxy
 
     # --- watcher.py: transcript fetch error paths (package stubbed, no network) ------------------
     real_import = watcher._import_transcript_api
@@ -345,6 +408,27 @@ def run():
     body = c.get("/w/%s/watcher" % CLIENT).get_data(as_text=True)
     _check("queued card renders the Safe-pull note", "Safe pull queued" in body)
 
+    # --- Live Safe-pull status: queued counts + the local scraper's heartbeat --------------------
+    st = c.get("/w/%s/watcher/safe-pull-status" % CLIENT).get_json()
+    _check("safe-pull-status lists the queued channel with counts",
+           st["ok"] and st["queued"] == [chan] and chan in st["channels"]
+           and "done" in st["channels"][chan] and "total" in st["channels"][chan])
+    _check("safe-pull-status agent absent before the scraper ever runs",
+           st["agent"]["present"] is False and st["agent"]["active"] is False)
+    # Simulate a fresh heartbeat from the local scraper fetching THIS channel right now.
+    import json as _json
+    workspace._write_object(workspace.safe_pull_status_name(), _json.dumps({
+        "updated": workspace.now_iso(), "mode": "queue", "phase": "fetching", "client": CLIENT,
+        "channel_id": chan, "channel_title": "Data With Dana", "current_video": "How to model churn",
+        "done": 2, "pending": 3, "total": 5, "cooldown_until": "",
+    }).encode("utf-8"))
+    st = c.get("/w/%s/watcher/safe-pull-status" % CLIENT).get_json()
+    _check("safe-pull-status reflects a live scraper heartbeat",
+           st["agent"]["active"] is True and st["agent"]["on_this_client"] is True
+           and st["agent"]["phase"] == "fetching"
+           and st["agent"]["current_video"] == "How to model churn")
+    workspace._delete_object(workspace.safe_pull_status_name())
+
     # --- Team-only gating: a client must never see or touch Watcher ------------------------------
     with c.session_transaction() as s:
         s.clear()
@@ -357,6 +441,8 @@ def run():
                   data={"op": "delete", "channel_id": chan}).status_code == 403)
     _check("client transcript GET is forbidden",
            c.get("/w/%s/watcher/video/%s/vid00000001" % (CLIENT, chan)).status_code == 403)
+    _check("client safe-pull-status GET is forbidden",
+           c.get("/w/%s/watcher/safe-pull-status" % CLIENT).status_code == 403)
 
     with c.session_transaction() as s:
         s.clear()

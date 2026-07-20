@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atrium · Service Templates prototype</title>
+<style>
+  :root{
+    --green:#4FA84A; --green-d:#3d8639; --purple:#5A54DD;
+    --ink:#16241c; --muted:#6b7a70; --line:#dfe6e0;
+    --bg:#f4f7f4; --card:#fff; --amber:#e8912d; --red:#d5443c; --blue:#3b7ddd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 80px}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);font-weight:700}
+  h1{font-size:26px;margin:6px 0 4px}
+  .sub{color:var(--muted);margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:400px 1fr;gap:20px;align-items:start}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 14px}
+  label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+        color:var(--muted);margin:0 0 5px}
+  select,input[type=text],input[type=number],input[type=date]{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;
+    background:#fff;color:var(--ink);font-family:inherit}
+  select:focus,input:focus{outline:2px solid rgba(79,168,74,.35);border-color:var(--green)}
+  .field{margin-bottom:13px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .req{color:var(--red)}
+  .btn{border:0;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;
+       font-family:inherit}
+  .btn-primary{background:var(--green);color:#fff}
+  .btn-primary:hover{background:var(--green-d)}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5;background:#f7faf7;border:1px solid var(--line);
+        border-radius:8px;padding:9px 11px;margin-bottom:13px}
+  .err{background:#fdf1f0;border-color:#f0c8c5;color:#a3322b}
+  .params{border:1px dashed var(--line);border-radius:8px;padding:12px;margin-bottom:13px;background:#fbfdfb}
+  .params .tag{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+               color:var(--purple);margin-bottom:9px;display:block}
+  /* preview */
+  .prev{border:1px solid var(--line);border-radius:10px;background:#fbfdfb;padding:14px;min-height:120px}
+  .prev-empty{color:var(--muted);font-size:13px;text-align:center;padding:26px 10px;line-height:1.6}
+  .mt{margin-bottom:12px}
+  .mt-h{font-weight:700;font-size:13px;display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .mt-h span.n{font-size:11px;color:var(--muted);font-weight:600}
+  .sb{display:flex;gap:8px;align-items:flex-start;padding:5px 0 5px 18px;font-size:13px;
+      border-top:1px dashed #e8efe9}
+  .box{width:14px;height:14px;border:1.5px solid #b9c6bc;border-radius:3px;flex:none;margin-top:2px}
+  .box.on{background:var(--green);border-color:var(--green);position:relative}
+  .box.on:after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;
+                border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .sb .dod{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .sb.rev{background:#fff7ef;margin:0 -8px;padding-left:26px;padding-right:8px;border-radius:6px}
+  .sb.rev .t{color:#a5641c;font-weight:600}
+  .pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+        padding:2px 7px;border-radius:20px;background:#eef0fd;color:var(--purple)}
+  .pill.reason{background:#fdeee0;color:#a5641c}
+  .counts{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:10px;
+          border-top:1px solid var(--line);padding-top:10px}
+  .counts b{color:var(--ink)}
+  /* board */
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
+  @media(max-width:900px){.board{grid-template-columns:1fr 1fr}}
+  .col-h{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+         display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .col{background:#eef2ee;border-radius:10px;padding:8px;min-height:96px}
+  .tcard{background:#fff;border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:8px;
+         cursor:pointer}
+  .tcard:hover{border-color:var(--green);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .tcard .cl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .tcard .ti{font-weight:700;margin:4px 0 6px;font-size:13.5px;line-height:1.3}
+  .bar{height:5px;background:#eef2ee;border-radius:4px;overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;background:var(--green)}
+  .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:5px}
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(14,26,18,.5);display:none;align-items:flex-start;
+         justify-content:center;padding:34px 16px;overflow:auto;z-index:50}
+  .scrim.on{display:flex}
+  .modal{background:#fff;border-radius:14px;max-width:640px;width:100%;overflow:hidden}
+  .m-top{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;
+         align-items:center}
+  .m-body{padding:18px 20px;max-height:60vh;overflow:auto}
+  .m-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px;
+          background:#fbfdfb}
+  .x{background:none;border:0;font-size:22px;cursor:pointer;color:var(--muted);line-height:1}
+  .banner{border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;line-height:1.5}
+  .banner.block{background:#fdf1f0;border:1px solid #f0c8c5;color:#a3322b}
+  .banner.ok{background:#eef7ed;border:1px solid #cfe6cd;color:#2f6b2c}
+  .addrev{margin-left:auto}
+  .legend{font-size:12px;color:var(--muted);line-height:1.7;margin-top:10px}
+  .legend b{color:var(--ink)}
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0;font-size:13px;line-height:1.6}
+  .steps li{counter-increment:s;padding:6px 0 6px 30px;position:relative;border-bottom:1px dashed #e8efe9}
+  .steps li:before{content:counter(s);position:absolute;left:0;top:6px;width:20px;height:20px;
+    background:var(--green);color:#fff;border-radius:50%;font-size:11px;font-weight:700;
+    display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Atrium Admin · Delivery</div>
+  <h1>Service Templates — prototype</h1>
+  <p class="sub">Pick a service type and the card builds its own task list. Nothing is typed from memory.</p>
+
+  <div class="grid">
+    <!-- ============ LEFT: the form ============ -->
+    <div class="panel">
+      <h2>Add a service</h2>
+
+      <div class="field">
+        <label>Client</label>
+        <select id="f-client">
+          <option>Riverdance RV</option><option>Melo Yelo</option><option>Rooming House</option>
+          <option>The Contract Shop</option><option>Supercashflow</option><option>Honey Tribe</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Department</label>
+        <select id="f-dept"><option value="">—</option></select>
+      </div>
+
+      <div class="field">
+        <label>Service type <span class="req">*new*</span></label>
+        <select id="f-service"><option value="">Choose a department first…</option></select>
+      </div>
+
+      <div class="field" id="camp-wrap" style="display:none">
+        <label>Campaign <span class="req" id="camp-req"></span></label>
+        <select id="f-campaign">
+          <option value="">Choose a campaign…</option>
+          <option>Park &amp; Porch | Leads</option><option>Direct Booking (Campspot)</option>
+          <option>Rent to Rent</option><option>Analysis Paralysis</option>
+          <option>Get Clients (5 Unexpected Ways)</option><option>Finance Page</option>
+          <option>Property Listings</option><option>Internal reporting</option>
+        </select>
+        <input type="text" id="f-campaign-text" placeholder="Type the campaign name (unique)…" style="display:none">
+        <div class="hint" id="camp-hint" style="display:none;margin-top:8px">
+          Campaigns have unique names — type it. The tasks for this service are added for you.
+        </div>
+      </div>
+
+      <!-- ad production picker (Acquisition only) -->
+      <div class="params" id="adprod-wrap" style="display:none">
+        <span class="tag">Ad production tasks</span>
+        <div class="hint" style="margin-bottom:10px">
+          Add the creative work this campaign needs. Each one drops in its own task group on top of the
+          automatic launch tasks. Add as many as you like.
+        </div>
+        <div class="row" style="grid-template-columns:1fr auto;align-items:end;gap:8px;margin-bottom:10px">
+          <div class="field" style="margin:0">
+            <label>Choose a set of tasks</label>
+            <select id="adprod-pick"></select>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="adprod-add" style="height:36px">+ Add</button>
+        </div>
+        <div id="adprod-list"></div>
+      </div>
+
+      <div class="params" id="params" style="display:none">
+        <span class="tag">Tweaks for this service</span>
+        <div id="params-body"></div>
+      </div>
+
+      <div class="row">
+        <div class="field"><label>Lead</label>
+          <select id="f-lead"><option>Ehjay</option><option>Justine</option><option>Nico</option>
+          <option>Zhen</option><option>Samuel</option><option>Paulo</option><option>Charles</option></select>
+        </div>
+        <div class="field"><label>Priority</label>
+          <select id="f-prio"><option>Medium</option><option>Low</option><option>High</option>
+          <option selected>Urgent</option></select>
+        </div>
+      </div>
+
+      <div id="formerr" class="hint err" style="display:none"></div>
+      <button class="btn btn-primary" style="width:100%" id="create">Create service</button>
+      <div class="legend">
+        <b>Try it:</b> Acquisition → Google / Meta Campaign → type a campaign name →
+        add "Video Ad Production" and set it to 3. The automatic launch tasks are already there.
+      </div>
+    </div>
+
+    <!-- ============ RIGHT: preview ============ -->
+    <div class="panel">
+      <h2>What will be created</h2>
+      <div class="prev" id="prev">
+        <div class="prev-empty">Choose a service type.<br>The main tasks and sub-tasks appear here — already written.</div>
+      </div>
+      <div class="counts" id="counts" style="display:none">
+        <div><b id="c-mt">0</b> main tasks</div>
+        <div><b id="c-sb">0</b> sub-tasks</div>
+        <div><b id="c-typed">0</b> typed by hand</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BOARD ============ -->
+  <div class="panel" style="margin-top:20px">
+    <h2>Task board</h2>
+    <div class="board">
+      <div><div class="col-h"><i class="dot" style="background:var(--blue)"></i>In Process</div><div class="col" id="col-in_process"></div></div>
+      <div><div class="col-h"><i class="dot" style="background:var(--amber)"></i>For Launch</div><div class="col" id="col-for_launch"></div></div>
+      <div><div class="col-h"><i class="dot" style="background:var(--green)"></i>Launched</div><div class="col" id="col-launched"></div></div>
+      <div><div class="col-h"><i class="dot" style="background:#9aa8a0"></i>Closed</div><div class="col" id="col-closed"></div></div>
+    </div>
+    <div class="legend"><b>Click any card</b> to open it — tick steps, add a revision, then try to close it.</div>
+  </div>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <div class="panel" style="margin-top:20px">
+    <h2>What happens when you hit create</h2>
+    <ol class="steps">
+      <li>The form posts <code>service_type</code> + the tweaks (qty, platform) alongside the normal fields.</li>
+      <li><code>add_task()</code> creates the card exactly as it does today — nothing changes here.</li>
+      <li><code>build_maintasks()</code> reads the recipe and multiplies any per-unit step by its quantity (3 reels → Reel 1, 2, 3).</li>
+      <li><code>set_task_maintasks()</code> writes them onto the card in one go.</li>
+      <li>Every sub-task carries its <b>done test</b>, so "finished" isn't an opinion.</li>
+      <li>A revision attaches to <b>one unit</b> — and because the close guard already counts open sub-tasks, it blocks the card automatically.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <div class="m-top">
+      <div>
+        <span class="pill" id="m-label">PAID MEDIA</span>
+        <div style="font-weight:700;font-size:17px;margin-top:5px" id="m-title">—</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px" id="m-sub">—</div>
+      </div>
+      <button class="x" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="m-body">
+      <div id="m-banner"></div>
+      <div id="m-tasks"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary btn-sm" id="m-advance">Mark Launched →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- the recipe book (subset of service_templates.py) ---------------- */
+var DEPTS = [
+  ["acquisition","Acquisition"],["lifecycle","Lifecycle"],
+  ["data","Data Analyst"],["development","Development"]
+];
+var DEPT_LABEL = {acquisition:"Paid Media", lifecycle:"Organic", data:"Insights", development:"Website"};
+
+var T = {
+  /* Acquisition has ONE service type: a Google / Meta campaign. The campaign name is TYPED
+     (unique names), the launch tasks below are added automatically, and the creative work is
+     chosen from the "Ad production tasks" picker (see AD_PRODUCTION). */
+  google_meta_campaign:{label:"Google / Meta Campaign",dept:"acquisition",type:"Campaign",
+    camp:true, campType:"text", adProduction:true, params:[],
+    mt:[{t:"Campaign build",s:[
+          {t:"Audience, interest & budget research",d:"Research sheet completed and linked on the card"},
+          {t:"Campaign structure plan",d:"Objective + conversion event + CBO/ABO approved by the lead"},
+          {t:"Audience build",d:"Custom / lookalike / interest audiences saved in Ads Manager"},
+          {t:"Ad set configuration",d:"Placements, schedule and budget set per the plan"},
+          {t:"Load creatives + copy",d:"All approved creatives, headlines, primary text and CTAs loaded"},
+          {t:"Compliance check",d:"Client rules verified (e.g. Licensed Dealer #47087, no buy/own wording)"}]},
+        {t:"Launch & verify",s:[
+          {t:"Tracking confirmation with Systems & Dev",d:"Pixel / CAPI events verified firing before spend starts"},
+          {t:"Launch",d:"Campaign published; campaign ID logged on the card"},
+          {t:"Post-launch QA (24h)",d:"Delivery, spend pacing and attribution confirmed"}]}]},
+
+  email_automation:{label:"Email Automation / Sequence Build",dept:"lifecycle",type:"Email Automation",camp:true,campType:"text",
+    params:[{k:"qty",kind:"qty",label:"How many emails?",def:5},
+            {k:"platform",kind:"choice",label:"Platform",opts:["ActiveCampaign","GHL","Other"],def:"ActiveCampaign"}],
+    mt:[{t:"Plan",s:[{t:"Automation map (trigger, waits, if/else, exit)",d:"Flow documented in plain language, handover-ready"}]},
+        {t:"Email production",s:[
+          {t:"Email {n} — copy",u:"qty",d:"Copy drafted to the approved angle"},
+          {t:"Email {n} — HTML build",u:"qty",d:"Built, responsive, merge fields correct"}]},
+        {t:"Build & activate",s:[
+          {t:"Automation built in platform",d:"All steps, conditions and tags created"},
+          {t:"Entry points connected",d:"Forms / links / imports wired to the trigger"},
+          {t:"End-to-end test",d:"A test contact travels the full flow correctly"},
+          {t:"Activate",d:"Sequence live; logged on the card"}]}]},
+
+  content_cycle:{label:"Content Cycle (theme)",dept:"lifecycle",type:"Content",camp:true,campType:"text",
+    params:[{k:"qty",kind:"qty",label:"Supporting blogs",def:5}],
+    mt:[{t:"Plan",s:[{t:"Topic ideation approved",d:"Theme and angle signed off"},
+                     {t:"Angle brief written",d:"Brief on the card"}]},
+        {t:"Write",s:[{t:"Anchor blog",d:"Anchor drafted and reviewed"},
+                      {t:"Supporting blog {n}",u:"qty",d:"Drafted and reviewed against the angle brief"},
+                      {t:"Newsletter from the theme",d:"Newsletter drafted"}]},
+        {t:"Produce & publish",s:[{t:"Blog graphics",d:"Graphics produced for every blog"},
+                                  {t:"Publish",d:"All pieces live; URLs logged on the card"}]}]},
+
+  organic_social:{label:"Organic Social Post Production",dept:"lifecycle",type:"Social",camp:false,campType:"text",
+    params:[{k:"qty",kind:"qty",label:"How many posts?",def:2},
+            {k:"channel",kind:"text",label:"Channel",def:"Facebook"}],
+    mt:[{t:"Post batch",s:[
+          {t:"Post {n} — concept + caption",u:"qty",d:"Concept and caption approved"},
+          {t:"Post {n} — design",u:"qty",d:"Designed to brand spec"},
+          {t:"Approver sign-off",d:"Named approver has signed off the batch"},
+          {t:"Scheduled",d:"Scheduled per cadence; logged"}]}]},
+
+  market_research:{label:"Market Research Package",dept:"data",type:"Research",camp:false,params:[],
+    mt:[{t:"Research package",s:[
+          {t:"Company profile",d:"What they do, offer and positioning documented"},
+          {t:"Brand / business identity",d:"Voice, values and differentiators captured"},
+          {t:"PESTEL analysis",d:"All six factors documented with client relevance"},
+          {t:"Industry overview",d:"Market size, dynamics and key players summarised"},
+          {t:"Competitor research",d:"Three or more competitors profiled (offer, pricing, angle)"},
+          {t:"Trend research",d:"Current demand and content trends noted"},
+          {t:"Link in central sheet",d:"Research doc linked on the central sheet"}]}]},
+
+  dashboard_build:{label:"Dashboard Build",dept:"data",type:"Dashboard",camp:true,
+    params:[{k:"tool",kind:"choice",label:"Tool",opts:["Looker Studio","Sheets","Custom"],def:"Looker Studio"}],
+    mt:[{t:"Define & connect",s:[
+          {t:"Define metrics",d:"Metric list plus source per metric agreed with the requester"},
+          {t:"Data sources connected",d:"All sources connected and pulling"}]},
+        {t:"Build & hand over",s:[
+          {t:"Build views",d:"All agreed views built"},
+          {t:"Validate numbers",d:"Figures match source-of-truth spot checks"},
+          {t:"Share + walkthrough",d:"Access granted and walkthrough done"}]}]},
+
+  tracking_setup:{label:"Tracking Infrastructure Setup",dept:"development",type:"Tracking",camp:false,params:[],
+    mt:[{t:"Install",s:[
+          {t:"GTM container",d:"Installed; publish access confirmed"},
+          {t:"GA4",d:"Connected and receiving data"},
+          {t:"Meta Pixel",d:"Installed in the correct native field and firing"},
+          {t:"Meta CAPI",d:"Server events configured and deduplicating"}]},
+        {t:"Configure & verify",s:[
+          {t:"Conversion events / triggers",d:"Every key event built and named per convention"},
+          {t:"UTM scheme",d:"Naming convention documented for campaigns"},
+          {t:"QA / verify",d:"Events confirmed in GTM Preview and GA4 Realtime"}]}]},
+
+  website_fix:{label:"Website Edit / Fix / Integration",dept:"development",type:"Website",camp:false,params:[],
+    mt:[{t:"Fix",s:[
+          {t:"Change implemented",d:"Edit made on the live site or staging"},
+          {t:"Integration connected",d:"Payment / form / pixel connected where applicable"},
+          {t:"Verified in production",d:"Confirmed working on the live site"}]}]}
+};
+
+/* ---- ad production task sets (chosen from the picker on an Acquisition campaign) ---- */
+var AD_PRODUCTION = {
+  video:{label:"Video Ad Production", qtyLabel:"How many videos?", def:3,
+    group:{t:"Video ad production", s:[
+      {t:"Script / concept per video approved",d:"Every video has an approved hook and script before editing"},
+      {t:"Footage secured",d:"All required footage available to the editor"},
+      {t:"Video {n} — draft edit",u:"qty",d:"First cut produced to the approved script"},
+      {t:"Video {n} — internal review",u:"qty",d:"Brand colours, fonts, pacing and hook checked"},
+      {t:"Export + file",d:"Final exports filed; folder link on the card"}]}},
+
+  static:{label:"Static Ad Production", qtyLabel:"How many statics?", def:5,
+    group:{t:"Static ad production", s:[
+      {t:"Batch brief approved (angles + copy direction)",d:"Brief signed off before any design starts"},
+      {t:"Static {n} — design",u:"qty",d:"Designed to brand spec, copy matches the approved brief"},
+      {t:"Internal review of the batch",d:"All statics checked against brief + compliance"},
+      {t:"Export + file to campaign folder",d:"Exports filed; folder link on the card"}]}},
+
+  carousel:{label:"Carousel Ad Production", qtyLabel:"How many carousels?", def:1,
+    group:{t:"Carousel ad production", s:[
+      {t:"Card structure + copy approved",d:"Card-by-card structure and copy signed off"},
+      {t:"Carousel {n} — design all cards",u:"qty",d:"All cards designed; sequence reads in order"},
+      {t:"Internal review",d:"Sequence logic and brand checked"},
+      {t:"Export + file",d:"Exports filed; folder link on the card"}]}}
+};
+/* order the picker lists them in */
+var AD_ORDER = ["video","static","carousel"];
+
+var REASONS = ["quality miss","brief change","client preference","compliance"];
+
+/* ---------------- helpers ---------------- */
+var uid = 0;
+function nid(p){ uid = uid + 1; return p + uid; }
+function el(id){ return document.getElementById(id); }
+
+function paramVals(){
+  var out = {}, nodes = document.querySelectorAll("[data-param]");
+  for (var i=0;i<nodes.length;i++){ out[nodes[i].getAttribute("data-param")] = nodes[i].value; }
+  return out;
+}
+function qty(p,k){
+  var n = parseInt(p[k],10);
+  if (isNaN(n) || n < 1) { n = 1; }
+  if (n > 50) { n = 50; }
+  return n;
+}
+
+/* expand one group's sub-tasks, multiplying any per-unit step ({n}, u:"qty") by n */
+function expandGroup(group, n){
+  var subs = [];
+  for (var j=0;j<group.s.length;j++){
+    var s = group.s[j];
+    if (s.u){
+      for (var k=1;k<=n;k++){
+        subs.push({id:nid("sb"),text:s.t.replace("{n}",k),done:false,dod:s.d});
+      }
+    } else {
+      subs.push({id:nid("sb"),text:s.t,done:false,dod:s.d});
+    }
+  }
+  return subs;
+}
+
+/* the spawn function — mirrors build_maintasks() in service_templates.py.
+   `added` = chosen ad-production sets [{type, qty}] for an Acquisition campaign. */
+function buildMaintasks(key,p,added){
+  var tpl = T[key]; if(!tpl){ return []; }
+  var out = [];
+  /* automatic / fixed task groups from the recipe */
+  for (var i=0;i<tpl.mt.length;i++){
+    var m = tpl.mt[i];
+    // a fixed group may still carry {n}/u steps driven by a service param
+    out.push({id:nid("mt"),text:m.t,subs:expandGroupWithParams(m,p)});
+  }
+  /* chosen ad-production sets, appended on top */
+  if (tpl.adProduction && added){
+    for (var a=0;a<added.length;a++){
+      var def = AD_PRODUCTION[added[a].type]; if(!def){ continue; }
+      var q = qty({qty:added[a].qty},"qty");
+      out.push({id:nid("mt"),text:def.group.t,subs:expandGroup(def.group,q),adType:added[a].type});
+    }
+  }
+  return out;
+}
+
+/* fixed group whose per-unit steps read a service param key */
+function expandGroupWithParams(group,p){
+  var subs = [];
+  for (var j=0;j<group.s.length;j++){
+    var s = group.s[j];
+    if (s.u){
+      var n = qty(p, s.u);
+      for (var k=1;k<=n;k++){
+        subs.push({id:nid("sb"),text:s.t.replace("{n}",k),done:false,dod:s.d});
+      }
+    } else {
+      subs.push({id:nid("sb"),text:s.t,done:false,dod:s.d});
+    }
+  }
+  return subs;
+}
+
+/* chosen ad-production sets for the current Acquisition campaign */
+var ADDED = [];
+
+/* ---------------- form wiring ---------------- */
+(function(){
+  var d = el("f-dept");
+  for (var i=0;i<DEPTS.length;i++){
+    var o=document.createElement("option"); o.value=DEPTS[i][0]; o.textContent=DEPTS[i][1]; d.appendChild(o);
+  }
+})();
+
+el("f-dept").addEventListener("change", function(){
+  var dept = this.value, sel = el("f-service");
+  sel.innerHTML = "";
+  var first = document.createElement("option");
+  first.value=""; first.textContent = dept ? "Choose a service…" : "Choose a department first…";
+  sel.appendChild(first);
+  for (var k in T){
+    if (T[k].dept === dept){
+      var o=document.createElement("option"); o.value=k; o.textContent=T[k].label; sel.appendChild(o);
+    }
+  }
+  renderParams(); preview();
+});
+
+el("f-service").addEventListener("change", function(){ renderParams(); preview(); });
+el("f-campaign").addEventListener("change", preview);
+el("f-campaign-text").addEventListener("input", preview);
+
+/* the current campaign name, from whichever campaign field is active */
+function campVal(){
+  var key = el("f-service").value, tpl = key ? T[key] : null;
+  if (tpl && tpl.campType === "text"){ return el("f-campaign-text").value.trim(); }
+  return el("f-campaign").value;
+}
+
+/* ---- ad production picker ---- */
+(function(){
+  var pick = el("adprod-pick");
+  for (var i=0;i<AD_ORDER.length;i++){
+    var k = AD_ORDER[i];
+    var o = document.createElement("option"); o.value = k; o.textContent = AD_PRODUCTION[k].label;
+    pick.appendChild(o);
+  }
+})();
+
+el("adprod-add").addEventListener("click", function(){
+  var type = el("adprod-pick").value, def = AD_PRODUCTION[type];
+  ADDED.push({type:type, qty:def.def});
+  renderAdded(); preview();
+});
+
+function renderAdded(){
+  var list = el("adprod-list"); list.innerHTML = "";
+  if (!ADDED.length){
+    list.innerHTML = '<div class="hint" style="margin:0">No ad production added yet — the campaign still ships with its automatic launch tasks.</div>';
+    return;
+  }
+  for (var i=0;i<ADDED.length;i++){
+    (function(idx){
+      var item = ADDED[idx], def = AD_PRODUCTION[item.type];
+      var row = document.createElement("div");
+      row.className = "row";
+      row.style.gridTemplateColumns = "1fr 90px auto";
+      row.style.alignItems = "end";
+      row.style.gap = "8px";
+      row.style.marginBottom = "8px";
+
+      var name = document.createElement("div");
+      name.className = "field"; name.style.margin = "0";
+      name.innerHTML = '<label>Task set</label><div style="padding:9px 10px;border:1px solid var(--line);' +
+        'border-radius:8px;background:#fff;font-weight:600">' + def.label + '</div>';
+
+      var qf = document.createElement("div");
+      qf.className = "field"; qf.style.margin = "0";
+      var ql = document.createElement("label"); ql.textContent = "Qty";
+      var qi = document.createElement("input");
+      qi.type = "number"; qi.min = "1"; qi.max = "50"; qi.value = item.qty;
+      qi.title = def.qtyLabel;
+      qi.addEventListener("input", function(){ ADDED[idx].qty = qi.value; preview(); });
+      qf.appendChild(ql); qf.appendChild(qi);
+
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "btn btn-ghost btn-sm"; rm.textContent = "Remove";
+      rm.style.height = "36px";
+      rm.addEventListener("click", function(){ ADDED.splice(idx,1); renderAdded(); preview(); });
+
+      row.appendChild(name); row.appendChild(qf); row.appendChild(rm);
+      list.appendChild(row);
+    })(i);
+  }
+}
+
+function renderParams(){
+  var key = el("f-service").value, box = el("params"), body = el("params-body");
+  var cw = el("camp-wrap");
+  body.innerHTML = "";
+  ADDED = [];                       // reset chosen ad-production sets on any service change
+  if (!key){
+    box.style.display="none"; cw.style.display="none";
+    el("adprod-wrap").style.display="none"; renderAdded(); return;
+  }
+  var tpl = T[key];
+
+  cw.style.display = "block";
+  el("camp-req").textContent = tpl.camp ? "required" : "optional";
+  el("camp-req").className = tpl.camp ? "req" : "";
+
+  /* campaign field: typed text (unique names) vs preset dropdown */
+  var typed = tpl.campType === "text";
+  el("f-campaign-text").style.display = typed ? "block" : "none";
+  el("f-campaign").style.display      = typed ? "none"  : "block";
+  el("camp-hint").style.display       = typed ? "block" : "none";
+
+  /* ad-production picker: only for the Acquisition campaign */
+  el("adprod-wrap").style.display = tpl.adProduction ? "block" : "none";
+  renderAdded();
+
+  if (!tpl.params.length){ box.style.display="none"; return; }
+  box.style.display="block";
+  for (var i=0;i<tpl.params.length;i++){
+    var p = tpl.params[i];
+    var f = document.createElement("div"); f.className="field"; f.style.marginBottom="9px";
+    var l = document.createElement("label"); l.textContent = p.label; f.appendChild(l);
+    var input;
+    if (p.kind === "choice"){
+      input = document.createElement("select");
+      for (var j=0;j<p.opts.length;j++){
+        var o=document.createElement("option"); o.value=p.opts[j]; o.textContent=p.opts[j];
+        if (p.opts[j]===p.def){ o.selected=true; } input.appendChild(o);
+      }
+    } else if (p.kind === "qty"){
+      input = document.createElement("input"); input.type="number"; input.min="1"; input.max="50";
+      input.value = p.def;
+    } else {
+      input = document.createElement("input"); input.type="text"; input.value = p.def;
+    }
+    input.setAttribute("data-param", p.k);
+    input.addEventListener("input", preview);
+    input.addEventListener("change", preview);
+    f.appendChild(input); body.appendChild(f);
+  }
+}
+
+function preview(){
+  var key = el("f-service").value, box = el("prev"), counts = el("counts");
+  if (!key){
+    box.innerHTML = '<div class="prev-empty">Choose a service type.<br>The main tasks and sub-tasks appear here — already written.</div>';
+    counts.style.display="none"; return;
+  }
+  var mts = buildMaintasks(key, paramVals(), ADDED);
+  box.innerHTML = ""; var nsb = 0;
+  for (var i=0;i<mts.length;i++){
+    var m = mts[i], w = document.createElement("div"); w.className="mt";
+    var h = document.createElement("div"); h.className="mt-h";
+    h.innerHTML = m.text + ' <span class="n">' + m.subs.length + ' steps</span>';
+    w.appendChild(h);
+    for (var j=0;j<m.subs.length;j++){
+      nsb = nsb + 1;
+      var s = m.subs[j], r = document.createElement("div"); r.className="sb";
+      r.innerHTML = '<i class="box"></i><div><span class="t">' + s.text +
+                    '</span><span class="dod">Done when: ' + s.dod + '</span></div>';
+      w.appendChild(r);
+    }
+    box.appendChild(w);
+  }
+  counts.style.display="flex";
+  el("c-mt").textContent = mts.length; el("c-sb").textContent = nsb; el("c-typed").textContent = "0";
+}
+
+/* ---------------- board ---------------- */
+var CARDS = [];
+el("create").addEventListener("click", function(){
+  var key = el("f-service").value, err = el("formerr");
+  err.style.display="none";
+  if (!key){ err.textContent="Choose a service type first."; err.style.display="block"; return; }
+  var tpl = T[key], camp = campVal();
+  if (tpl.camp && !camp){
+    err.textContent = "This service needs a campaign name. (That's the gate that stops blank cards.)";
+    err.style.display="block"; return;
+  }
+  var p = paramVals();
+  CARDS.push({
+    id: nid("tk"), client: el("f-client").value, title: tpl.label,
+    dept: tpl.dept, label: DEPT_LABEL[tpl.dept], campaign: camp,
+    lead: el("f-lead").value, prio: el("f-prio").value,
+    stage: "in_process", maintasks: buildMaintasks(key,p,ADDED)
+  });
+  drawBoard();
+});
+
+function subsOf(c){
+  var out=[]; for (var i=0;i<c.maintasks.length;i++){
+    for (var j=0;j<c.maintasks[i].subs.length;j++){ out.push(c.maintasks[i].subs[j]); } }
+  return out;
+}
+function doneOf(c){ var s=subsOf(c),n=0; for(var i=0;i<s.length;i++){ if(s[i].done){n=n+1;} } return n; }
+
+function drawBoard(){
+  var cols = ["in_process","for_launch","launched","closed"];
+  for (var i=0;i<cols.length;i++){ el("col-"+cols[i]).innerHTML=""; }
+  for (var c=0;c<CARDS.length;c++){
+    var card = CARDS[c], subs = subsOf(card), done = doneOf(card);
+    var pct = subs.length ? Math.round(done*100/subs.length) : 0;
+    var d = document.createElement("div"); d.className="tcard";
+    d.innerHTML = '<div class="cl">'+card.client+'</div>' +
+      '<div class="ti">'+card.title+'</div>' +
+      '<span class="pill">'+card.label+'</span>' +
+      '<div class="bar"><i style="width:'+pct+'%"></i></div>' +
+      '<div class="meta"><span>'+done+'/'+subs.length+' steps</span><span>'+card.lead+'</span></div>';
+    (function(idx){ d.addEventListener("click", function(){ openModal(idx); }); })(c);
+    el("col-"+card.stage).appendChild(d);
+  }
+}
+
+/* ---------------- modal ---------------- */
+var CUR = -1;
+function openModal(i){
+  CUR = i; var c = CARDS[i];
+  el("m-label").textContent = c.label.toUpperCase();
+  el("m-title").textContent = c.title;
+  el("m-sub").textContent = c.client + (c.campaign ? "  ·  " + c.campaign : "") + "  ·  Lead: " + c.lead;
+  drawModal(); el("scrim").classList.add("on");
+}
+function closeModal(){ el("scrim").classList.remove("on"); drawBoard(); }
+
+function drawModal(){
+  var c = CARDS[CUR], box = el("m-tasks"); box.innerHTML="";
+  for (var i=0;i<c.maintasks.length;i++){
+    var m = c.maintasks[i];
+    var w = document.createElement("div"); w.className="mt";
+    var h = document.createElement("div"); h.className="mt-h";
+    var dn = 0; for (var q=0;q<m.subs.length;q++){ if(m.subs[q].done){dn=dn+1;} }
+    h.innerHTML = m.text + ' <span class="n">'+dn+'/'+m.subs.length+'</span>';
+    w.appendChild(h);
+    for (var j=0;j<m.subs.length;j++){
+      var s = m.subs[j];
+      var r = document.createElement("div"); r.className = "sb" + (s.rev ? " rev" : "");
+      var reason = s.rev ? ' <span class="pill reason">'+s.reason+'</span>' : "";
+      r.innerHTML = '<i class="box'+(s.done?" on":"")+'"></i>' +
+        '<div style="flex:1"><span class="t">'+s.text+'</span>'+reason+
+        '<span class="dod">Done when: '+s.dod+'</span></div>';
+      (function(mi,si){
+        r.querySelector(".box").addEventListener("click", function(){
+          var t = CARDS[CUR].maintasks[mi].subs[si]; t.done = !t.done; drawModal();
+        });
+        if (!CARDS[CUR].maintasks[mi].subs[si].rev){
+          var b = document.createElement("button");
+          b.className="btn btn-ghost btn-sm addrev"; b.textContent="+ Revision";
+          b.addEventListener("click", function(){ addRev(mi,si); });
+          r.appendChild(b);
+        }
+      })(i,j);
+      w.appendChild(r);
+    }
+    box.appendChild(w);
+  }
+  var open = [], subs = subsOf(c);
+  for (var k=0;k<subs.length;k++){ if(!subs[k].done){ open.push(subs[k]); } }
+  var ban = el("m-banner");
+  if (open.length){
+    ban.innerHTML = '<div class="banner block"><b>Can\'t close yet</b> — ' + open.length +
+      ' step(s) still open. This is the guard Atrium already enforces in <code>move_task_stage()</code>.</div>';
+  } else {
+    ban.innerHTML = '<div class="banner ok">All steps done and no open revisions — this card can move on.</div>';
+  }
+  el("m-advance").textContent = c.stage === "in_process" ? "Move to For Launch →" :
+                                c.stage === "for_launch" ? "Mark Launched →" : "Close service →";
+}
+
+function addRev(mi,si){
+  var c = CARDS[CUR], unit = c.maintasks[mi].subs[si];
+  var reason = REASONS[Math.floor(Math.random()*REASONS.length)];
+  var name = window.prompt("What needs reworking on: " + unit.text, "brand colours wrong");
+  if (name === null){ return; }
+  c.maintasks[mi].subs.splice(si+1,0,{
+    id:nid("sb"), text:"REV: " + unit.text + " — " + name, done:false, rev:true, reason:reason,
+    dod:"Reworked, re-reviewed and re-exported"
+  });
+  drawModal();
+}
+
+el("m-advance").addEventListener("click", function(){
+  var c = CARDS[CUR], subs = subsOf(c), open = 0;
+  for (var i=0;i<subs.length;i++){ if(!subs[i].done){ open = open + 1; } }
+  if (c.stage === "closed"){ return; }
+  if (open && (c.stage === "for_launch" || c.stage === "launched")){
+    alert("Blocked: " + open + " sub-task(s) still open.\n\nAtrium's move_task_stage() raises this same error — an open revision holds the card by itself.");
+    return;
+  }
+  c.stage = c.stage === "in_process" ? "for_launch" : c.stage === "for_launch" ? "launched" : "closed";
+  drawModal(); drawBoard();
+});
+
+/* ---------------- seed one card so the board isn't empty ---------------- */
+(function(){
+  var added = [{type:"video", qty:3}, {type:"static", qty:5}];
+  var c = {id:nid("tk"), client:"Riverdance RV", title:"Google / Meta Campaign", dept:"acquisition",
+           label:"Paid Media", campaign:"Park & Porch | Leads", lead:"Ehjay", prio:"Urgent",
+           stage:"in_process", maintasks:buildMaintasks("google_meta_campaign",{},added)};
+  // tick a few steps and hang a revision so the board shows movement + the close guard
+  c.maintasks[0].subs[0].done = true; c.maintasks[0].subs[1].done = true;
+  var video = c.maintasks[2];   // Campaign build, Launch & verify, then Video ad production
+  if (video){
+    video.subs[0].done = true;
+    video.subs.splice(3,0,{id:nid("sb"),
+      text:"REV: Video 1 — draft edit — brand colours wrong", done:false, rev:true,
+      reason:"quality miss", dod:"Reworked, re-reviewed and re-exported"});
+  }
+  CARDS.push(c); drawBoard();
+})();
+</script>
+</body>
+</html>

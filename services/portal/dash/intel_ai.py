@@ -696,6 +696,158 @@ def rerank(query, records, top_n=None, model=None, token_fetcher=None, fetcher=N
         return records, "the Ranking API returned an unexpected response"
 
 
+# ================================================================================================
+# STREAMING -- token-by-token answers for the Assistant (live "thinking" + pausable generation).
+# ================================================================================================
+# The synchronous _call above returns the whole answer at once (fine for the intel refresh). The
+# Assistant chat instead STREAMS: the model's reasoning (thought parts) and then its answer arrive as
+# deltas, so the UI can show "what it's doing" live and the user can PAUSE (abort the HTTP stream)
+# mid-thinking to steer. Each provider's SSE is normalised to a flat event stream of dicts:
+#   {"type": "thinking", "text": <delta>}   -- reasoning delta (shown in the collapsible think panel)
+#   {"type": "answer",   "text": <delta>}   -- answer delta (the visible reply, PLAIN markdown)
+#   {"type": "usage", "input_tokens": n, "output_tokens": n}  -- token counts (final chunk)
+#   {"type": "error", "message": <reason>}  -- a short human reason; the generator then stops
+# NB: the streaming answer is PLAIN markdown (NOT the {"answer": ...} JSON envelope the sync path
+# uses) -- streaming a JSON wrapper would show the user braces. The caller sets the prompt to match.
+
+def _requests_post_stream(url, headers, payload, timeout):
+    """Default streaming POST: returns the raw response with stream=True so .iter_lines() yields SSE.
+    Lazy `requests` import (tests inject their own fetcher, so this never runs off-cloud)."""
+    import requests  # lazy
+    return requests.post(url, headers=headers, json=payload, timeout=timeout, stream=True)
+
+
+def _sse_data_lines(resp):
+    """Yield the JSON payload string of each `data:` line in an SSE response (skips [DONE]/blanks)."""
+    for raw in resp.iter_lines():
+        if not raw:
+            continue
+        line = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else raw
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        yield data
+
+
+def _stream_vertex(model_id, system, user, show_thinking, think_budget, max_tokens,
+                   token_fetcher, fetcher):
+    """Stream Vertex Gemini via :streamGenerateContent?alt=sse. Yields the normalised event dicts.
+
+    `show_thinking` asks for thought parts (`includeThoughts`) so the reasoning streams; `think_budget`
+    is the reasoning token budget (0 = effectively no thinking). Thinking bills as output, so the cap
+    leaves room for both."""
+    token = _gcp_access_token(token_fetcher)
+    if not token:
+        yield {"type": "error", "message": "could not get GCP credentials for Vertex"}
+        return
+    loc = _VERTEX_LOCATION
+    host = "aiplatform.googleapis.com" if loc == "global" else ("%s-aiplatform.googleapis.com" % loc)
+    url = ("https://%s/v1/projects/%s/locations/%s/publishers/google/models/%s:streamGenerateContent?alt=sse"
+           % (host, _VERTEX_PROJECT, loc, model_id))
+    payload = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
+        "generationConfig": {
+            "maxOutputTokens": max(max_tokens, 1024) + (think_budget if show_thinking else 0),
+            "thinkingConfig": {"thinkingBudget": think_budget if show_thinking else 0,
+                               "includeThoughts": bool(show_thinking)},
+        },
+    }
+    headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    fn = fetcher or _requests_post_stream
+    try:
+        resp = fn(url, headers, payload, _TIMEOUT)
+    except Exception as exc:
+        yield {"type": "error", "message": "could not reach Vertex AI (%s)" % type(exc).__name__}
+        return
+    if getattr(resp, "status_code", 0) >= 400:
+        yield {"type": "error", "message": _short_error(resp, "Vertex error")}
+        return
+    for data in _sse_data_lines(resp):
+        try:
+            chunk = json.loads(data)
+        except ValueError:
+            continue
+        cand = (chunk.get("candidates") or [{}])[0]
+        for p in ((cand.get("content") or {}).get("parts") or []):
+            text = p.get("text", "")
+            if not text:
+                continue
+            yield {"type": "thinking" if p.get("thought") else "answer", "text": text}
+        um = chunk.get("usageMetadata")
+        if um:
+            yield {"type": "usage",
+                   "input_tokens": int(um.get("promptTokenCount") or 0),
+                   "output_tokens": (int(um.get("candidatesTokenCount") or 0)
+                                     + int(um.get("thoughtsTokenCount") or 0))}
+
+
+def _stream_deepseek(model_id, system, user, think, max_tokens, fetcher):
+    """Stream DeepSeek chat/completions (stream=True). Yields the normalised event dicts.
+    `reasoning_content` deltas (reasoner path) map to thinking; `content` deltas to the answer."""
+    key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if not key:
+        yield {"type": "error", "message": "DeepSeek not configured"}
+        return
+    payload = {
+        "model": model_id,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        "stream": True,
+        "stream_options": {"include_usage": True},
+    }
+    if think is not None:
+        payload["thinking"] = {"type": "enabled" if think else "disabled"}
+    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
+    fn = fetcher or _requests_post_stream
+    try:
+        resp = fn(_DEEPSEEK_BASE + "/chat/completions", headers, payload, _TIMEOUT)
+    except Exception as exc:
+        yield {"type": "error", "message": "could not reach DeepSeek (%s)" % type(exc).__name__}
+        return
+    if getattr(resp, "status_code", 0) >= 400:
+        yield {"type": "error", "message": _short_error(resp, "DeepSeek error")}
+        return
+    for data in _sse_data_lines(resp):
+        try:
+            chunk = json.loads(data)
+        except ValueError:
+            continue
+        for ch in (chunk.get("choices") or []):
+            delta = ch.get("delta") or {}
+            rc = delta.get("reasoning_content")
+            if rc:
+                yield {"type": "thinking", "text": rc}
+            c = delta.get("content")
+            if c:
+                yield {"type": "answer", "text": c}
+        u = chunk.get("usage")
+        if u:
+            yield {"type": "usage",
+                   "input_tokens": int(u.get("prompt_tokens") or 0),
+                   "output_tokens": int(u.get("completion_tokens") or 0)}
+
+
+def stream_call(model, system, user, show_thinking=True, think_budget=1024, think=None,
+                max_tokens=4096, token_fetcher=None, fetcher=None):
+    """Stream `model` (a MODELS dict). Yields normalised event dicts (see the section header).
+
+    `show_thinking` + `think_budget` shape the visible reasoning (Gemini); `think` is DeepSeek's
+    reasoning switch. Never raises -- transport failures are yielded as an {"type":"error"} event."""
+    if model["provider"] == "gemini":
+        for ev in _stream_vertex(model["id"], system, user, show_thinking, think_budget, max_tokens,
+                                 token_fetcher, fetcher):
+            yield ev
+    elif model["provider"] == "deepseek":
+        for ev in _stream_deepseek(model["id"], system, user, think, max_tokens, fetcher):
+            yield ev
+    else:
+        yield {"type": "error", "message": "unknown provider"}
+
+
 # --- Parsing ------------------------------------------------------------------------------------
 def _parse_json(raw):
     """Lenient JSON parse of a model reply (dict OR list). Tolerates a ```json fence or surrounding

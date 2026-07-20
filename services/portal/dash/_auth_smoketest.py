@@ -99,6 +99,30 @@ def run():
         _check("session established for the Google user", s.get("user") == "owner@gmail.com")
         _check("session granted the account's client", s.get("clients") == ["riverdance"])
 
+    # --- Sentinel is the source of truth: an active Sentinel user (no portal account) signs in ---
+    # The portal defers to Sentinel for a verified email it doesn't already know locally, so adding
+    # someone in Sentinel (People -> Add Employee) is all it takes to enable their Google login.
+    _sentinel_active = {"staff@agora.ph"}
+    main.sentinel_directory.is_active_user = lambda e: (e or "").strip().lower() in _sentinel_active
+    main.google_oauth.exchange_code = lambda code, redirect, **k: ("staff@agora.ph", None)
+    state = _google_state(c)
+    r = c.get("/auth/google/callback?state=%s&code=x" % state)
+    _check("active Sentinel user (no portal account) -> 302 (signed in)", r.status_code == 302)
+    with c.session_transaction() as s:
+        _check("session established for the Sentinel user", s.get("user") == "staff@agora.ph")
+        _check("Sentinel staff granted no client dashboards ([])", s.get("clients") == [])
+    _check("no portal account was created for the Sentinel user",
+           store.get_account("staff@agora.ph") is None)
+
+    # --- A user NOT active in Sentinel (and not in the portal) is still routed to request-access --
+    main.google_oauth.exchange_code = lambda code, redirect, **k: ("outsider@agora.ph", None)
+    state = _google_state(c)
+    body = c.get("/auth/google/callback?state=%s&code=x" % state).get_data(as_text=True)
+    _check("non-Sentinel, non-portal email -> request access page",
+           "Request access" in body and "outsider@agora.ph" in body)
+    # Restore the default (no Sentinel) for the remaining tests.
+    main.sentinel_directory.is_active_user = lambda e: False
+
     # --- Callback with a BAD state is rejected ------------------------------------------------
     _google_state(c)  # set a real state, then send a wrong one
     r = c.get("/auth/google/callback?state=WRONG&code=x")
@@ -112,10 +136,13 @@ def run():
     _check("/superadmin -> 302 /admin/atrium",
            c.get("/superadmin").headers.get("Location", "").endswith("/admin/atrium"))
 
-    # --- Console renders the app suite (Home hub) + the grant form -----------------------------
+    # --- Console renders the app suite (the "Switch app" dropdown) + the grant form ------------
+    # (The old Home-hub suite cards were replaced by a Switch-app dropdown; "Skill Mastery" is now
+    # reached from inside Sentinel/Academy rather than a top-level card.)
     body = c.get("/admin/atrium").get_data(as_text=True)
     _check("console renders the app suite",
-           "Atrium Admin" in body and "Skill Mastery" in body and "Website Editor" in body)
+           "Atrium Admin" in body and "Website Editor" in body and "Sentinel" in body
+           and "Switch app" in body)
     _check("console shows Grant-Google form", "Grant Google access to a Gmail" in body)
     _check("console shows the pending request", "stranger@gmail.com" in body)
 

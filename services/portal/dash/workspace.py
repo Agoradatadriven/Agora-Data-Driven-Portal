@@ -359,6 +359,27 @@ def clear_watcher_safe_pull(client, channel_id):
     return _mutate(client, fn)
 
 
+# The local safe scraper (safe_scrape_local.py, on the operator's machine) writes ONE global
+# heartbeat object as it works so the Watcher tab can show live progress instead of "check back
+# later". It is NOT under workspace/watcher/<c>/ (that prefix is the per-client archive folders the
+# scraper globs), so it never looks like a client slug.
+def safe_pull_status_name():
+    """Object name for the global safe-scraper heartbeat, e.g. 'workspace/watcher_safe_pull_status.json'."""
+    return "%swatcher_safe_pull_status.json" % _prefix()
+
+
+def read_safe_pull_status():
+    """The local safe scraper's last heartbeat dict ({} if it has never run). Best-effort: a
+    missing/corrupt object just reads as {} so the status route always answers."""
+    raw = _read_object(safe_pull_status_name())
+    if raw is None:
+        return {}
+    try:
+        return json.loads(raw.decode("utf-8")) or {}
+    except (ValueError, AttributeError):
+        return {}
+
+
 # --- Assistant (team-only tab: the workspace knowledge index) ------------------------------------
 # The Assistant's retrieval index (chunks + BM25 stats over every workspace source) is ONE private
 # object per client, rebuilt lazily when its fingerprint stops matching the live data. Like the
@@ -383,6 +404,91 @@ def write_assistant_index(client, index):
     """Persist the assistant index (its own object, NOT the workspace JSON)."""
     _write_object(assistant_index_name(client),
                   json.dumps(index, sort_keys=True).encode("utf-8"))
+
+
+# The Assistant's saved CONVERSATIONS (team-shared chat history) are ONE private object per client,
+# separate from workspace/<c>.json (they can grow with long transcripts of Q&A). Team-shared: any
+# admin sees the same history for a client. Capped so the object stays small.
+ASSISTANT_MAX_CONVERSATIONS = 60
+ASSISTANT_MAX_TURNS = 60
+
+
+def assistant_conversations_name(client):
+    """Object name for a client's saved Assistant conversations."""
+    return "%sassistant/%s/conversations.json" % (_prefix(), client)
+
+
+def read_assistant_conversations(client):
+    """The stored conversations dict `{"conversations": [...]}` (empty shape when none/corrupt)."""
+    raw = _read_object(assistant_conversations_name(client))
+    if raw is None:
+        return {"conversations": []}
+    try:
+        data = json.loads(raw.decode("utf-8"))
+        return data if isinstance(data, dict) and isinstance(data.get("conversations"), list) \
+            else {"conversations": []}
+    except (ValueError, AttributeError):
+        return {"conversations": []}
+
+
+def _conversation_meta(c):
+    """The list-view fields of a conversation (no turns) -- what history_list returns."""
+    return {"id": c.get("id", ""), "title": c.get("title", "") or "Conversation",
+            "updated": c.get("updated", ""), "created": c.get("created", ""),
+            "turn_count": len(c.get("turns") or [])}
+
+
+def list_assistant_conversations(client):
+    """Metadata for every saved conversation, WITHOUT the turns (small payload). The stored list is
+    kept newest-first by `save_assistant_conversation` (front-insertion), so no re-sort is needed --
+    which also avoids ties when several are saved in the same second."""
+    data = read_assistant_conversations(client)
+    return [_conversation_meta(c) for c in (data.get("conversations") or [])]
+
+
+def get_assistant_conversation(client, conv_id):
+    """One full conversation (with turns) by id, or None."""
+    for c in read_assistant_conversations(client).get("conversations") or []:
+        if c.get("id") == conv_id:
+            return c
+    return None
+
+
+def save_assistant_conversation(client, conv_id, title, turns):
+    """Upsert a conversation by id (create or replace its turns/title/updated). Returns the metadata
+    list (newest first). Turns are capped; the conversation list is capped to the newest N."""
+    if not conv_id:
+        return list_assistant_conversations(client)
+    turns = [{"role": ("user" if (t or {}).get("role") == "user" else "bot"),
+              "text": str((t or {}).get("text") or "")}
+             for t in (turns or [])][-ASSISTANT_MAX_TURNS:]
+    data = read_assistant_conversations(client)
+    convs = data.get("conversations") or []
+    now = now_iso()
+    title = (title or "").strip()[:120] or "Conversation"
+    created = now
+    for c in convs:                       # preserve the original created stamp on an upsert
+        if c.get("id") == conv_id:
+            created = c.get("created") or now
+            break
+    rest = [c for c in convs if c.get("id") != conv_id]
+    # Front-insert (newest first, deterministic regardless of same-second timestamps), then cap.
+    convs = ([{"id": conv_id, "title": title, "turns": turns, "created": created, "updated": now}]
+             + rest)[:ASSISTANT_MAX_CONVERSATIONS]
+    data["conversations"] = convs
+    _write_object(assistant_conversations_name(client),
+                  json.dumps(data).encode("utf-8"))
+    return list_assistant_conversations(client)
+
+
+def delete_assistant_conversation(client, conv_id):
+    """Remove a saved conversation by id. Returns the remaining metadata list."""
+    data = read_assistant_conversations(client)
+    data["conversations"] = [c for c in (data.get("conversations") or [])
+                             if c.get("id") != conv_id]
+    _write_object(assistant_conversations_name(client),
+                  json.dumps(data).encode("utf-8"))
+    return list_assistant_conversations(client)
 
 
 # --- Mail (team-only tab: client email archive + AI digest) --------------------------------------
@@ -1457,7 +1563,8 @@ def set_calendar_status(client, index, status):
 #   id, title, stage, department, lead_id, support_ids[], priority, labels[], campaign,
 #   content_type, start_date, due_date (the LAUNCH date -- key canonical, label "Launch date"),
 #   service_charge (internal only),
-#   maintasks[] ({id, text, assignee_id, subs[] ({id, text, done, assignee_id})}),
+#   maintasks[] ({id, text, assignee_id, subs[] ({id, text, done, assignee_id, dod})}),
+#     -- dod = optional INTERNAL "done when" (team overlay only; never in the client Progress shape),
 #   comments[] (the content-comment shape incl. kind:"changes" + resolved), history[],
 #   client_facing, client_note, deliverable_url,        <- client-safe
 #   internal_notes, account_manager_id                  <- internal only
@@ -1572,7 +1679,9 @@ def add_task(client, fields, actor=""):
         "service_charge": f.get("service_charge") or "",
         "on_hold": bool(f.get("on_hold")),
         "hold_reason": f.get("hold_reason") or "",
-        "maintasks": [],
+        # A service can be seeded with a pre-built work breakdown (from service_templates.py); it is
+        # ordinary stored data from here on -- rename/add/delete via the normal helpers.
+        "maintasks": f.get("maintasks") if isinstance(f.get("maintasks"), list) else [],
         "comments": [],
         "history": [],
         "client_facing": bool(f.get("client_facing")),
@@ -1798,11 +1907,12 @@ def delete_maintask(client, task_id, maintask_id):
     return _mutate(client, fn)
 
 
-def add_subtask(client, task_id, text, assignee_id=None, maintask_id=""):
-    """Append a sub-task ({id, text, done, assignee_id}) under a main task. Returns (task, subtask).
+def add_subtask(client, task_id, text, assignee_id=None, maintask_id="", dod=""):
+    """Append a sub-task ({id, text, done, assignee_id, dod}) under a main task. Returns (task, sub).
 
     `maintask_id` picks the group; without one the sub-task lands in the LAST main task, and a
-    task with no main tasks yet grows a "Deliverable" group first (so legacy callers still work)."""
+    task with no main tasks yet grows a "Deliverable" group first (so legacy callers still work).
+    `dod` is the optional INTERNAL "done when" definition (never shown to the client)."""
     def fn(ws):
         task = _find_task(ws, task_id)
         if task is None:
@@ -1817,7 +1927,7 @@ def add_subtask(client, task_id, text, assignee_id=None, maintask_id=""):
                               "assignee_id": task.get("lead_id") or "", "subs": []})
             main = mains[-1]
         sub = {"id": _new_id("st"), "text": text or "", "done": False,
-               "assignee_id": assignee_id or ""}
+               "assignee_id": assignee_id or "", "dod": (dod or "").strip()}
         main.setdefault("subs", []).append(sub)
         return task, sub
     return _mutate(client, fn)

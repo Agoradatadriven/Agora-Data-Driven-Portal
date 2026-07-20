@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atrium · Task Board — scaling options prototype</title>
+<style>
+  :root{
+    --brand:#4FA84A; --brand-700:#3d8639; --brand-100:#e9f4e8; --brand-200:#cfe6cd; --tint:#eef7ed;
+    --accent:#6A6AEA; --accent-600:#5A54DD; --accent-100:#ececfb;
+    --ink:#16241c; --body:#2c3a30; --muted:#6b7a70; --line:#e2e8e3;
+    --canvas:#f5f8f5; --surface:#fff; --danger:#c0453b; --danger-bg:#fdf1f0;
+    --amber:#c77d16; --blue:#2f6ecc;
+    --r-md:9px; --r-lg:14px;
+    --font-display:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px 22px 90px}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);font-weight:800}
+  h1{font-size:24px;margin:6px 0 3px;letter-spacing:-.01em}
+  .lead{color:var(--muted);margin:0 0 18px;font-size:13.5px}
+
+  /* ---- explainer of the four options ---- */
+  .opts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+  @media(max-width:1000px){.opts{grid-template-columns:1fr 1fr}}
+  .opt{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 13px}
+  .opt h3{margin:0 0 5px;font-size:12.5px;display:flex;align-items:center;gap:7px}
+  .opt .tag{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:20px;background:var(--brand-100);color:var(--brand-700)}
+  .opt .tag.big{background:var(--accent-100);color:var(--accent-600)}
+  .opt p{margin:0;font-size:11.5px;color:var(--muted);line-height:1.5}
+
+  /* ---- controls ---- */
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px;
+            padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
+  .ctl-l{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:0;background:var(--surface);color:var(--body);padding:7px 13px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .seg button.on{background:var(--brand);color:#fff}
+  .search{flex:1;min-width:200px;position:relative}
+  .search input{width:100%;padding:8px 12px 8px 32px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--surface)}
+  .search input:focus{outline:2px solid rgba(79,168,74,.3);border-color:var(--brand)}
+  .search svg{position:absolute;left:10px;top:9px;width:15px;height:15px;color:var(--muted)}
+  .chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--body);cursor:pointer;user-select:none}
+  .count-note{font-size:12px;color:var(--muted);margin-left:auto}
+  .count-note b{color:var(--ink)}
+
+  /* ---- board ---- */
+  .board{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:14px;align-items:start;overflow-x:auto}
+  .col{background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-lg);padding:9px;min-height:80px}
+  .colhead{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:3px 4px 9px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .colhead .c{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--muted)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:11px 12px;margin-bottom:9px;cursor:grab;transition:box-shadow .12s,border-color .12s}
+  .card:hover{border-color:var(--brand-200);box-shadow:0 2px 10px rgba(20,36,28,.07)}
+  .card.hide{display:none}
+  .c-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+  .c-client{font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c-pills{margin-left:auto;display:flex;gap:4px;flex:none}
+  .pill{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:20px}
+  .pill.lb-paid{background:var(--accent-100);color:var(--accent-600)}
+  .pill.lb-organic{background:var(--brand-100);color:var(--brand-700)}
+  .pill.lb-web{background:#e6eefb;color:var(--blue)}
+  .pill.urgent{background:var(--danger-bg);color:var(--danger)}
+  .pill.hold{background:#fdf3e3;color:var(--amber)}
+  .c-title{font-weight:700;font-size:13.5px;line-height:1.3;margin:2px 0 7px}
+  .c-meta{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-bottom:9px}
+  .pdot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .p-Low{background:#8b8f8c}.p-Medium{background:var(--blue)}.p-High{background:var(--amber)}.p-Urgent{background:var(--danger)}
+  .c-due.over{color:var(--danger);font-weight:700}
+  .c-foot{display:flex;align-items:center;gap:7px;border-top:1px solid var(--line);padding-top:8px}
+  .av{width:22px;height:22px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .c-lead{font-size:12px;font-weight:600;color:var(--body)}
+  .c-icons{margin-left:auto;display:flex;gap:9px;font-size:11px;color:var(--muted);align-items:center}
+  .c-icons .warn{color:var(--amber);font-weight:700}
+  .c-icons svg{width:13px;height:13px;vertical-align:-2px}
+
+  /* compact density: collapse everything to two lines */
+  .board.compact .card{padding:8px 11px;margin-bottom:6px}
+  .board.compact .c-title{font-size:12.5px;margin:1px 0 4px}
+  .board.compact .c-meta{margin-bottom:0}
+  .board.compact .c-foot{display:none}
+  .board.compact .c-client{font-size:9.5px}
+
+  /* cap columns */
+  .showmore{width:100%;border:1px dashed var(--line);background:transparent;color:var(--brand-700);
+            font:inherit;font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;margin-top:2px}
+  .showmore:hover{background:var(--tint);border-color:var(--brand-200)}
+  .col.collapsed{opacity:.85}
+  .col.collapsed .card{display:none}
+
+  /* ---- swimlanes ---- */
+  .swim{display:none}
+  .swim.on{display:block}
+  .board.off{display:none}
+  .lane{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);margin-bottom:12px;overflow:hidden}
+  .lane-head{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--canvas)}
+  .lane-head .nm{font-family:var(--font-display);font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
+  .lane-head .tot{font-size:11px;color:var(--muted);margin-left:auto}
+  .lane-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  .lane-col{padding:10px 12px;border-right:1px solid var(--line);min-height:54px}
+  .lane-col:last-child{border-right:0}
+  .lane-col .lch{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:5px;margin-bottom:7px}
+  .lane-col .lch .n{margin-left:auto;color:var(--ink)}
+  .chip{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;margin-bottom:6px;font-size:12px;background:var(--surface)}
+  .chip:hover{border-color:var(--brand-200)}
+  .chip .ct{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chip .cp{width:7px;height:7px;border-radius:50%;flex:none}
+  .chip.hide{display:none}
+  .lane-empty{font-size:11px;color:#aeb8b0;padding:2px}
+
+  .foot-note{margin-top:22px;font-size:12.5px;color:var(--muted);line-height:1.6;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px}
+  .foot-note b{color:var(--ink)}
+  .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;background:var(--canvas);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Atrium Admin · Delivery — prototype</div>
+  <h1>Task Board — scaling options</h1>
+  <p class="lead">The board below is seeded with <b id="seedn">45</b> services across 6 clients so the crowding is real. Toggle each option in the control bar and compare. Nothing here is wired to the backend — it's for choosing a direction.</p>
+
+  <div class="opts">
+    <div class="opt"><h3><span class="tag">1</span> Search</h3><p>Filter by title, campaign or client as you type. The fastest way to find one service among many.</p></div>
+    <div class="opt"><h3><span class="tag">2</span> Density</h3><p>Comfortable vs Compact cards. Compact drops the footer to fit 2–3× more per screen.</p></div>
+    <div class="opt"><h3><span class="tag">3</span> Cap columns</h3><p>Show the first 8 per column + a “Show all”. No column grows unbounded; Closed starts collapsed.</p></div>
+    <div class="opt"><h3><span class="tag big">4</span> Swimlanes</h3><p>Group the board into per-client rows, each with its 4 mini stage columns. The long-term shape for many clients.</p></div>
+  </div>
+
+  <div class="controls">
+    <span class="ctl-l">View</span>
+    <div class="seg" id="view-seg">
+      <button data-view="flat" class="on">Flat board</button>
+      <button data-view="swim">Swimlanes</button>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Search title, campaign or client…">
+    </div>
+    <span class="ctl-l" data-flatonly>Density</span>
+    <div class="seg" id="dens-seg" data-flatonly>
+      <button data-dens="comfortable" class="on">Comfortable</button>
+      <button data-dens="compact">Compact</button>
+    </div>
+    <label class="chk" data-flatonly><input type="checkbox" id="cap-chk" checked> Cap long columns</label>
+    <span class="count-note"><b id="shown">0</b> shown</span>
+  </div>
+
+  <div class="board" id="board"></div>
+  <div class="swim" id="swim"></div>
+
+  <div class="foot-note">
+    <b>How to try it:</b> type in search (e.g. <span class="kbd">reel</span> or <span class="kbd">honey</span>) — it filters both views.
+    Flip <b>Compact</b> to see the density gain. Toggle <b>Cap long columns</b> to see In Process collapse to 8 with a “Show all”.
+    Switch to <b>Swimlanes</b> to see the per-client grouping.
+    <br><br>
+    <b>My recommendation:</b> ship <b>Search + Density + Cap</b> first (all client-side, low-risk, fits the current filter bar), and adopt <b>Swimlanes</b> as a second view toggle if the flat board still feels crowded once you're at real volume.
+  </div>
+</div>
+
+<script>
+/* ---------------- seed a deliberately crowded board ---------------- */
+var STAGES = [
+  {key:"in_process", name:"In Process", color:"#2f6ecc"},
+  {key:"for_launch", name:"For Launch", color:"#c77d16"},
+  {key:"launched",   name:"Launched",   color:"#4fa84a"},
+  {key:"closed",     name:"Closed",     color:"#8b8f8c"}
+];
+var CLIENTS = [
+  {key:"riverdance",  name:"Riverdance RV Resort", n:10},
+  {key:"contractshop",name:"The Contract Shop",    n:8},
+  {key:"honeytribe",  name:"Honey Tribe",          n:8},
+  {key:"meloyelo",    name:"Melo Yelo",            n:7},
+  {key:"rhe",         name:"Rooming House Expert", n:7},
+  {key:"asllogistics",name:"ASL Logistics",        n:5}
+];
+var DEPTS = [
+  {label:"Paid Media", cls:"lb-paid", campaigns:["Park & Porch | Leads","Rent to Rent","Q Card — Finance Page","Get Clients (5 Ways)","Retargeting — Winter","Reel Ads Batch","Property Listings","Analysis Paralysis"]},
+  {label:"Organic",    cls:"lb-organic", campaigns:["Negative Gearing","New Arrivals","Content Cycle — July","Newsletter Refresh","Community Posts","BTS Series","Blog Batch — SEO"]},
+  {label:"Website",    cls:"lb-web", campaigns:["GTM Tracking","Meta Pixel + CAPI","SEO Audit","Site Speed Fixes","Booking Integration","Analytics Cleanup","Landing Page Build"]}
+];
+var PEOPLE = [
+  {nm:"Zhen",c:"#4FA84A"},{nm:"Ehjay",c:"#6A6AEA"},{nm:"Justine",c:"#c77d16"},{nm:"Nico",c:"#2f6ecc"},
+  {nm:"Paulo",c:"#c0453b"},{nm:"Lance",c:"#0e9488"},{nm:"Samuel",c:"#a24bd6"},{nm:"Ian",c:"#3d8639"},
+  {nm:"Charles",c:"#d67ab1"},{nm:"Christian",c:"#5A54DD"},{nm:"John",c:"#2f9e6e"}
+];
+var PRIOS = ["Low","Medium","Medium","High","High","Urgent"];
+/* stage weighting: most work sits in the middle of the pipeline */
+var STAGE_BAG = ["in_process","in_process","in_process","in_process","for_launch","for_launch","launched","closed"];
+
+function mk(){
+  var out = [], id = 0;
+  for (var ci=0; ci<CLIENTS.length; ci++){
+    var cl = CLIENTS[ci];
+    for (var i=0; i<cl.n; i++){
+      var dept = DEPTS[(ci+i) % DEPTS.length];
+      var camp = dept.campaigns[i % dept.campaigns.length];
+      var stage = STAGE_BAG[(ci*3 + i*5) % STAGE_BAG.length];
+      var prio = PRIOS[(ci + i*2) % PRIOS.length];
+      var lead = PEOPLE[(ci*2 + i) % PEOPLE.length];
+      var total = 5 + ((i*3) % 12);           // 5..16 sub-tasks
+      var done = (stage === "launched" || stage === "closed") ? total
+               : (stage === "for_launch") ? total
+               : (i % 4 === 0 ? 0 : (i % total));
+      var hold = (stage === "in_process" && (ci + i) % 11 === 0);
+      var warn = (stage !== "closed" && total - done > 0 && (i % 3 === 0)) ? ((total - done) % 7) + 1 : 0;
+      var comments = (i % 3 === 0) ? (i % 3) + 1 : 0;
+      var day = 10 + ((ci*4 + i*3) % 22);
+      out.push({
+        id:"t"+(id++), client:cl.name, clientKey:cl.key, dept:dept.label, deptCls:dept.cls,
+        title:camp, stage:stage, priority:prio, lead:lead.nm, leadColor:lead.c,
+        due:"2026-07-"+(day<10?"0":"")+day, dueOver:(day < 20 && stage==="in_process"),
+        done:done, total:total, hold:hold, warn:warn, comments:comments
+      });
+    }
+  }
+  return out;
+}
+var CARDS = mk();
+document.getElementById("seedn").textContent = CARDS.length;
+
+/* ---------------- state ---------------- */
+var state = { view:"flat", q:"", dens:"comfortable", cap:true };
+var expanded = {};   // stage -> true when "Show all" clicked
+var CAP = 8;
+
+function matches(t){
+  var q = state.q.trim().toLowerCase();
+  if (!q) { return true; }
+  return (t.title + " " + t.client + " " + t.dept + " " + t.lead).toLowerCase().indexOf(q) !== -1;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+
+/* ---------------- flat board ---------------- */
+function cardHTML(t){
+  var pills = "";
+  if (t.priority === "Urgent" && !t.hold) { pills += '<span class="pill urgent">Urgent</span>'; }
+  pills += '<span class="pill '+t.deptCls+'">'+t.dept+'</span>';
+  if (t.hold) { pills += '<span class="pill hold">On hold</span>'; }
+  var meta = "";
+  if (!(t.priority === "Urgent" && !t.hold)) { meta += '<span class="pdot p-'+t.priority+'"></span><span>'+t.priority+'</span>'; }
+  meta += '<span class="c-due '+(t.dueOver?"over":"")+'">· '+t.due.slice(5)+'</span>';
+  var icons = '<span title="sub-tasks">✓ '+t.done+'/'+t.total+'</span>';
+  if (t.warn) { icons += '<span class="warn" title="unassigned">⚠ '+t.warn+'</span>'; }
+  if (t.comments) { icons += '<span title="comments">💬 '+t.comments+'</span>'; }
+  return '<div class="card" draggable="true" data-id="'+t.id+'">' +
+    '<div class="c-top"><span class="c-client" title="'+esc(t.client)+'">'+esc(t.client)+'</span>' +
+      '<span class="c-pills">'+pills+'</span></div>' +
+    '<div class="c-title">'+esc(t.title)+'</div>' +
+    '<div class="c-meta">'+meta+'</div>' +
+    '<div class="c-foot"><span class="av" style="background:'+t.leadColor+'">'+t.lead.charAt(0)+'</span>' +
+      '<span class="c-lead">'+t.lead+'</span><span class="c-icons">'+icons+'</span></div>' +
+  '</div>';
+}
+function renderFlat(){
+  var board = document.getElementById("board");
+  board.className = "board" + (state.dens === "compact" ? " compact" : "") + (state.view !== "flat" ? " off" : "");
+  board.innerHTML = "";
+  var shown = 0;
+  for (var s=0; s<STAGES.length; s++){
+    var st = STAGES[s];
+    var here = CARDS.filter(function(t){ return t.stage === st.key && matches(t); });
+    var col = document.createElement("div");
+    col.className = "col";
+    var capThis = state.cap && !expanded[st.key];
+    // Closed starts collapsed under cap (completed work shouldn't crowd the active board).
+    var hardCap = (st.key === "closed") ? 3 : CAP;
+    var visible = capThis ? here.slice(0, hardCap) : here;
+    var html = '<div class="colhead"><span class="dot" style="background:'+st.color+'"></span>' +
+      st.name + '<span class="c">'+here.length+'</span></div>';
+    for (var i=0;i<visible.length;i++){ html += cardHTML(visible[i]); shown++; }
+    if (!here.length){ html += '<div class="lane-empty">Nothing here</div>'; }
+    if (capThis && here.length > hardCap){
+      html += '<button class="showmore" data-stage="'+st.key+'">Show all '+here.length+' →</button>';
+    }
+    col.innerHTML = html;
+    board.appendChild(col);
+  }
+  if (state.view === "flat"){ document.getElementById("shown").textContent = shown; }
+}
+
+/* ---------------- swimlanes ---------------- */
+function renderSwim(){
+  var swim = document.getElementById("swim");
+  swim.className = "swim" + (state.view === "swim" ? " on" : "");
+  swim.innerHTML = "";
+  var shown = 0;
+  for (var c=0;c<CLIENTS.length;c++){
+    var cl = CLIENTS[c];
+    var mine = CARDS.filter(function(t){ return t.clientKey === cl.key && matches(t); });
+    if (state.q && !mine.length) { continue; }   // hide empty lanes while searching
+    var lane = document.createElement("div"); lane.className = "lane";
+    var grid = '';
+    for (var s=0;s<STAGES.length;s++){
+      var st = STAGES[s];
+      var here = mine.filter(function(t){ return t.stage === st.key; });
+      var chips = '';
+      for (var i=0;i<here.length;i++){
+        var t = here[i]; shown++;
+        var col = t.priority === "Urgent" ? "#c0453b" : t.priority === "High" ? "#c77d16" : t.priority === "Medium" ? "#2f6ecc" : "#8b8f8c";
+        chips += '<div class="chip" title="'+esc(t.title)+' · '+t.lead+'"><span class="cp" style="background:'+col+'"></span>' +
+                 '<span class="ct">'+esc(t.title)+'</span></div>';
+      }
+      if (!here.length){ chips = '<div class="lane-empty">—</div>'; }
+      grid += '<div class="lane-col"><div class="lch"><span class="dot" style="background:'+st.color+'"></span>'+st.name+'<span class="n">'+here.length+'</span></div>'+chips+'</div>';
+    }
+    lane.innerHTML = '<div class="lane-head"><span class="nm">'+esc(cl.name)+'</span>' +
+      '<span class="tot">'+mine.length+' service'+(mine.length!==1?"s":"")+'</span></div>' +
+      '<div class="lane-grid">'+grid+'</div>';
+    swim.appendChild(lane);
+  }
+  if (state.view === "swim"){ document.getElementById("shown").textContent = shown; }
+}
+
+function render(){
+  renderFlat();
+  renderSwim();
+  var flatOnly = document.querySelectorAll("[data-flatonly]");
+  for (var i=0;i<flatOnly.length;i++){ flatOnly[i].style.display = (state.view === "flat") ? "" : "none"; }
+}
+
+/* ---------------- wiring ---------------- */
+document.getElementById("view-seg").addEventListener("click", function(e){
+  var b = e.target.closest("button"); if (!b) { return; }
+  state.view = b.getAttribute("data-view");
+  var bs = this.querySelectorAll("button");
+  for (var i=0;i<bs.length;i++){ bs[i].classList.toggle("on", bs[i] === b); }
+  render();
+});
+document.getElementById("dens-seg").addEventListener("click", function(e){
+  var b = e.target.closest("button"); if (!b) { return; }
+  state.dens = b.getAttribute("data-dens");
+  var bs = this.querySelectorAll("button");
+  for (var i=0;i<bs.length;i++){ bs[i].classList.toggle("on", bs[i] === b); }
+  render();
+});
+document.getElementById("cap-chk").addEventListener("change", function(){
+  state.cap = this.checked; expanded = {}; render();
+});
+document.getElementById("search").addEventListener("input", function(){
+  state.q = this.value; render();
+});
+document.getElementById("board").addEventListener("click", function(e){
+  var b = e.target.closest(".showmore"); if (!b) { return; }
+  expanded[b.getAttribute("data-stage")] = true; render();
+});
+
+render();
+</script>
+</body>
+</html>

@@ -40,6 +40,7 @@ from flask import (
     render_template,
     request,
     session,
+    stream_with_context,
     url_for,
 )
 
@@ -52,6 +53,8 @@ import intel_ai
 import intel_refresh
 import notify
 import platform_sso
+import sentinel_directory
+import service_templates
 import store
 import sync_dash
 import workspace
@@ -74,14 +77,17 @@ REGION = os.environ.get("REGION", "asia-southeast1")
 
 # The admin "Apps" launcher deep-links (task 3): opening the portal as an admin unlocks Atrium admin,
 # Skill Mastery, and the Website editor. These are env-overridable so a deploy can point at the real
-# hosts; the defaults are the current production URLs. Skill Mastery moves behind a
-# *.agoradatadriven.com custom domain (so the shared SSO cookie reaches it) in its own phase; until
-# then this is the run.app URL.
+# hosts; the defaults are the current production URLs. Skill Mastery, like Sentinel, must be its
+# *.agoradatadriven.com custom domain so the shared ag_sso cookie reaches it — a raw *.run.app host
+# never receives the cookie, so SSO goes inert and the user is bounced to a sign-in.
 SKILL_MASTERY_URL = os.environ.get(
-    "SKILL_MASTERY_URL", "https://mastery-engine-c732u7m57a-uc.a.run.app")
+    "SKILL_MASTERY_URL", "https://mastery.agoradatadriven.com")
 WEBSITE_EDITOR_URL = os.environ.get("WEBSITE_EDITOR_URL", "https://agoradatadriven.com/?edit=1")
 SENTINEL_URL = os.environ.get(
-    "SENTINEL_URL", "https://sentinel-585951669065.asia-southeast1.run.app/login")
+    # Must be the custom domain: the portal `ag_sso` cookie is scoped to
+    # .agoradatadriven.com, so on a raw *.run.app host SSO is inert and the user
+    # hits a bare login form instead of being carried straight into Sentinel.
+    "SENTINEL_URL", "https://sentinel.agoradatadriven.com/login")
 
 app = Flask(__name__)
 app.secret_key = SESSION_SECRET
@@ -244,12 +250,24 @@ def is_root_admin():
 
 
 def _resolve_login_email(email):
-    """Client keys a VERIFIED email may open, or None if there's no active account for it.
+    """Client keys a VERIFIED email may open, or None if the email is authorized nowhere.
 
     Used by the Google sign-in callback and by 'stop impersonating' to re-derive a real identity's
-    grant. THE super admin (SUPER_ADMIN_EMAIL) always resolves to "*"; everyone else is looked up in
-    the accounts registry (active only). None means "no account yet" -> route to request-access."""
-    return store.resolve_google_login(email, super_admin_email=SUPER_ADMIN_EMAIL)
+    grant. Resolve order: THE super admin (SUPER_ADMIN_EMAIL) -> "*"; an active portal account ->
+    its client keys; else DEFER TO SENTINEL -- an active Sentinel user (People -> Add Employee) is
+    authorized with no client-dashboard keys ([]), which is what makes "added in Sentinel" mean "can
+    sign in with Google" without duplicating the record into the portal registry.
+
+    Returns a list of client keys (possibly empty for authorized internal staff) or None. None means
+    "authorized nowhere" -> route to request-access. An empty list is DIFFERENT from None: it is an
+    authorized login with zero client dashboards, so callers must test `is None`, not falsiness."""
+    granted = store.resolve_google_login(email, super_admin_email=SUPER_ADMIN_EMAIL)
+    if granted is not None:
+        return granted
+    # No active portal account: Sentinel is the source of truth for internal staff.
+    if sentinel_directory.is_active_user(email):
+        return []
+    return None
 
 
 def _actor_role():
@@ -568,8 +586,11 @@ def google_callback():
                                **_brand_ctx()), 400
     next_url = session.pop("oauth_next", "/") or "/"
     granted = _resolve_login_email(email)
-    if not granted:
-        # No active account yet -> let them file a request an admin approves in the console.
+    if granted is None:
+        # Authorized nowhere (not a portal account, not an active Sentinel user) -> let them file a
+        # request an admin approves in the console. NOTE: an empty list is an AUTHORIZED login with
+        # no client dashboards (e.g. Sentinel-added internal staff), so we test `is None`, not
+        # falsiness -- otherwise a valid clientless staff member would be bounced to request-access.
         pending = store.get_account(email)
         return render_template("request_access.html", email=email, next=next_url, sent=False,
                                pending=(pending is not None and pending.get("status") == "pending"),
@@ -2504,12 +2525,15 @@ def atrium_admin_watcher(client):
         videos = workspace.read_watcher_videos(client, channel["id"])
         entry = next((v for v in videos if v.get("id") == info["video_id"]), None)
         already = entry is not None
+        fallback_title = "Video " + info["video_id"]
         if entry is None:
             entry = {"id": info["video_id"], "title": info["title"], "url": info["url"],
                      "transcript": "", "language": "", "generated": False,
                      "error": "", "permanent": False, "fetched_at": "",
                      "published_text": "", "published": ""}
             videos.insert(0, entry)
+        elif info["title"] != fallback_title and (not entry.get("title") or entry["title"] == fallback_title):
+            entry["title"] = info["title"]  # heal a video saved before oEmbed/page scrape got a title
         # Fetch inline. A rate-limit is a session condition (not a fact about the video): leave the
         # entry pending so Fetch missing / Safe pull can finish it later, exactly like a channel.
         result = watcher.fetch_transcript(info["video_id"])
@@ -2541,7 +2565,14 @@ def atrium_admin_watcher(client):
             for v in videos:
                 if v.get("error") and not v.get("permanent"):
                     v["error"] = ""
-        fetched, blocked = watcher.fetch_transcripts_batch(videos)
+        # Behind a rotating proxy each concurrent request is a different IP, so fetch the batch in
+        # parallel (fast, ~a couple minutes for a whole channel); with no proxy keep the serial,
+        # politely-paced path that a datacenter IP needs to avoid an instant block.
+        if watcher.proxied():
+            fetched, blocked = watcher.fetch_transcripts_batch(
+                videos, limit=watcher.FETCH_BATCH, workers=watcher.FETCH_WORKERS)
+        else:
+            fetched, blocked = watcher.fetch_transcripts_batch(videos)
         workspace.write_watcher_videos(client, channel_id, videos)
         pending = _watcher_counts(client, channel_id, videos)
         if fetched:
@@ -2616,6 +2647,91 @@ def atrium_admin_watcher(client):
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
 
 
+def _parse_iso(ts):
+    """Parse an ISO-8601 stamp (trailing Z ok) to an aware datetime, or None."""
+    try:
+        return datetime.datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _seconds_since(ts):
+    """Whole seconds between `ts` and now (>=0), or None when `ts` is unparseable."""
+    dt = _parse_iso(ts)
+    if dt is None:
+        return None
+    return max(0, int((datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds()))
+
+
+def _seconds_until(ts):
+    """Whole seconds from now until `ts` (0 if past/unparseable)."""
+    dt = _parse_iso(ts)
+    if dt is None:
+        return 0
+    return max(0, int((dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+
+
+# The safe scraper is considered "live" if its last heartbeat is this fresh (it writes one per
+# video at ~12-20s pacing, so a 3-min window comfortably covers a fetch + cooldown-onset gap).
+_SAFE_PULL_LIVE_SECONDS = 180
+
+
+def _safe_pull_agent_view(status, client):
+    """Shape the local scraper's raw heartbeat into what the status route returns: is it live right
+    now, what is it fetching, is it cooling down, and (if idle) how long since it last worked."""
+    if not status or not status.get("updated"):
+        return {"present": False, "active": False}
+    secs = _seconds_since(status.get("updated", ""))
+    return {
+        "present": True,
+        "active": secs is not None and secs < _SAFE_PULL_LIVE_SECONDS,
+        "seconds_ago": secs,
+        "phase": status.get("phase", ""),
+        "mode": status.get("mode", ""),
+        "on_this_client": status.get("client", "") == client,
+        "channel_id": status.get("channel_id", ""),
+        "channel_title": status.get("channel_title", ""),
+        "current_video": status.get("current_video", ""),
+        "cooldown_seconds": _seconds_until(status.get("cooldown_until", "")),
+        "fetched_this_run": status.get("fetched_this_run", 0),
+    }
+
+
+@app.route("/w/<client>/watcher/safe-pull-status", methods=["GET"])
+def atrium_watcher_safe_pull_status(client):
+    """Live Safe-pull progress for the Watcher tab (team-only), polled while a card is queued.
+
+    Combines two facts the queued card needs: the per-channel transcript counts (synced back to the
+    registry by the scraper every few transcripts) and the scraper's own heartbeat (what it is
+    fetching right now, whether it is cooling down after a rate-limit, or how long since it last ran).
+    A channel that has dropped out of the queue is reported `complete` so the poller can stop.
+    """
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    queued = workspace.watcher_safe_pull_queue(ws)
+    channels = {}
+    for cid in queued:
+        ch = workspace.find_watcher_channel(ws, cid)
+        if ch is None:
+            continue
+        total = int(ch.get("video_count", 0) or 0)
+        done = int(ch.get("transcript_count", 0) or 0)
+        failed = int(ch.get("failed_count", 0) or 0)
+        channels[cid] = {
+            "title": ch.get("title", ""),
+            "done": done, "total": total, "failed": failed,
+            "pending": max(0, total - done - failed),
+            "last_fetch": ch.get("last_fetch", ""),
+            "complete": total > 0 and (done + failed) >= total,
+        }
+    agent = _safe_pull_agent_view(workspace.read_safe_pull_status(), client)
+    return jsonify(ok=True, queued=queued, channels=channels, agent=agent)
+
+
 # --- Assistant (team-only tab: RAG chat over EVERY workspace source) -----------------------------
 def _assistant_archives(ws, client):
     """The Watcher registry entries paired with their loaded video lists (the index's input)."""
@@ -2666,20 +2782,25 @@ def _assistant_index(ws, client, force=False):
     archives = _assistant_archives(ws, client)
     fp = assistant_ai.fingerprint(ws, archives)
     want_emb = intel_ai.embeddings_configured()
-    index = None if force else workspace.read_assistant_index(client)
-    if index is not None and index.get("fingerprint") == fp:
-        if not want_emb or assistant_ai.has_embeddings(index):
-            return index
+    # Always read the previous index: reused as-is when nothing changed, and as the SOURCE OF
+    # CARRIED-OVER VECTORS when the data moved -- so a rebuild only embeds the chunks that changed
+    # (a Watcher fetch adds a handful, not thousands), instead of re-embedding the whole corpus on
+    # the ask request's critical path.
+    prev = workspace.read_assistant_index(client)
+    if not force and prev is not None and prev.get("fingerprint") == fp \
+            and prev.get("v") == assistant_ai.INDEX_VERSION:
+        if not want_emb or assistant_ai.has_embeddings(prev):
+            return prev
         # Data unchanged, embeddings newly enabled: add the semantic leg without rebuilding chunks.
-        assistant_ai.embed_index(index, _assistant_embedder())
-        workspace.write_assistant_index(client, index)
-        return index
+        assistant_ai.embed_index(prev, _assistant_embedder())
+        workspace.write_assistant_index(client, prev)
+        return prev
     chunks = assistant_ai.build_chunks(ws, archives,
                                        dash_data=assistant_ai.read_client_dash_data(client),
                                        mail_threads=_assistant_mail(ws, client))
     index = assistant_ai.build_index(chunks, fp=fp)
     if want_emb:
-        assistant_ai.embed_index(index, _assistant_embedder())
+        assistant_ai.embed_index(index, _assistant_embedder(), prev=prev)
     workspace.write_assistant_index(client, index)
     return index
 
@@ -2788,7 +2909,154 @@ def atrium_admin_assistant(client):
         _audit(client, "asked the assistant", question[:80])
         return jsonify(ok=True, answer=answer, sources=sources, usage=usage, totals=totals)
 
+    # --- Conversation history (team-shared, server-side; new sessions still start fresh) ----------
+    if op == "history_list":
+        return jsonify(ok=True, conversations=workspace.list_assistant_conversations(client))
+
+    if op == "history_get":
+        conv = workspace.get_assistant_conversation(client, request.form.get("conv_id", "").strip())
+        if conv is None:
+            return jsonify(ok=False, message="That conversation is no longer available.")
+        return jsonify(ok=True, conversation=conv)
+
+    if op == "history_save":
+        conv_id = request.form.get("conv_id", "").strip()
+        if not conv_id:
+            return jsonify(ok=False, message="Missing conversation id.")
+        try:
+            turns = json.loads(request.form.get("turns", "") or "[]")
+        except ValueError:
+            turns = []
+        convs = workspace.save_assistant_conversation(
+            client, conv_id, request.form.get("title", ""),
+            turns if isinstance(turns, list) else [])
+        return jsonify(ok=True, conversations=convs)
+
+    if op == "history_delete":
+        convs = workspace.delete_assistant_conversation(client, request.form.get("conv_id", "").strip())
+        _audit(client, "deleted an assistant conversation", "")
+        return jsonify(ok=True, conversations=convs)
+
     return Response('{"error":"bad_op"}', status=400, mimetype="application/json")
+
+
+# The Gemini reasoning-token budget per depth (bigger = more visible "thinking", a bit slower/pricier).
+_ASSISTANT_THINK_BUDGET = {"quick": 512, "standard": 1024, "deep": 4096}
+
+
+def _sse(event, payload):
+    """One Server-Sent-Events frame: an event name + a JSON data line."""
+    return "event: %s\ndata: %s\n\n" % (event, json.dumps(payload))
+
+
+@app.route("/w/<client>/admin/assistant/stream", methods=["POST"])
+def atrium_admin_assistant_stream(client):
+    """The Assistant chat, STREAMED (team-only). Server-Sent Events so the UI shows the model's
+    reasoning live and the team can PAUSE mid-thinking (the browser aborts the stream) to steer.
+
+    Form fields: `question`, optional `history` (JSON of recent turns), `date_from`/`date_to`,
+    `stage` ('plan' = the plan-mode checkpoint: retrieve + plan, return the sub-questions + sources
+    WITHOUT answering; 'answer' = stream the reasoning then the reply), and `steer` (guidance the
+    team added at the checkpoint or a pause -- injected so the answer follows it).
+
+    Events: `plan` {queries}, `sources` {sources}, `thinking` {text}, `answer` {text},
+    `usage` {usage,totals}, `error` {message}, `done` {}. Every failure degrades to an `error`
+    event -- the generator never raises out."""
+    gate = _atrium_admin_json_gate(client)
+    if gate:
+        return gate
+    ws = workspace.load_workspace(client)
+    if ws is None:
+        return Response('{"error":"no_workspace"}', status=404, mimetype="application/json")
+    import assistant_ai
+
+    question = request.form.get("question", "").strip()
+    stage = request.form.get("stage", "answer")
+    steer = request.form.get("steer", "").strip()
+    date_from = request.form.get("date_from", "").strip()
+    date_to = request.form.get("date_to", "").strip()
+    try:
+        history = json.loads(request.form.get("history", "") or "[]")
+    except ValueError:
+        history = []
+    if not isinstance(history, list):
+        history = []
+    name = ws.get("display_name") or client
+
+    def generate():
+        usage = {}
+        mid = ""
+        try:
+            if not question:
+                yield _sse("error", {"message": "Ask a question first."})
+                return
+            # Establish the stream IMMEDIATELY with a comment heartbeat, BEFORE the (sometimes heavy)
+            # setup below. Building the knowledge index can rebuild + re-embed every chunk -- e.g. the
+            # one-time reindex forced by an INDEX_VERSION bump -- which for a data-rich client takes a
+            # while. Doing it here (inside the generator, after the first byte) means a slow or failing
+            # build shows live progress / a graceful error event instead of looking like a dropped
+            # connection ("network error") to the browser, and any exception degrades to an `error`
+            # frame rather than a raw 500 emitted before the streaming Response.
+            yield ": ok\n\n"
+            depth = _assistant_depth(ws)
+            mid = _assistant_model(ws) or intel_ai.default_model()
+            meta = intel_ai.model_meta(mid)
+            index = _assistant_index(ws, client)
+            q_emb = _assistant_query_embedder(index)
+            reranker = _assistant_reranker()
+
+            def plan_caller(system, user):
+                if not meta or not intel_ai.model_available(mid):
+                    return "", "no AI provider configured"
+                text, err, _t = intel_ai._call(meta, system, user, None, 8192, think=False)
+                return text, err
+
+            def stream_caller(system, user):
+                if not meta or not intel_ai.model_available(mid):
+                    yield {"type": "error", "message": "no AI provider configured — pick a model."}
+                    return
+                for ev in intel_ai.stream_call(
+                        meta, system, user, show_thinking=True,
+                        think_budget=_ASSISTANT_THINK_BUDGET.get(depth, 1024),
+                        think=(depth == "deep")):
+                    yield ev
+
+            if stage == "plan":
+                queries, sources = assistant_ai.plan_stage(
+                    index, question, history, depth, date_from, date_to, q_emb, reranker, plan_caller)
+                yield _sse("plan", {"queries": queries})
+                yield _sse("sources", {"sources": sources})
+                yield _sse("done", {"stage": "plan", "empty": not sources})
+                return
+            for ev in assistant_ai.ask_stream(
+                    name, index, question, history=history, date_from=date_from, date_to=date_to,
+                    depth=depth, steer=steer, query_embedder=q_emb, reranker=reranker,
+                    plan_caller=plan_caller, stream_caller=stream_caller):
+                t = ev.get("type")
+                if t == "usage":                       # capture (provider sends cumulative totals)
+                    usage["input_tokens"] = ev.get("input_tokens", 0)
+                    usage["output_tokens"] = ev.get("output_tokens", 0)
+                    continue
+                yield _sse(t, ev)
+            # Spend accounting (best-effort) -> emit a priced usage frame so the cost pill updates.
+            usage["model"] = mid
+            cost = intel_ai.cost_of(mid, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+            usage["cost_usd"] = cost
+            try:
+                totals = workspace.add_assistant_usage(
+                    client, mid, usage.get("input_tokens", 0), usage.get("output_tokens", 0), cost)
+            except Exception:
+                totals = workspace.assistant_usage(ws)
+            _audit(client, "asked the assistant (streamed)", question[:80])
+            yield _sse("usage", {"usage": usage, "totals": totals})
+            yield _sse("done", {})
+        except Exception:                              # never leak a stack trace into the stream
+            yield _sse("error", {"message": "Something went wrong while answering — please retry."})
+
+    resp = Response(stream_with_context(generate()), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"          # ask any proxy NOT to buffer the stream
+    return resp
 
 
 @app.route("/w/<client>/watcher/video/<channel_id>/<video_id>", methods=["GET"])
@@ -3398,6 +3666,28 @@ def _task_fields_from_form():
     return fields
 
 
+def _task_template_seed():
+    """Read the New-Service form's service-type picker and return the fields a template drives:
+    {maintasks, content_type, department, labels} -- or {} when no template was chosen (a
+    custom/blank service). ONLY the New form posts `service_key`; edits never regenerate the
+    breakdown, so an edited task keeps whatever the team has since changed."""
+    key = request.form.get("service_key", "").strip()
+    tpl = service_templates.get(key)
+    if not tpl:
+        return {}
+    params = {p["k"]: request.form.get("p_" + p["k"], "") for p in tpl.get("params", [])}
+    added = []
+    if tpl.get("ad_production"):
+        types, qtys = request.form.getlist("ad_type"), request.form.getlist("ad_qty")
+        for i, ad_type in enumerate(types):
+            if (ad_type or "").strip():
+                added.append((ad_type.strip(), qtys[i] if i < len(qtys) else ""))
+    maintasks = service_templates.build_maintasks(key, params, added, id_factory=workspace._new_id)
+    lbl = TASK_DEPT_LABEL.get(tpl["dept"])
+    return {"maintasks": maintasks, "content_type": tpl["content_type"],
+            "department": tpl["dept"], "labels": [lbl] if lbl else []}
+
+
 @app.route("/w/<client>/admin/task", methods=["POST"])
 def atrium_admin_task(client):
     """Create or edit a task on a client's board (op=add|edit; TEAM only)."""
@@ -3417,6 +3707,9 @@ def atrium_admin_task(client):
         return _task_reply("Service updated.", task_id=task["id"])
     if not fields["title"]:
         return _task_reply("A service needs a campaign name.", err=True)
+    # A chosen service type seeds the whole work breakdown (main tasks + sub-tasks with "done when"),
+    # the content type, and the department/label -- overriding the posted department so they agree.
+    fields.update(_task_template_seed())
     # New services always start In Process; they're moved along the board from there.
     fields["stage"] = "in_process"
     try:
@@ -3496,7 +3789,8 @@ def atrium_admin_task_subtask(client):
                 return _task_reply("A sub-task needs a description.", err=True)
             workspace.add_subtask(client, task_id, text,
                                   request.form.get("assignee_id", "").strip(),
-                                  maintask_id=request.form.get("maintask_id", "").strip())
+                                  maintask_id=request.form.get("maintask_id", "").strip(),
+                                  dod=request.form.get("dod", "").strip())
             msg = "Sub-task added."
         elif op == "toggle":
             workspace.set_subtask_done(client, task_id, subtask_id, _bool_field("done"))
@@ -3766,6 +4060,8 @@ def admin_atrium():
         # Delivery -> Task Board: stage columns of every client's tasks + the pickers' vocabularies.
         task_cols=task_cols, task_roster=task_roster,
         task_departments=TASK_DEPARTMENTS,
+        # Service-template catalog for the New-Service picker (rendered as hidden DOM the JS reads).
+        task_services=service_templates.catalog(), task_adprod=service_templates.ad_catalog(),
         # Nav badge = every task on the board (matches the prototype's total count).
         task_open_total=sum(len(col["tasks"]) for col in task_cols),
         task_trash_count=len([t for t in trash if t.get("kind") == "task"]),
@@ -4038,7 +4334,7 @@ def admin_stop_impersonating():
         return redirect(url_for("index"))
     was = current_user() or ""     # who we were acting as (capture before we restore ourselves)
     granted = _resolve_login_email(real)
-    if not granted:
+    if granted is None:            # authorized nowhere anymore -> log out ([] is still authorized)
         session.clear()
         return redirect(url_for("login"))
     _establish_session(real, granted)

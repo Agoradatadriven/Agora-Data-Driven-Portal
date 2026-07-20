@@ -1502,11 +1502,78 @@
     .ax-as-bubble li { margin: 3px 0; }
     .ax-as-bubble code { background: rgba(16,24,40,.07); border-radius: 4px; padding: 1px 5px; font-size: .92em; }
     .ax-as-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .ax-as-schip { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); text-decoration: none; }
+    /* Collapsible "Sources (N)" -> a scrollable list (~5 visible, scroll for more). */
+    .ax-as-srcbox { margin-top: 9px; }
+    .ax-as-srcbox > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 800; color: var(--ax-sub); padding: 3px 11px; border: 1px solid var(--ax-line);
+      border-radius: 999px; background: var(--ax-canvas); width: max-content; }
+    .ax-as-srcbox > summary::-webkit-details-marker { display: none; }
+    .ax-as-srcbox > summary::after { content: "▸"; font-size: 9px; transition: transform .15s ease; }
+    .ax-as-srcbox[open] > summary::after { transform: rotate(90deg); }
+    .ax-as-srcbox > summary:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-as-srclist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 168px; overflow-y: auto; padding-right: 4px; }
+    .ax-as-schip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: #fff; border: 1px solid var(--ax-line); color: var(--ax-sub); text-decoration: none; line-height: 1.35; }
+    .ax-as-srclist .ax-as-schip { display: block; }
     a.ax-as-schip:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
     .ax-as-inputrow { display: flex; gap: 10px; align-items: flex-end; border-top: 1px solid var(--ax-line); padding-top: 12px; }
     .ax-as-input { flex: 1 1 auto; resize: vertical; min-height: 44px; }
     .ax-as-send { flex: 0 0 auto; }
+    /* Voice input: dictate into the box via the Web Speech API. Hidden by JS when unsupported. */
+    .ax-as-mic { flex: 0 0 auto; width: 40px; height: 40px; align-self: flex-end; border-radius: 10px;
+      border: 1px solid var(--ax-line); background: var(--ax-canvas); color: var(--ax-sub); font-size: 17px;
+      cursor: pointer; line-height: 1; padding: 0; }
+    .ax-as-mic:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-as-mic.recording { background: #E5413E; border-color: #E5413E; color: #fff; animation: ax-mic-pulse 1.1s ease-in-out infinite; }
+    @keyframes ax-mic-pulse { 50% { box-shadow: 0 0 0 5px rgba(229,65,62,.28); } }
+
+    /* ---- Live streaming: a collapsible "thinking" panel, pause/steer controls, plan checkpoint ---- */
+    /* The reasoning the model streams before its answer -- a <details> the user can open/close, auto-
+       open while thinking, auto-collapse once the answer starts (still clickable to re-read). */
+    .ax-as-think { margin: 0 0 8px; border: 1px solid var(--ax-line); border-radius: 10px; background: var(--ax-canvas); overflow: hidden; }
+    .ax-as-think > summary { list-style: none; cursor: pointer; padding: 6px 10px; font-size: 12px; font-weight: 700; color: var(--ax-sub); display: flex; align-items: center; gap: 7px; }
+    .ax-as-think > summary::-webkit-details-marker { display: none; }
+    .ax-as-think > summary::after { content: "▸"; margin-left: auto; transition: transform .15s ease; font-size: 10px; }
+    .ax-as-think[open] > summary::after { transform: rotate(90deg); }
+    .ax-as-think-body { padding: 2px 11px 10px; font-size: 12px; line-height: 1.5; color: var(--ax-sub); white-space: pre-wrap; max-height: 210px; overflow-y: auto; }
+    .ax-as-think.is-live > summary { color: var(--ax-deep, #1856C9); }
+    .ax-as-spin { width: 11px; height: 11px; border: 2px solid var(--ax-line); border-top-color: var(--ax-deep, #1856C9); border-radius: 50%; animation: ax-as-spin .7s linear infinite; flex: 0 0 auto; }
+    @keyframes ax-as-spin { to { transform: rotate(360deg); } }
+    .ax-as-answer:empty { display: none; }
+    .ax-as-cursor { display: inline-block; width: 7px; height: 14px; margin-left: 1px; background: var(--ax-deep, #1856C9); vertical-align: text-bottom; animation: ax-as-blink 1s steps(2) infinite; border-radius: 1px; }
+    @keyframes ax-as-blink { 50% { opacity: 0; } }
+    /* Control row under a streaming answer: Pause (mid-stream), or after a pause the steer box. */
+    .ax-as-ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 9px; }
+    .ax-as-mini { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--ax-line); background: #fff; color: var(--ax-sub); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; line-height: 1; }
+    .ax-as-mini:hover { color: var(--ax-deep, #1856C9); border-color: var(--ax-purple, #9484FB); }
+    .ax-as-mini.primary { background: var(--ax-purple, #9484FB); border-color: var(--ax-purple, #9484FB); color: #fff; }
+    .ax-as-mini.primary:hover { filter: brightness(1.05); color: #fff; }
+    .ax-as-steer { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 4px; padding: 9px; border: 1px dashed var(--ax-purple, #9484FB); border-radius: 10px; background: rgba(148,132,251,.06); }
+    .ax-as-steer textarea { width: 100%; resize: vertical; min-height: 38px; font: inherit; font-size: 13px; border: 1px solid var(--ax-line); border-radius: 8px; padding: 7px 9px; box-sizing: border-box; }
+    .ax-as-steer-note { font-size: 11.5px; font-weight: 700; color: var(--ax-sub); }
+    /* Plan-mode checkpoint card: the sub-questions + sources, shown BEFORE the answer to approve/steer. */
+    .ax-as-plancard { border: 1px solid var(--ax-purple, #9484FB); border-radius: 12px; background: rgba(148,132,251,.05); padding: 11px 13px; }
+    .ax-as-plantitle { font-size: 12.5px; font-weight: 800; color: var(--ax-deep, #1856C9); display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+    .ax-as-planq { margin: 0 0 8px; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+    .ax-as-planq li { margin: 2px 0; }
+    /* Plan-first toggle in the tab bar + gear strip. */
+    .ax-as-plan { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ax-sub); cursor: pointer; white-space: nowrap; }
+    .ax-as-plan input { accent-color: var(--ax-purple, #9484FB); width: 15px; height: 15px; cursor: pointer; }
+    .ax-aspanel-set .ax-as-plan { margin-top: 10px; }
+    /* ---- Conversation history: a list of past chats (team-shared) shown in place of the log ---- */
+    .ax-as-histpanel { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding: 4px 2px 10px; }
+    .ax-as-histpanel[hidden] { display: none; }
+    .ax-as-histhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+    .ax-as-histhead b { font-size: 13px; color: var(--ax-ink); }
+    .ax-as-histback { border: 0; background: none; color: var(--ax-sub); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 2px 4px; }
+    .ax-as-histback:hover { color: var(--ax-deep, #1856C9); }
+    .ax-as-histempty { color: var(--ax-sub); font-size: 13px; padding: 18px 6px; text-align: center; }
+    .ax-as-histitem { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid var(--ax-line); border-radius: 10px; background: var(--ax-canvas); cursor: pointer; }
+    .ax-as-histitem:hover { border-color: var(--ax-purple, #9484FB); background: #fff; }
+    .ax-as-histitem-main { flex: 1 1 auto; min-width: 0; }
+    .ax-as-histitem-t { font-size: 13px; font-weight: 700; color: var(--ax-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ax-as-histitem-m { font-size: 11px; color: var(--ax-sub); margin-top: 2px; }
+    .ax-as-histitem-del { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--ax-line); background: #fff; color: var(--ax-sub); font-size: 14px; cursor: pointer; line-height: 1; }
+    .ax-as-histitem-del:hover { color: #c0322f; border-color: rgba(229,65,62,.4); }
 
     /* ---- Floating assistant bubble (team-only): the same grounded chat, reachable from EVERY tab.
            Styled after the Mastery Engine study-assistant FAB: brand-green gradient circle
@@ -3377,9 +3444,9 @@
                 {% endif %}
                 <button class="ax-btn" type="button" data-wtdelete="{{ ch.id }}" data-wtname="{{ ch.title }}">Remove</button>
               </div>
-              <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" {% if not ch.safe_queued %}hidden{% endif %}>
+              <div class="ax-wt-progress" data-wtprogress="{{ ch.id }}" {% if ch.safe_queued %}data-safe-queued="1"{% endif %} {% if not ch.safe_queued %}hidden{% endif %}>
                 <div class="ax-wt-bar" {% if ch.safe_queued %}hidden{% endif %}><span></span></div>
-                <div class="ax-wt-ptext">{% if ch.safe_queued %}Safe pull queued — the safe scraper fetches these slowly from a home IP (no rate-limits). Transcripts land here automatically; check back later.{% endif %}</div>
+                <div class="ax-wt-ptext">{% if ch.safe_queued %}Safe pull queued — checking the scraper’s progress…{% endif %}</div>
               </div>
 
               <div class="ax-wt-recent">
@@ -3489,18 +3556,24 @@
               <select class="ax-editbox ax-as-depthsel" id="ax-as-depth">{{ as_depth_options() }}</select>
               <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span>
             </span>
+            <span class="ax-as-model" title="Plan first: the Assistant shows the sub-questions it will search and the sources it pulled, then PAUSES so you can approve or steer it BEFORE it writes the answer">
+              <label class="ax-as-plan" for="ax-as-plan"><input type="checkbox" class="ax-as-planmode" id="ax-as-plan"> Plan first</label>
+            </span>
             <span class="ax-as-range" title="Limit dated sources (transcripts, intel, content) to a range">
               <label>From <input class="ax-wt-fdate-in" type="date" id="ax-as-from"></label>
               <label>To <input class="ax-wt-fdate-in" type="date" id="ax-as-to"></label>
             </span>
             <button class="ax-btn" id="ax-as-reindex" type="button" title="Re-read every source now (also happens automatically when data changes)">Rebuild knowledge</button>
-            <button class="ax-btn" id="ax-as-new" type="button" title="Clear this conversation and start fresh (otherwise it is kept on this device)">New chat</button>
+            <button class="ax-btn" id="ax-as-hist" type="button" title="Browse and reopen past conversations (saved for the whole team)">History</button>
+            <button class="ax-btn" id="ax-as-new" type="button" title="Start a new conversation (this one is saved to History)">New chat</button>
           </div>
 
           <div class="ax-panel ax-as-chat">
             <div class="ax-as-log" id="ax-as-log" data-greeting="Hi &mdash; I can answer from everything in this workspace. Try &ldquo;What do Carson Reed and Nick Saraev say about pricing AI services?&rdquo; or &ldquo;Which content pieces are still awaiting approval?&rdquo;"></div>
+            <div class="ax-as-histpanel" id="ax-as-histpanel" hidden></div>
             <div class="ax-as-inputrow">
               <textarea class="ax-editbox ax-as-input" id="ax-as-input" rows="2" placeholder="Ask about campaigns, metrics, market intel, or anything a watched creator has said&hellip;"></textarea>
+              <button class="ax-as-mic" type="button" title="Dictate with your voice" aria-label="Voice input">🎤</button>
               <button class="ax-btn violet ax-as-send" id="ax-as-send" type="button">Ask</button>
             </div>
           </div>
@@ -3576,7 +3649,8 @@
       </div>
       <div class="ax-aspanel-actions">
         <button class="ax-aspanel-gear" id="ax-asfab-gear" type="button" title="AI model" aria-label="Choose the AI model">{{ ic('gear') }}</button>
-        <button class="ax-aspanel-new" id="ax-asfab-new" type="button" title="Start a new conversation">+ New</button>
+        <button class="ax-aspanel-new" id="ax-asfab-hist" type="button" title="Browse past conversations (saved for the whole team)">History</button>
+        <button class="ax-aspanel-new" id="ax-asfab-new" type="button" title="Start a new conversation (this one is saved to History)">+ New</button>
         <button class="ax-aspanel-x" id="ax-asfab-x" type="button" aria-label="Close">&times;</button>
       </div>
     </div>
@@ -3587,11 +3661,14 @@
       <label class="ax-aspanel-setlabel" for="ax-asfab-depth" style="margin-top:8px">Detail
         <select class="ax-editbox ax-as-depthsel" id="ax-asfab-depth">{{ as_depth_options() }}</select>
       </label>
+      <label class="ax-as-plan" for="ax-asfab-plan"><input type="checkbox" class="ax-as-planmode" id="ax-asfab-plan"> Plan first &mdash; show the plan &amp; pause to steer before answering</label>
       <p class="ax-aspanel-setnote">Both apply to the Assistant everywhere in this workspace &mdash; this bubble and the Assistant tab. Automatic follows the research brain's model; Deep analysis thinks before answering and digs for comparisons (slower, costs a little more). <span class="ax-savehint ax-as-saved" data-asmodelsaved hidden>Saved &#10003;</span></p>
     </div>
     <div class="ax-as-log" id="ax-asfab-log" data-greeting="Hi — ask me anything about this workspace, from any tab: campaigns, metrics, intel, conversations, and every Watcher transcript."></div>
+    <div class="ax-as-histpanel" id="ax-asfab-histpanel" hidden></div>
     <div class="ax-as-inputrow">
       <textarea class="ax-editbox ax-as-input" id="ax-asfab-input" rows="2" placeholder="Ask about campaigns, metrics, intel&hellip;"></textarea>
+      <button class="ax-as-mic" type="button" title="Dictate with your voice" aria-label="Voice input">🎤</button>
       <button class="ax-btn violet ax-as-send" id="ax-asfab-send" type="button">Ask</button>
     </div>
   </div>
@@ -4091,56 +4168,190 @@
 
     // Fetch MISSING transcripts: loop batches until nothing is pending. retry=1 on the first call
     // clears non-permanent errors, so "missing" = everything except stored transcripts and videos
-    // permanently without one. A blocked response stops politely; progress is already saved.
+    // permanently without one. The loop is SELF-HEALING: a rate-limit (`blocked`) or a network
+    // hiccup no longer stops it -- it backs off (grows to ~2 min, resets on progress) and keeps
+    // going on its own, so the archive fills up without any re-clicking. The button toggles to
+    // "Stop" while running so the operator can cancel; progress is saved server-side every batch.
     qsa("[data-wtfetch]").forEach(function (btn) {
+      var chan = btn.getAttribute("data-wtfetch");
+      var wrap = document.querySelector('[data-wtprogress="' + aq(chan) + '"]');
+      var bar = wrap ? wrap.querySelector(".ax-wt-bar span") : null;
+      var ptext = wrap ? wrap.querySelector(".ax-wt-ptext") : null;
+      var label = btn.textContent;   // "Fetch missing"
+      var running = false, timer = null, backoff = 0;
+
+      function say(msg) { if (ptext) { ptext.textContent = msg; } }
+      function setBar(done, total) {
+        if (bar && total > 0) { bar.style.width = Math.round((done / total) * 100) + "%"; }
+      }
+      function stopLoop(msg) {
+        running = false;
+        if (timer) { clearInterval(timer); timer = null; }
+        btn.textContent = label;
+        say(msg);
+      }
+      // Wait `secs` (live countdown) then auto-run the next batch; cancellable via Stop.
+      function waitThen(secs, prefix) {
+        if (timer) { clearInterval(timer); }
+        var left = secs;
+        function tick() {
+          if (!running) { return; }
+          if (left <= 0) { clearInterval(timer); timer = null; step(false); return; }
+          say(prefix + " — auto-retrying in " + left + "s (click Stop to cancel)…");
+          left -= 1;
+        }
+        tick();
+        timer = setInterval(tick, 1000);
+      }
+      function step(first) {
+        if (!running) { return; }
+        post("/admin/watcher", { op: "fetch", channel_id: chan, retry: first ? "1" : "0" })
+          .then(function (data) {
+            if (!running) { return; }
+            if (!data || data.ok === false) {   // hard server error (bad channel etc.) -- stop
+              stopLoop((data && data.message) || "Could not fetch transcripts.");
+              return;
+            }
+            setBar(data.done, data.total);
+            if (data.remaining <= 0) { window.location.reload(); return; }
+            if (data.blocked) {   // whole batch rate-limited: back off, keep going automatically
+              backoff = Math.min(backoff ? backoff * 2 : 20, 120);
+              waitThen(backoff, "Rate-limited at " + data.done + " of " + data.total);
+              return;
+            }
+            if (data.fetched > 0) {   // progress made -- reset backoff and press straight on
+              backoff = 0;
+              say("Fetched " + data.done + " of " + data.total + " transcripts…");
+              step(false);
+              return;
+            }
+            // No progress, not rate-limited (stray thread errors): short back off, keep trying.
+            backoff = Math.min(backoff ? backoff * 2 : 10, 60);
+            waitThen(backoff, "Stalled at " + data.done + " of " + data.total);
+          })
+          .catch(function () {
+            if (!running) { return; }
+            backoff = Math.min(backoff ? backoff * 2 : 10, 60);
+            waitThen(backoff, "Network hiccup");
+          });
+      }
       btn.addEventListener("click", function () {
-        var chan = btn.getAttribute("data-wtfetch");
-        var wrap = document.querySelector('[data-wtprogress="' + aq(chan) + '"]');
-        var bar = wrap ? wrap.querySelector(".ax-wt-bar span") : null;
-        var ptext = wrap ? wrap.querySelector(".ax-wt-ptext") : null;
-        btn.setAttribute("disabled", "disabled");
+        if (running) {   // acting as a Stop button
+          stopLoop("Stopped — progress saved. Click Fetch missing to resume.");
+          return;
+        }
+        running = true;
+        backoff = 0;
+        btn.textContent = "Stop";
         if (wrap) {
           wrap.hidden = false;
           var barbox = wrap.querySelector(".ax-wt-bar");
           if (barbox) { barbox.hidden = false; }
         }
-        if (ptext) { ptext.textContent = "Fetching missing transcripts…"; }
-        function step(first) {
-          post("/admin/watcher", { op: "fetch", channel_id: chan, retry: first ? "1" : "0" })
-            .then(function (data) {
-              if (!data || data.ok === false) {
-                btn.removeAttribute("disabled");
-                if (ptext) { ptext.textContent = (data && data.message) || "Could not fetch transcripts."; }
-                return;
-              }
-              if (bar && data.total > 0) { bar.style.width = Math.round((data.done / data.total) * 100) + "%"; }
-              if (data.blocked) {
-                if (ptext) {
-                  ptext.textContent = "YouTube is rate-limiting right now — progress saved at " + data.done +
-                    " of " + data.total + ". Click Fetch missing again later; it resumes right here.";
-                }
-                btn.removeAttribute("disabled");
-                return;
-              }
-              if (ptext) { ptext.textContent = "Fetched " + data.done + " of " + data.total + " transcripts…"; }
-              if (data.remaining > 0 && data.fetched > 0) {
-                step(false);
-              } else {
-                window.location.reload();
-              }
-            })
-            .catch(function () {
-              btn.removeAttribute("disabled");
-              if (ptext) { ptext.textContent = "Fetching stopped (network error) — click Fetch missing to resume."; }
-            });
-        }
+        say("Fetching missing transcripts…");
         step(true);
       });
     });
 
     // Safe pull: queue the channel for the LOCAL safe scraper (slow home-IP pacing, never
     // rate-limited). The scheduled task on the scrape machine picks the queue up within minutes;
-    // transcripts sync back on their own, so this just confirms and leaves a note.
+    // transcripts sync back on their own. After queuing we poll /watcher/safe-pull-status so the
+    // card shows LIVE progress (what it's fetching now, rate-limit cooldowns, counts) instead of a
+    // static "check back later".
+    // ---- Live Safe-pull status poller (one poll for the whole tab, updates every queued card) ----
+    function agoWords(secs) {
+      if (secs === null || secs === undefined) { return ""; }
+      if (secs < 45) { return "just now"; }
+      if (secs < 3600) { return Math.round(secs / 60) + " min ago"; }
+      if (secs < 86400) { return Math.round(secs / 3600) + " hr ago"; }
+      return Math.round(secs / 86400) + " d ago";
+    }
+    // A human sentence for one queued channel from the status payload. `stillQueued` is false once
+    // the scraper has cleared it from the queue (i.e. the channel is done).
+    function safePullSentence(ch, agent, cid, stillQueued) {
+      var done = ch.done || 0, total = ch.total || 0, pending = ch.pending || 0, failed = ch.failed || 0;
+      var prog = done + " of " + total + " transcripts";
+      if (!stillQueued || ch.complete) {
+        var tail = failed ? (" (" + failed + " have no captions)") : "";
+        return "Safe pull complete ✓ — " + done + " transcripts ready" + tail + ". Reload the page to read them.";
+      }
+      var onThis = agent && agent.active && agent.on_this_client && agent.channel_id === cid;
+      if (onThis && agent.phase === "cooldown") {
+        var mins = Math.max(1, Math.ceil((agent.cooldown_seconds || 0) / 60));
+        return "⏳ YouTube rate-limited the scraper — cooling down ~" + mins + " min, then it resumes automatically. " + prog + " so far.";
+      }
+      if (onThis && agent.phase === "fetching") {
+        var now = agent.current_video ? ("“" + agent.current_video + "”") : "the next video";
+        return "▶ Fetching now: " + now + " — " + prog + ", " + pending + " to go (safe pace ~15s/video to avoid blocks).";
+      }
+      if (onThis) {
+        return "▶ Working through this channel — " + prog + ", " + pending + " to go.";
+      }
+      if (agent && agent.active) {
+        return "Scraper is busy on another channel right now — this one is next in line. " + prog + " so far, " + pending + " to go.";
+      }
+      if (agent && agent.present) {
+        return "Scraper idle (last active " + agoWords(agent.seconds_ago) + "). It runs every ~5 min from a home IP. " + prog + " so far, " + pending + " to go.";
+      }
+      return "Queued for the safe scraper — it runs every ~5 min from a home IP (no rate-limits). " + prog + " so far. If nothing moves for a while, the scrape agent may not be running on the office machine.";
+    }
+    var safePollTimer = null, safePollBusy = false, safePullReloaded = false;
+    function renderSafeCard(cid, ch, agent, stillQueued) {
+      var wrap = document.querySelector('[data-wtprogress="' + aq(cid) + '"]');
+      if (!wrap) { return; }
+      wrap.hidden = false;
+      var bar = wrap.querySelector(".ax-wt-bar");
+      var barSpan = bar ? bar.querySelector("span") : null;
+      var ptext = wrap.querySelector(".ax-wt-ptext");
+      if (bar) { bar.hidden = false; }
+      if (barSpan && ch.total > 0) {
+        barSpan.style.width = Math.round(((ch.done + ch.failed) / ch.total) * 100) + "%";
+      }
+      if (ptext) { ptext.textContent = safePullSentence(ch, agent, cid, stillQueued); }
+    }
+    function safePollTick() {
+      if (safePollBusy) { return; }
+      safePollBusy = true;
+      fetch(base + "/watcher/safe-pull-status", { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          safePollBusy = false;
+          if (!data || data.ok === false) { return; }
+          var queued = data.queued || [];
+          var agent = data.agent || {};
+          var channels = data.channels || {};
+          // Update every card we're tracking (rendered as safe-queued OR still in the queue).
+          var tracked = {};
+          qsa('[data-wtprogress][data-safe-queued="1"]').forEach(function (w) {
+            tracked[w.getAttribute("data-wtprogress")] = true;
+          });
+          queued.forEach(function (cid) { tracked[cid] = true; });
+          var anyCompleted = false, anyActive = false;
+          var cid;
+          for (cid in tracked) {
+            if (!tracked.hasOwnProperty(cid)) { continue; }
+            var stillQueued = queued.indexOf(cid) !== -1;
+            var ch = channels[cid] || { done: 0, total: 0, pending: 0, failed: 0, complete: false };
+            renderSafeCard(cid, ch, agent, stillQueued);
+            if (stillQueued) { anyActive = true; } else { anyCompleted = true; }
+          }
+          // A channel that dropped out of the queue is finished; refresh once so its transcripts
+          // become readable in the grid (non-disruptive: only when nothing is left in flight).
+          if (anyCompleted && !anyActive && !safePullReloaded) {
+            safePullReloaded = true;
+            setTimeout(function () { window.location.reload(); }, 4000);
+          }
+          if (anyActive) { safePollTimer = setTimeout(safePollTick, 12000); }
+        })
+        .catch(function () {
+          safePollBusy = false;
+          safePollTimer = setTimeout(safePollTick, 20000);  // network blip: back off, keep trying
+        });
+    }
+    function startSafePoll() {
+      if (safePollTimer) { return; }  // already polling
+      safePollTimer = setTimeout(safePollTick, 1);
+    }
     qsa("[data-wtsafe]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var chan = btn.getAttribute("data-wtsafe");
@@ -4158,10 +4369,12 @@
               return;
             }
             btn.textContent = "Safe pull queued ✓";
-            if (ptext) {
+            if (wrap) {
               wrap.hidden = false;
-              ptext.textContent = "Safe pull queued — the safe scraper fetches these slowly from a home IP (no rate-limits). Transcripts land here automatically; check back later.";
+              wrap.setAttribute("data-safe-queued", "1");
             }
+            if (ptext) { ptext.textContent = "Safe pull queued — checking the scraper’s progress…"; }
+            startSafePoll();  // begin live status updates immediately
           })
           .catch(function () {
             btn.removeAttribute("disabled");
@@ -4172,6 +4385,8 @@
           });
       });
     });
+    // If any channel was already queued when the tab loaded, start polling straight away.
+    if (qsa('[data-wtprogress][data-safe-queued="1"]').length) { startSafePoll(); }
 
     qsa("[data-wtrefresh]").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -4729,112 +4944,458 @@
     var storeKey = "agora.aschat:" + base + ":" + ids.log;
     var greeting = log.getAttribute("data-greeting") || "";
     var history = [];
-    function saveHistory() {
-      try { localStorage.setItem(storeKey, JSON.stringify(history.slice(-40))); } catch (e) {}
+    var busy = false;
+    var activeAbort = null;   // AbortController of the in-flight stream (Pause / New chat aborts it)
+    var convId = null;        // the current conversation's id (server-saved to History)
+
+    var histBtn = ids.hist ? document.getElementById(ids.hist) : null;
+    var histPanel = ids.histpanel ? document.getElementById(ids.histpanel) : null;
+
+    // The ACTIVE conversation is SESSION-scoped (survives reloads within a session, fresh on a new
+    // session/tab). PAST conversations are saved SERVER-SIDE (team-shared) and browsable via History.
+    function store() { try { return window.sessionStorage; } catch (e) { return null; } }
+    function newConvId() {
+      return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     }
+    function convTitle() {
+      var i;
+      for (i = 0; i < history.length; i++) {
+        if (history[i] && history[i].role === "user" && history[i].text) { return history[i].text; }
+      }
+      return "Conversation";
+    }
+    function saveHistory() {
+      var s = store();
+      if (!s) { return; }
+      try { s.setItem(storeKey, JSON.stringify({ id: convId, turns: history.slice(-40) })); } catch (e) {}
+    }
+    // Persist the current conversation to the team-shared server history (best-effort, fire-and-forget).
+    function saveConversation() {
+      if (!convId || !history.length) { return; }
+      post("/admin/assistant", { op: "history_save", conv_id: convId, title: convTitle(),
+                                 turns: JSON.stringify(history.slice(-40)) }).catch(function () {});
+    }
+    try { localStorage.removeItem(storeKey); } catch (e) {}   // retire any convo the old design left
+
     function addMsg(role, text, extraClass) {
       var wrap = document.createElement("div");
       wrap.className = "ax-as-msg " + (role === "user" ? "user" : "bot");
       var bub = document.createElement("div");
       bub.className = "ax-as-bubble" + (extraClass ? " " + extraClass : "");
-      // Bot answers arrive as markdown; user text stays literal.
       if (role === "user") { bub.textContent = text; } else { bub.innerHTML = mdToHtml(text); }
       wrap.appendChild(bub);
       log.appendChild(wrap);
       log.scrollTop = log.scrollHeight;
       return bub;
     }
-    function addSources(bub, sources) {
-      if (!sources || !sources.length) { return; }
-      var row = document.createElement("div");
-      row.className = "ax-as-sources";
+    function removeBubble(bub) {
+      if (bub && bub.parentNode && bub.parentNode.parentNode) {
+        bub.parentNode.parentNode.removeChild(bub.parentNode);   // drop the whole .ax-as-msg wrap
+      }
+    }
+    // Sources render COLLAPSED behind a "Sources (N)" button; expanding reveals a scrollable list
+    // (~5 shown at a time, scroll for the rest) so a long citation list never clutters the answer.
+    function makeSourcesRow(sources) {
+      if (!sources || !sources.length) { return null; }
+      var box = document.createElement("details");
+      box.className = "ax-as-srcbox";
+      var sum = document.createElement("summary");
+      sum.className = "ax-as-srchdr";
+      sum.textContent = "Sources · " + sources.length;
+      var list = document.createElement("div");
+      list.className = "ax-as-srclist";
       var i;
-      for (i = 0; i < Math.min(sources.length, 8); i++) {
+      for (i = 0; i < sources.length; i++) {
         var s = sources[i];
         var chip;
         if (s.url) {
           chip = document.createElement("a");
-          chip.href = s.url;
-          chip.target = "_blank";
-          chip.rel = "noopener noreferrer";
-        } else {
-          chip = document.createElement("span");
-        }
+          chip.href = s.url; chip.target = "_blank"; chip.rel = "noopener noreferrer";
+        } else { chip = document.createElement("span"); }
         chip.className = "ax-as-schip";
         var title = s.title || s.kind || "source";
-        chip.textContent = title.length > 60 ? title.slice(0, 57) + "…" : title;
-        row.appendChild(chip);
+        chip.textContent = title.length > 72 ? title.slice(0, 69) + "…" : title;
+        list.appendChild(chip);
       }
-      bub.appendChild(row);
+      box.appendChild(sum); box.appendChild(list);
+      return box;
     }
-    // Replay the saved conversation (if any); otherwise open with the surface's greeting.
+    function mini(label, primary) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "ax-as-mini" + (primary ? " primary" : "");
+      b.textContent = label;
+      return b;
+    }
+
+    // Replay the current-session conversation; otherwise open with the surface's greeting.
+    function replayTurns(turns) {
+      var si;
+      for (si = 0; si < turns.length; si++) {
+        if (turns[si] && turns[si].text) { addMsg(turns[si].role === "user" ? "user" : "bot", turns[si].text); }
+      }
+    }
     var restored = false;
     try {
-      var saved = JSON.parse(localStorage.getItem(storeKey) || "[]");
-      if (saved && saved.length) {
-        var si;
-        for (si = 0; si < saved.length; si++) {
-          if (saved[si] && saved[si].text) { addMsg(saved[si].role === "user" ? "user" : "bot", saved[si].text); }
-        }
-        history = saved;
-        restored = true;
+      var s0 = store();
+      var saved = JSON.parse((s0 && s0.getItem(storeKey)) || "null");
+      // New shape {id,turns}; tolerate the earlier bare-array shape too.
+      var turns = saved && saved.turns ? saved.turns : (Object.prototype.toString.call(saved) === "[object Array]" ? saved : null);
+      if (turns && turns.length) {
+        convId = (saved && saved.id) || newConvId();
+        replayTurns(turns);
+        history = turns; restored = true;
       }
     } catch (e) {}
     if (!restored && greeting) { addMsg("bot", greeting); }
-    var busy = false;
+
+    function setBusy(on) {
+      busy = on;
+      if (on) { send.setAttribute("disabled", "disabled"); } else { send.removeAttribute("disabled"); }
+    }
+    function planModeOn() {
+      var cb = document.querySelector(".ax-as-planmode");
+      return !!(cb && cb.checked);
+    }
+    function dateRange() {
+      var from = ids.from ? document.getElementById(ids.from) : null;
+      var to = ids.to ? document.getElementById(ids.to) : null;
+      return { date_from: from ? from.value : "", date_to: to ? to.value : "" };
+    }
+
+    // ---- SSE reader: POST a form to the streaming route, parse event/data frames, dispatch. ----
+    // Returns the AbortController so the caller can Pause. onEvent(name, payload) per frame; onDone()
+    // when the stream closes cleanly; onError() on a network/HTTP failure (NOT on a user abort).
+    function streamRequest(fields, onEvent, onDone, onError) {
+      var ac = new AbortController();
+      var body = new FormData();
+      var k;
+      for (k in fields) { if (fields.hasOwnProperty(k)) { body.append(k, fields[k]); } }
+      fetch(base + "/admin/assistant/stream",
+            { method: "POST", body: body, credentials: "same-origin", signal: ac.signal })
+        .then(function (resp) {
+          if (!resp || !resp.ok || !resp.body) { throw new Error("stream failed"); }
+          var reader = resp.body.getReader();
+          var decoder = new TextDecoder();
+          var buf = "";
+          function dispatch(frame) {
+            frame = frame.replace(/^\s+/, "");
+            if (!frame) { return; }
+            var ev = "message", data = "";
+            var lines = frame.split("\n"), i, ln;
+            for (i = 0; i < lines.length; i++) {
+              ln = lines[i];
+              if (ln.indexOf("event:") === 0) { ev = ln.slice(6).replace(/^\s+|\s+$/g, ""); }
+              else if (ln.indexOf("data:") === 0) { data += ln.slice(5).replace(/^\s+/, ""); }
+            }
+            var payload = {};
+            try { payload = data ? JSON.parse(data) : {}; } catch (e) { return; }
+            onEvent(ev, payload);
+          }
+          function pump() {
+            return reader.read().then(function (r) {
+              if (r.done) { if (buf) { dispatch(buf); } onDone(); return; }
+              buf += decoder.decode(r.value, { stream: true });
+              var parts = buf.split("\n\n");
+              buf = parts.pop();
+              var j;
+              for (j = 0; j < parts.length; j++) { dispatch(parts[j]); }
+              return pump();
+            });
+          }
+          return pump();
+        })
+        .catch(function (err) {
+          if (err && err.name === "AbortError") { return; }   // a Pause / New chat -- handled elsewhere
+          onError(err);
+        });
+      return ac;
+    }
+
+    // ---- Stream an answer into `bubble` (live thinking, then the reply). `steer` redirects it. ----
+    function runAnswerStream(q, steer, bubble) {
+      bubble.className = "ax-as-bubble";
+      bubble.innerHTML = "";
+      var think = document.createElement("details");
+      think.className = "ax-as-think is-live"; think.open = true;
+      var sum = document.createElement("summary");
+      var spin = document.createElement("span"); spin.className = "ax-as-spin";
+      var sumtx = document.createElement("span"); sumtx.textContent = "Thinking…";
+      sum.appendChild(spin); sum.appendChild(sumtx);
+      var thinkBody = document.createElement("div"); thinkBody.className = "ax-as-think-body";
+      think.appendChild(sum); think.appendChild(thinkBody);
+      var answer = document.createElement("div"); answer.className = "ax-as-answer";
+      var ctrl = document.createElement("div"); ctrl.className = "ax-as-ctrl";
+      bubble.appendChild(think); bubble.appendChild(answer); bubble.appendChild(ctrl);
+      var cursor = document.createElement("span"); cursor.className = "ax-as-cursor";
+      var pauseBtn = mini("⏸ Pause & steer", false);
+      ctrl.appendChild(pauseBtn);
+
+      var rawAnswer = "", thinkText = "";
+      var gotThinking = false, gotAnswer = false, sources = null;
+      var finished = false, paused = false;
+      var ac = null;
+
+      function dropSpin() { if (spin.parentNode) { spin.parentNode.removeChild(spin); } }
+      function dropCursor() { if (cursor.parentNode) { cursor.parentNode.removeChild(cursor); } }
+
+      function finish(isError, msg) {
+        if (finished) { return; }
+        finished = true; setBusy(false); activeAbort = null;
+        think.classList.remove("is-live"); dropSpin(); dropCursor(); ctrl.innerHTML = "";
+        if (!gotThinking) { if (think.parentNode) { think.parentNode.removeChild(think); } }
+        else { think.open = false; sumtx.textContent = "Thoughts"; }
+        if (isError) { bubble.classList.add("is-err"); answer.textContent = msg || "Could not answer. Please try again."; return; }
+        answer.innerHTML = mdToHtml(rawAnswer);
+        var srow = makeSourcesRow(sources); if (srow) { bubble.appendChild(srow); }
+        history.push({ role: "bot", text: rawAnswer }); saveHistory();
+        saveConversation();   // persist to the team-shared server history
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function onEvent(ev, payload) {
+        if (paused || finished) { return; }
+        if (ev === "sources") { sources = payload.sources || []; }
+        else if (ev === "thinking") {
+          gotThinking = true; thinkText += (payload.text || "");
+          thinkBody.textContent = thinkText; log.scrollTop = log.scrollHeight;
+        } else if (ev === "answer") {
+          if (!gotAnswer) { gotAnswer = true; think.open = false; think.classList.remove("is-live"); dropSpin(); }
+          rawAnswer += (payload.text || "");
+          answer.innerHTML = mdToHtml(rawAnswer); answer.appendChild(cursor);
+          log.scrollTop = log.scrollHeight;
+        } else if (ev === "usage") {
+          if (assistCost && payload.usage) { assistCost.note(payload.usage, payload.totals); }
+        } else if (ev === "error") { finish(true, payload.message); }
+      }
+
+      function showSteerBox() {
+        ctrl.innerHTML = "";
+        var box = document.createElement("div"); box.className = "ax-as-steer";
+        var note = document.createElement("div"); note.className = "ax-as-steer-note";
+        note.textContent = "Paused before it finished. Add guidance and it restarts the answer:";
+        var ta = document.createElement("textarea"); ta.rows = 2;
+        ta.placeholder = "e.g. focus on retention only, ignore paid ads…";
+        var row = document.createElement("div"); row.className = "ax-as-ctrl";
+        var go = mini("Continue with guidance ▶", true), reset = mini("Reset", false);
+        row.appendChild(go); row.appendChild(reset);
+        box.appendChild(note); box.appendChild(ta); box.appendChild(row);
+        ctrl.appendChild(box); ta.focus();
+        go.addEventListener("click", function () {
+          var g = ta.value.replace(/^\s+|\s+$/g, "");
+          runAnswerStream(q, steer ? (steer + " " + g) : g, bubble);   // restart into the SAME bubble
+        });
+        reset.addEventListener("click", function () {
+          setBusy(false); activeAbort = null; removeBubble(bubble);
+        });
+      }
+
+      pauseBtn.addEventListener("click", function () {
+        if (finished) { return; }
+        paused = true;
+        if (ac) { try { ac.abort(); } catch (e) {} }
+        think.classList.remove("is-live"); dropSpin(); dropCursor();
+        showSteerBox();
+      });
+
+      var range = dateRange();
+      ac = streamRequest(
+        { question: q, stage: "answer", steer: steer || "",
+          history: JSON.stringify(history.slice(-8)),
+          date_from: range.date_from, date_to: range.date_to },
+        onEvent, function () { finish(false); },
+        function () { finish(true, "Could not answer (network error). Please try again."); });
+      activeAbort = ac;
+    }
+
+    // ---- Plan-mode checkpoint: retrieve + plan, show it, PAUSE for approve/steer before answering. --
+    function renderPlanCard(q, bubble, queries, sources) {
+      bubble.className = "ax-as-bubble"; bubble.innerHTML = "";
+      if (!sources || !sources.length) {
+        bubble.classList.add("is-err");
+        bubble.textContent = "I couldn't find anything in this workspace for that. Try rephrasing, or fetch more data first.";
+        setBusy(false); activeAbort = null; return;
+      }
+      var card = document.createElement("div"); card.className = "ax-as-plancard";
+      var title = document.createElement("div"); title.className = "ax-as-plantitle";
+      title.textContent = "Here's my plan — approve or steer before I answer";
+      card.appendChild(title);
+      if (queries && queries.length) {
+        var ul = document.createElement("ul"); ul.className = "ax-as-planq";
+        var i; for (i = 0; i < queries.length; i++) {
+          var li = document.createElement("li"); li.textContent = queries[i]; ul.appendChild(li);
+        }
+        card.appendChild(ul);
+      }
+      var srow = makeSourcesRow(sources); if (srow) { card.appendChild(srow); }
+      var box = document.createElement("div"); box.className = "ax-as-steer";
+      var note = document.createElement("div"); note.className = "ax-as-steer-note";
+      note.textContent = "Add guidance (optional), or just hit Answer:";
+      var ta = document.createElement("textarea"); ta.rows = 2;
+      ta.placeholder = "e.g. focus on pricing, compare only Nick vs Carson…";
+      var row = document.createElement("div"); row.className = "ax-as-ctrl";
+      var go = mini("Answer ▶", true), cancel = mini("Cancel", false);
+      row.appendChild(go); row.appendChild(cancel);
+      box.appendChild(note); box.appendChild(ta); box.appendChild(row);
+      card.appendChild(box); bubble.appendChild(card);
+      log.scrollTop = log.scrollHeight; ta.focus();
+      go.addEventListener("click", function () { runAnswerStream(q, ta.value.replace(/^\s+|\s+$/g, ""), bubble); });
+      cancel.addEventListener("click", function () { setBusy(false); activeAbort = null; removeBubble(bubble); });
+    }
+
+    function runPlanStage(q, bubble) {
+      bubble.className = "ax-as-bubble"; bubble.innerHTML = "";
+      var head = document.createElement("div"); head.className = "ax-as-think-body";
+      head.style.display = "flex"; head.style.alignItems = "center"; head.style.gap = "7px";
+      var spin = document.createElement("span"); spin.className = "ax-as-spin";
+      var lab = document.createElement("span"); lab.textContent = "Planning — deciding what to search…";
+      head.appendChild(spin); head.appendChild(lab); bubble.appendChild(head);
+      var queries = [], sources = null, failed = false;
+      var range = dateRange();
+      activeAbort = streamRequest(
+        { question: q, stage: "plan", history: JSON.stringify(history.slice(-8)),
+          date_from: range.date_from, date_to: range.date_to },
+        function (ev, payload) {
+          if (ev === "plan") { queries = payload.queries || []; }
+          else if (ev === "sources") { sources = payload.sources || []; }
+          else if (ev === "error") {
+            failed = true; bubble.className = "ax-as-bubble is-err";
+            bubble.textContent = payload.message || "Couldn't plan that. Try again.";
+            setBusy(false); activeAbort = null;
+          }
+        },
+        function () { if (!failed) { renderPlanCard(q, bubble, queries, sources); } },
+        function () {
+          bubble.className = "ax-as-bubble is-err";
+          bubble.textContent = "Couldn't plan that (network error). Try again.";
+          setBusy(false); activeAbort = null;
+        });
+    }
+
     function askNow() {
       var q = input.value.replace(/^\s+|\s+$/g, "");
       if (!q || busy) { return; }
-      busy = true;
-      send.setAttribute("disabled", "disabled");
-      input.value = "";
+      if (!convId) { convId = newConvId(); }   // start a new server-saved conversation
+      setBusy(true); input.value = "";
       addMsg("user", q);
-      history.push({ role: "user", text: q });
-      saveHistory();
-      var depthSel = document.querySelector(".ax-as-depthsel");
-      var waitText = (depthSel && depthSel.value === "deep")
-        ? "Analyzing deeply — planning searches and thinking it through (takes a little longer)…"
-        : "Reading the workspace…";
-      var bubble = addMsg("bot", waitText, "is-thinking");
-      var from = ids.from ? document.getElementById(ids.from) : null;
-      var to = ids.to ? document.getElementById(ids.to) : null;
-      post("/admin/assistant", {
-        op: "ask", question: q, history: JSON.stringify(history.slice(-8)),
-        date_from: from ? from.value : "", date_to: to ? to.value : ""
-      })
-        .then(function (data) {
-          busy = false;
-          send.removeAttribute("disabled");
-          bubble.classList.remove("is-thinking");
-          if (!data || data.ok === false) {
-            bubble.classList.add("is-err");
-            bubble.textContent = (data && data.message) || "Could not answer. Please try again.";
-            return;
-          }
-          bubble.innerHTML = mdToHtml(data.answer);
-          addSources(bubble, data.sources);
-          if (assistCost && data.usage) { assistCost.note(data.usage, data.totals); }
-          history.push({ role: "bot", text: data.answer });
-          saveHistory();
-          log.scrollTop = log.scrollHeight;
-        })
-        .catch(function () {
-          busy = false;
-          send.removeAttribute("disabled");
-          bubble.classList.remove("is-thinking");
-          bubble.classList.add("is-err");
-          bubble.textContent = "Could not answer (network error). Please try again.";
-        });
+      history.push({ role: "user", text: q }); saveHistory();
+      var bubble = addMsg("bot", "", "");
+      if (planModeOn()) { runPlanStage(q, bubble); } else { runAnswerStream(q, "", bubble); }
     }
     send.addEventListener("click", askNow);
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askNow(); }
     });
+
+    // ---- Voice input: dictate into the box (Web Speech API; the button hides if unsupported) ------
+    (function () {
+      var micBtn = input.parentNode ? input.parentNode.querySelector(".ax-as-mic") : null;
+      if (!micBtn) { return; }
+      var SpeechCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+      if (!SpeechCtor) { micBtn.style.display = "none"; return; }
+      var recog = null, recording = false, baseText = "";
+      micBtn.addEventListener("click", function () {
+        if (recording) { if (recog) { try { recog.stop(); } catch (e) {} } return; }
+        recog = new SpeechCtor();
+        recog.lang = "en-US"; recog.interimResults = true; recog.continuous = true;
+        baseText = input.value ? input.value.replace(/\s+$/, "") + " " : "";
+        recog.onstart = function () {
+          recording = true; micBtn.classList.add("recording");
+          micBtn.setAttribute("title", "Stop dictation");
+        };
+        recog.onresult = function (e) {
+          var t = "", i;
+          for (i = 0; i < e.results.length; i++) { t += e.results[i][0].transcript; }
+          input.value = baseText + t;
+        };
+        recog.onerror = function () { recording = false; micBtn.classList.remove("recording"); };
+        recog.onend = function () {
+          recording = false; micBtn.classList.remove("recording");
+          micBtn.setAttribute("title", "Dictate with your voice"); input.focus();
+        };
+        try { recog.start(); } catch (err) { recording = false; micBtn.classList.remove("recording"); }
+      });
+    })();
+
+    // ---- Conversation history: browse/reopen/delete past chats (server-side, team-shared) --------
+    function hideHistory() {
+      if (histPanel) { histPanel.setAttribute("hidden", "hidden"); }
+      log.style.display = "";
+      var ir = input.parentNode; if (ir) { ir.style.display = ""; }
+      if (histBtn) { histBtn.classList.remove("is-on"); }
+    }
+    function loadConversation(id) {
+      post("/admin/assistant", { op: "history_get", conv_id: id })
+        .then(function (data) {
+          if (!data || data.ok === false || !data.conversation) { return; }
+          convId = data.conversation.id || id;
+          history = (data.conversation.turns || []).slice();
+          log.innerHTML = "";
+          replayTurns(history);
+          saveHistory(); hideHistory();
+          log.scrollTop = log.scrollHeight;
+        }).catch(function () {});
+    }
+    function renderHistoryList(convs) {
+      if (!histPanel) { return; }
+      histPanel.innerHTML = "";
+      var head = document.createElement("div"); head.className = "ax-as-histhead";
+      var t = document.createElement("b"); t.textContent = "Conversation history";
+      var back = document.createElement("button"); back.type = "button"; back.className = "ax-as-histback";
+      back.textContent = "← Back to chat"; back.addEventListener("click", hideHistory);
+      head.appendChild(t); head.appendChild(back); histPanel.appendChild(head);
+      if (!convs || !convs.length) {
+        var empty = document.createElement("div"); empty.className = "ax-as-histempty";
+        empty.textContent = "No saved conversations yet. Ask something and it will appear here.";
+        histPanel.appendChild(empty); return;
+      }
+      convs.forEach(function (cv) {
+        var item = document.createElement("div"); item.className = "ax-as-histitem";
+        var main = document.createElement("div"); main.className = "ax-as-histitem-main";
+        var ti = document.createElement("div"); ti.className = "ax-as-histitem-t";
+        ti.textContent = cv.title || "Conversation";
+        var me = document.createElement("div"); me.className = "ax-as-histitem-m";
+        me.textContent = (cv.turn_count || 0) + " message" + (cv.turn_count === 1 ? "" : "s");
+        main.appendChild(ti); main.appendChild(me);
+        var del = document.createElement("button"); del.type = "button"; del.className = "ax-as-histitem-del";
+        del.setAttribute("title", "Delete this conversation"); del.textContent = "×";
+        item.appendChild(main); item.appendChild(del);
+        main.addEventListener("click", function () { loadConversation(cv.id); });
+        del.addEventListener("click", function (e) {
+          e.stopPropagation();
+          post("/admin/assistant", { op: "history_delete", conv_id: cv.id })
+            .then(function (data) { renderHistoryList((data && data.conversations) || []); })
+            .catch(function () {});
+        });
+        histPanel.appendChild(item);
+      });
+    }
+    function openHistory() {
+      if (!histPanel) { return; }
+      log.style.display = "none";
+      var ir = input.parentNode; if (ir) { ir.style.display = "none"; }
+      histPanel.removeAttribute("hidden");
+      if (histBtn) { histBtn.classList.add("is-on"); }
+      histPanel.innerHTML = "";
+      var loading = document.createElement("div"); loading.className = "ax-as-histempty";
+      loading.textContent = "Loading…"; histPanel.appendChild(loading);
+      post("/admin/assistant", { op: "history_list" })
+        .then(function (data) { renderHistoryList((data && data.conversations) || []); })
+        .catch(function () { renderHistoryList([]); });
+    }
+    if (histBtn) {
+      histBtn.addEventListener("click", function () {
+        if (histPanel && histPanel.hasAttribute("hidden")) { openHistory(); } else { hideHistory(); }
+      });
+    }
+
     return {
       say: function (text, extraClass) { addMsg("bot", text, extraClass); },
       reset: function () {
-        history = [];
-        try { localStorage.removeItem(storeKey); } catch (e) {}
+        if (activeAbort) { try { activeAbort.abort(); } catch (e) {} }
+        activeAbort = null; setBusy(false); history = []; convId = null;
+        var s = store(); if (s) { try { s.removeItem(storeKey); } catch (e) {} }
+        hideHistory();
         log.innerHTML = "";
         if (greeting) { addMsg("bot", greeting); }
       }
@@ -4845,7 +5406,7 @@
   (function () {
     var tabChat = wireAssistantChat({
       log: "ax-as-log", input: "ax-as-input", send: "ax-as-send",
-      from: "ax-as-from", to: "ax-as-to"
+      from: "ax-as-from", to: "ax-as-to", hist: "ax-as-hist", histpanel: "ax-as-histpanel"
     });
     var newTab = document.getElementById("ax-as-new");
     if (newTab && tabChat) {
@@ -4882,7 +5443,8 @@
     var panel = document.getElementById("ax-aspanel");
     if (!fab || !panel) { return; }
     var input = document.getElementById("ax-asfab-input");
-    var chat = wireAssistantChat({ log: "ax-asfab-log", input: "ax-asfab-input", send: "ax-asfab-send" });
+    var chat = wireAssistantChat({ log: "ax-asfab-log", input: "ax-asfab-input", send: "ax-asfab-send",
+      hist: "ax-asfab-hist", histpanel: "ax-asfab-histpanel" });
     function setOpen(open) {
       if (open) {
         panel.removeAttribute("hidden");
@@ -4941,6 +5503,23 @@
   (function () {
     wireAssistantSetting(".ax-as-modelsel", "model");
     wireAssistantSetting(".ax-as-depthsel", "depth");
+    // Plan-first toggle: a per-browser preference (localStorage), synced across both surfaces. When
+    // on, a question first shows the plan + pauses for approve/steer (handled in wireAssistantChat).
+    (function () {
+      var boxes = qsa(".ax-as-planmode");
+      if (!boxes.length) { return; }
+      var pkey = "agora.asplan:" + base;
+      var on = false;
+      try { on = localStorage.getItem(pkey) === "1"; } catch (e) {}
+      boxes.forEach(function (b) { b.checked = on; });
+      boxes.forEach(function (b) {
+        b.addEventListener("change", function () {
+          var v = b.checked;
+          try { localStorage.setItem(pkey, v ? "1" : "0"); } catch (e) {}
+          boxes.forEach(function (o) { o.checked = v; });
+        });
+      });
+    })();
     var gear = document.getElementById("ax-asfab-gear");
     var strip = document.getElementById("ax-asfab-set");
     if (gear && strip) {

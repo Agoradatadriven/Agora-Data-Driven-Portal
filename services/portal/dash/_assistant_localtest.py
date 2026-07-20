@@ -195,6 +195,37 @@ def run():
            assistant_ai.has_embeddings(hidx) and hidx["emb_count"] == 3 and hidx["emb_dim"] == 3)
     _check("packed vectors round-trip",
            assistant_ai._unpack_vec(hidx["emb"]["h_cold"], 3) is not None)
+
+    # --- Incremental embedding: a rebuild reuses unchanged vectors, embeds only what changed --------
+    # (the "was fast, now unusable" fix -- a Watcher fetch must not re-embed the whole corpus).
+    embed_calls = []
+
+    def _counting_embed(texts):
+        embed_calls.append(list(texts))
+        return _fake_embed(texts)
+
+    # One new chunk, one changed chunk, one unchanged -> exactly two embed calls, one reused vector.
+    hchunks2 = [
+        dict(hchunks[0]),                                        # h_loyal: unchanged -> reuse
+        {"id": "h_cold", "kind": "content", "title": "Cold email", "url": "", "date": "",
+         "text": "cold outreach emails to WARM prospects now"},  # h_cold: content changed -> re-embed
+        {"id": "h_new", "kind": "content", "title": "Upsell", "url": "", "date": "",
+         "text": "upsell existing customers into a higher tier"},  # brand new -> embed
+    ]
+    hidx2 = assistant_ai.build_index(hchunks2)
+    reused_vec = hidx["emb"]["h_loyal"]
+    assistant_ai.embed_index(hidx2, _counting_embed, prev=hidx)
+    embedded_texts = [t for batch in embed_calls for t in batch]
+    _check("incremental embed skips unchanged chunks, embeds only new/changed ones",
+           hidx2["emb_count"] == 3 and len(embedded_texts) == 2)
+    _check("the unchanged chunk's stored vector is carried over verbatim (no re-embed)",
+           hidx2["emb"]["h_loyal"] == reused_vec
+           and not any("loyalty program" in t.lower() for t in embedded_texts))
+    _check("a changed chunk IS re-embedded (stale vector never reused)",
+           any("warm prospects" in t.lower() for t in embedded_texts))
+    _check("first-ever embed (no prev) still embeds everything",
+           (lambda i: (assistant_ai.embed_index(i, _fake_embed), i["emb_count"])[1])(
+               assistant_ai.build_index(hchunks)) == 3)
     answer, sources, err = assistant_ai.ask(
         "X", hidx, "how do we get customers coming back",
         caller=lambda system, user: ('{"answer": "Lean on loyalty."}', ""),
@@ -214,6 +245,23 @@ def run():
            assistant_ai._infer_kinds("compare our campaigns with what creators say in videos") is None)
     _check("generic question stays unfiltered",
            assistant_ai._infer_kinds("what should we focus on next quarter") is None)
+
+    # --- Titles are searchable + a named creator survives a 'campaign' question (the 2026-07 bug) --
+    # The creator/channel name lives only in a chunk's TITLE, never in the transcript body, so it
+    # must be indexed for a name query to retrieve that creator's videos.
+    _check("a video is retrievable by its creator NAME (title is indexed, not just the body)",
+           any(h["kind"] == "video" for h in assistant_ai.search(index, "Carson Reed")))
+    # "what would <creator> say about <campaign>" contains 'campaign' -> _infer_kinds alone would
+    # scope to {content,campaign} and drop every transcript. The creator name must reopen video.
+    _named_kinds = assistant_ai._infer_kinds("what would Carson Reed say about the summer campaign")
+    _check("'campaign' question alone would exclude videos",
+           _named_kinds is not None and "video" not in _named_kinds)
+    _cross = assistant_ai.ask(
+        "Riverdance", index, "what would Carson Reed say about the summer campaign",
+        caller=lambda system, user: ('{"answer": "ok"}', ""))
+    _check("a creator named beside 'campaign' still retrieves that creator's videos",
+           _cross[2] == "" and any(s["kind"] == "video" and "Carson Reed" in s["title"]
+                                   for s in _cross[1]))
 
     # --- Reranker seam: it gets {id,title,content} records and ITS order drives the cited sources --
     seen_rr = {}
@@ -235,6 +283,46 @@ def run():
         caller=lambda system, user: ('{"answer": "ok"}', ""),
         reranker=lambda q, recs, n: (recs, "rerank error"))
     _check("failing reranker degrades gracefully", err == "" and answer == "ok" and sources)
+
+    # --- Streaming ask: sources first, live thinking+answer deltas, steer injection ---------------
+    seen_prompt = {}
+
+    def _stream_caller(system, user):
+        seen_prompt["system"] = system
+        seen_prompt["user"] = user
+        yield {"type": "thinking", "text": "weighing loyalty vs cold email"}
+        yield {"type": "answer", "text": "Lean on "}
+        yield {"type": "answer", "text": "loyalty."}
+        yield {"type": "usage", "input_tokens": 12, "output_tokens": 5}
+
+    evs = list(assistant_ai.ask_stream(
+        "X", hidx, "how do we keep customers", steer="focus on retention only",
+        query_embedder=lambda q: (_fake_embed([q])[0][0], ""), stream_caller=_stream_caller))
+    types = [e["type"] for e in evs]
+    _check("stream emits sources FIRST, then thinking, answer, usage",
+           types[0] == "sources" and "thinking" in types and "answer" in types and "usage" in types)
+    _check("stream answer deltas assemble the reply",
+           "".join(e["text"] for e in evs if e["type"] == "answer") == "Lean on loyalty.")
+    _check("streaming prompt is plain-markdown (no JSON envelope)",
+           '"answer"' not in seen_prompt["system"] and "markdown" in seen_prompt["system"].lower())
+    _check("the steer is injected into the answer prompt",
+           "focus on retention only" in seen_prompt["user"])
+    empty = list(assistant_ai.ask_stream("X", hidx, "zzqx nomatch qqq",
+                                         stream_caller=_stream_caller))
+    _check("stream with no hits -> a single error event",
+           len(empty) == 1 and empty[0]["type"] == "error")
+
+    # --- Plan checkpoint: returns the sub-questions + sources WITHOUT answering -------------------
+    def _plan_caller(system, user):
+        if "search queries" in system:
+            return ('{"queries": ["loyalty retention", "cold email outreach"]}', "")
+        return ("", "")
+
+    queries, psources = assistant_ai.plan_stage(
+        hidx, "keep customers vs win new ones", depth="deep",
+        query_embedder=lambda q: (_fake_embed([q])[0][0], ""), plan_caller=_plan_caller)
+    _check("plan_stage returns the planned sub-questions + sources",
+           "keep customers vs win new ones" in queries and len(queries) >= 2 and psources)
 
     # --- The route: lazy rebuild, reindex, ask (stubbed), gating ---------------------------------
     main.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False, SESSION_COOKIE_SAMESITE="Lax")
@@ -273,6 +361,33 @@ def run():
            and data["sources"][0]["kind"] == "campaign")
     assistant_ai.ask = real_ask
 
+    # --- The streaming route: SSE frames for the answer stage AND the plan checkpoint ------------
+    real_stream = assistant_ai.ask_stream
+    assistant_ai.ask_stream = lambda name, idx, q, **kw: iter([
+        {"type": "sources", "sources": [{"title": "Carson Reed", "kind": "video", "date": "", "url": ""}]},
+        {"type": "thinking", "text": "considering the transcripts"},
+        {"type": "answer", "text": "Monthly retainers."},
+        {"type": "usage", "input_tokens": 3, "output_tokens": 2},
+    ])
+    r = c.post("/w/%s/admin/assistant/stream" % CLIENT,
+               data={"question": "how to price?", "stage": "answer"})
+    sse = r.get_data(as_text=True)
+    _check("stream route emits SSE content-type", r.mimetype == "text/event-stream")
+    _check("stream route forwards sources/thinking/answer + a priced usage + done",
+           "event: sources" in sse and "event: thinking" in sse and "event: answer" in sse
+           and "event: usage" in sse and "cost_usd" in sse and "event: done" in sse)
+    assistant_ai.ask_stream = real_stream
+
+    real_plan = assistant_ai.plan_stage
+    assistant_ai.plan_stage = lambda idx, q, *a, **kw: (
+        ["price retainers", "cold email"], [{"title": "Carson Reed", "kind": "video", "date": "", "url": ""}])
+    r = c.post("/w/%s/admin/assistant/stream" % CLIENT,
+               data={"question": "compare", "stage": "plan"})
+    sse = r.get_data(as_text=True)
+    _check("plan stage returns plan + sources, no answer",
+           "event: plan" in sse and "event: sources" in sse and "event: answer" not in sse)
+    assistant_ai.plan_stage = real_plan
+
     body = c.get("/w/%s/assistant" % CLIENT).get_data(as_text=True)
     _check("assistant pane renders for the team",
            'data-pane="assistant"' in body and 'id="ax-as-send"' in body)
@@ -289,6 +404,56 @@ def run():
     _check("client POST is forbidden",
            c.post("/w/%s/admin/assistant" % CLIENT,
                   data={"op": "ask", "question": "hi"}).status_code == 403)
+    _check("client streaming POST is forbidden",
+           c.post("/w/%s/admin/assistant/stream" % CLIENT,
+                  data={"question": "hi"}).status_code == 403)
+
+    # --- Conversation history: server-side team-shared save/list/get/delete -----------------------
+    # workspace layer: upsert by id, newest-first, turns/list caps.
+    workspace.save_assistant_conversation(CLIENT, "cv1", "Pricing chat",
+                                          [{"role": "user", "text": "how to price?"},
+                                           {"role": "bot", "text": "Monthly retainers."}])
+    workspace.save_assistant_conversation(CLIENT, "cv2", "Campaigns chat",
+                                          [{"role": "user", "text": "what campaigns?"}])
+    lst = workspace.list_assistant_conversations(CLIENT)
+    _check("history list returns both, newest first, without turns",
+           len(lst) == 2 and lst[0]["id"] == "cv2" and "turns" not in lst[0]
+           and lst[0]["turn_count"] == 1)
+    workspace.save_assistant_conversation(CLIENT, "cv1", "Pricing chat v2",
+                                          [{"role": "user", "text": "how to price?"},
+                                           {"role": "bot", "text": "Monthly retainers."},
+                                           {"role": "user", "text": "and support?"}])
+    _check("saving same id UPSERTS (no duplicate) + bumps it to newest",
+           len(workspace.list_assistant_conversations(CLIENT)) == 2
+           and workspace.list_assistant_conversations(CLIENT)[0]["id"] == "cv1")
+    got = workspace.get_assistant_conversation(CLIENT, "cv1")
+    _check("get returns the full turns", got and len(got["turns"]) == 3
+           and got["title"] == "Pricing chat v2")
+    workspace.delete_assistant_conversation(CLIENT, "cv2")
+    _check("delete removes just that conversation",
+           [x["id"] for x in workspace.list_assistant_conversations(CLIENT)] == ["cv1"])
+
+    # route ops (as the team; client is still logged in as CLIENT here -> must be forbidden first).
+    _check("client history POST is forbidden",
+           c.post("/w/%s/admin/assistant" % CLIENT,
+                  data={"op": "history_list"}).status_code == 403)
+    with c.session_transaction() as s:
+        s.clear(); s.update(SUPER)
+    r = c.post("/w/%s/admin/assistant" % CLIENT,
+               data={"op": "history_save", "conv_id": "cv3", "title": "Route saved",
+                     "turns": '[{"role":"user","text":"hi"},{"role":"bot","text":"hello"}]'})
+    _check("op=history_save persists + returns the list",
+           r.get_json()["ok"] is True
+           and any(x["id"] == "cv3" for x in r.get_json()["conversations"]))
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "history_get", "conv_id": "cv3"})
+    _check("op=history_get returns the turns",
+           r.get_json()["ok"] is True and len(r.get_json()["conversation"]["turns"]) == 2)
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "history_get", "conv_id": "nope"})
+    _check("op=history_get on a missing id -> friendly not-ok", r.get_json()["ok"] is False)
+    r = c.post("/w/%s/admin/assistant" % CLIENT, data={"op": "history_delete", "conv_id": "cv3"})
+    _check("op=history_delete removes it",
+           r.get_json()["ok"] is True
+           and not any(x["id"] == "cv3" for x in r.get_json()["conversations"]))
 
 
 if __name__ == "__main__":

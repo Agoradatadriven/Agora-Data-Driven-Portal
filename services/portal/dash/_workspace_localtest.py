@@ -353,6 +353,32 @@ def run():
     _check("notify persisted across reload", reloaded["notify"][USER]["status"] is True)
     _check("comments persisted across reload", len(rvr016["comments"]) == 2)
 
+    # 10. Service templates seed the whole work breakdown, and add_task stores it.
+    import service_templates
+    _check("acquisition has exactly one service type",
+           service_templates.services_for("acquisition") == [("google_meta_campaign", "Google / Meta Campaign")])
+    mts = service_templates.build_maintasks("google_meta_campaign", {}, [("video", "3"), ("static", "5")])
+    _check("google/meta campaign yields build + launch + the 2 ad-production groups", len(mts) == 4)
+    _check("ad-production groups appended after the automatic ones",
+           [m["text"] for m in mts][2:] == ["Video ad production", "Static ad production"])
+    vsteps = [s["text"] for s in mts[2]["subs"] if "draft edit" in s["text"]]
+    _check("qty=3 expands the per-video step into 3", len(vsteps) == 3)
+    _check("every seeded sub-task carries a 'done when' (dod)",
+           all(s.get("dod") for m in mts for s in m["subs"]))
+    esteps = service_templates.build_maintasks("email_automation", {"qty": "4"})
+    eprod = [m for m in esteps if m["text"] == "Email production"][0]
+    _check("qty param drives a lifecycle template (4 emails -> 8 per-unit steps)",
+           len([s for s in eprod["subs"] if s["text"].startswith("Email ")]) == 8)
+    _check("an unknown service key builds nothing", service_templates.build_maintasks("nope") == [])
+
+    seeded = workspace.add_task(CLIENT, {"title": "Park & Porch | Leads", "department": "acquisition",
+                                         "content_type": "Campaign", "maintasks": mts})
+    _check("add_task stores a pre-built breakdown", len(seeded["maintasks"]) == 4)
+    _check("seeded sub-tasks flatten for the close-guard", len(workspace.task_subtasks(seeded)) == len(
+           [s for m in mts for s in m["subs"]]))
+    _t, sub = workspace.add_subtask(CLIENT, seeded["id"], "Extra QA pass", dod="Signed off by the lead")
+    _check("add_subtask persists a dod", sub.get("dod") == "Signed off by the lead")
+
     print("[localtest] PASS")
     return 0
 

@@ -129,10 +129,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   registry lives in `ws["watcher"]["channels"]` (counts + classification only); each channel's full
   archive is its OWN object `workspace/watcher/<c>/<channel_id>.json` (transcripts run to MBs —
   same posture as creatives). Routes: `POST /w/<c>/admin/watcher` (`op`
-  add|add_video|fetch|refresh|meta|label|delete — fetch pulls MISSING transcripts in short batches of 8 and
-  the page JS loops it with a progress bar; **a YouTube rate-limit stops the batch and reports
-  `blocked` WITHOUT marking any video failed**, so the next fetch resumes exactly where it stopped;
-  **add_video scrapes ONE pasted video link** (resolve title via keyless oEmbed → fetch transcript
+  add|add_video|fetch|refresh|meta|label|delete — fetch pulls MISSING transcripts in batches
+  (parallel `FETCH_WORKERS` waves behind a rotating proxy, else the serial politely-paced path) and
+  the page JS loops it with a progress bar; **a YouTube rate-limit reports `blocked` WITHOUT marking
+  any video failed** and the loop AUTO-RETRIES with backoff (~20s→2min, resets on progress) instead
+  of stopping, so the archive fills without re-clicking (the button toggles to Stop to cancel);
+  **add_video scrapes ONE pasted video link** (resolve title via keyless oEmbed, falling back to a
+  watch-page og:title scrape when oEmbed 401s → fetch transcript
   inline → save under the per-client "Saved videos" pseudo-channel, marked `loose`, created by
   `workspace.ensure_loose_channel`; a rate-limit saves it pending + reports `blocked`, so the card's
   Fetch missing / Safe pull can finish it — the loose channel is fetched/safe-pulled/indexed like
@@ -154,7 +157,12 @@ auto-refresh (see those bullets below). Product name is one constant:
   `dash/safe_scrape_local.py --queue` from a residential IP with 12–20s pacing + a 5→60 min
   rate-limit ladder, syncing transcripts back to the bucket as it goes and clearing each queue
   entry on completion (no args = full sweep of every client; a %TEMP% PID lock keeps every mode
-  single-instance). Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube
+  single-instance). It is SLOW by design (≤5-min tick latency + ~15s/video + cooldowns). **Live
+  status:** the scraper writes a per-video heartbeat to `workspace/watcher_safe_pull_status.json`
+  (`safe_scrape_local.write_status` / `workspace.read_safe_pull_status`); `GET
+  /w/<c>/watcher/safe-pull-status` fuses it with the queued channels' counts and the Watcher tab
+  polls it (~12s) to show what's fetching now / cooldowns / idle-since + a progress bar, instead of
+  "check back later". Off-cloud test: `dash/_watcher_localtest.py` (in CI; stubs GCS + the YouTube
   fetchers).
 - **Assistant is a TEAM-ONLY tab (RAG chat over the WHOLE workspace):** grounded Q&A across every
   source the portal holds for a client — campaigns + content (incl. comments), workspace metrics,
@@ -168,8 +176,14 @@ auto-refresh (see those bullets below). Product name is one constant:
   each ranked per query and fused with **Reciprocal Rank Fusion** (`_rrf`, rank-only so the
   incompatible BM25/cosine scales never fight); the fused pool is then optionally sorted by a
   **cross-encoder reranker** (Vertex Ranking API `semantic-ranker-fast-004`) — "retrieve wide, keep
-  few". A **metadata pre-filter** (`_infer_kinds`) scopes retrieval to one source kind ONLY for an
-  unambiguous single-source question (relaxed if it would empty the set), on top of the date range
+  few". Every chunk is indexed AND embedded by its **title + body** (`_searchable`), so the entity
+  name a user searches by (creator/channel name, campaign name, email subject) is retrievable even
+  though it never appears in the body — the transcript never says its own channel name (this fixed
+  the 2026-07 "no Fuel Your Wander content" miss; the index is `INDEX_VERSION`-stamped so the shape
+  change forces a one-time rebuild). A **metadata pre-filter** (`_infer_kinds`) scopes retrieval to
+  one source kind ONLY for an unambiguous single-source question (relaxed if it would empty the set,
+  or if the question NAMES a watched creator — `_question_names_creator` keeps `video` in scope so
+  "what would <creator> say about <campaign>" stays cross-source), on top of the date range
   (dated sources only). Both the semantic leg and the reranker are gated + graceful: with them off
   (or on any call failure) retrieval is exactly the old BM25 path. Embeddings are ON by default when
   Vertex is wired (`ASSISTANT_EMBED_ENABLED=1`, `VERTEX_EMBED_LOCATION` = the project region so
@@ -190,8 +204,17 @@ auto-refresh (see those bullets below). Product name is one constant:
   budget, DeepSeek gets `thinking:{type:enabled}`; quick/standard pin the fast no-thinking path),
   and asks for a structured analysis; quick trims to a few sentences. Every depth's prompt allows
   cross-source synthesis (differing recommendations count as disagreement).
-  Answers cite sources; the UI shows them as chips. Routes: `POST /w/<c>/admin/assistant` (`op`
-  ask|reindex, gated `is_superadmin()`); tab gated like the other team tabs. The dashboard-data
+  Answers cite sources; the UI shows them as chips. **The chat STREAMS** (Server-Sent Events via
+  `POST /w/<c>/admin/assistant/stream`): the model's reasoning shows live in a collapsible thinking
+  panel, then the answer streams in. `intel_ai.stream_call` normalises Vertex/DeepSeek SSE to
+  thinking/answer/usage deltas; `assistant_ai.ask_stream` streams plain markdown (not the JSON
+  envelope). Two Claude-style controls: **Pause & steer** (abort the stream mid-thinking and restart
+  with guidance) and a **Plan first** toggle (`stage=plan` → `assistant_ai.plan_stage` shows the
+  planned sub-queries + sources and PAUSES for approve/steer BEFORE answering). Conversations are
+  **session-scoped** now (`sessionStorage` — a new session/tab starts fresh). The non-streamed
+  `op=ask` stays for tests/fallback. Routes: `POST /w/<c>/admin/assistant` (`op`
+  ask|settings|reindex) + `POST /w/<c>/admin/assistant/stream`, gated `is_superadmin()`; tab gated
+  like the other team tabs. The dashboard-data
   source needs a one-time grant: `services/portal/dash/enable_assistant_dash_data.ps1` gives the
   portal SA objectViewer on each client dash bucket (run 2026-07-12; re-run for new clients) —
   without it that source is silently skipped. `VERTEX_ACCESS_TOKEN` env (dev-only) lets the same
@@ -410,6 +433,12 @@ auto-refresh (see those bullets below). Product name is one constant:
   admin accounts from `store.py`; the lead is never duplicated into support; support is assigned
   AFTER creation — the picker renders only on the Edit form, guarded by a `has_support` form
   field), **`start_date` + `due_date`** (the LAUNCH date — key canonical, UI label "Launch date"),
+  a **service-template-seeded work breakdown** (`services/portal/dash/service_templates.py`: the
+  New-Service form's **Service type** picker — Acquisition = ONE type "Google / Meta Campaign" with
+  a Video/Static/Carousel **ad-production picker**, everything else a fixed recipe with optional
+  qty/platform params — auto-generates `maintasks[]`+`subs[]`, each sub with an INTERNAL `dod`
+  "done when"; seeded on op=add only, "Custom (blank)" keeps the empty-card path; the client
+  Progress shape strips `dod`),
   an internal-only **`service_charge`**, and a single **label AUTO-derived from the department**
   (`main.TASK_DEPT_LABEL`: Acquisition→Paid Media, Lifecycle→Organic, rest→Website — no manual
   label picker; the form's one name field is LABELED "Campaign" but stores as `title`). A move to
@@ -448,12 +477,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   dashboard, leadgen, organic, calendar, conversations, intel, settings) gated `authed()`+`can_open(<c>)`;
   client POSTs `/w/<c>/{approve,request-changes,save-note,comment,send-message,save-notify,logo}` +
   creative GET above; team-only POSTs `/w/<c>/resolve-comment` + `/w/<c>/admin/*` gated `is_superadmin()`. The team console
-  (`GET /admin/atrium`, gated `is_superadmin()`) is a **Home hub + focused console** (Concept B —
-  `ATRIUM_CONSOLE_REDESIGN_PLAN.md`): a fresh visit lands on the branded hub (suite cards: Atrium
-  Admin · Skill Mastery · Website Editor · Sentinel); **Atrium Admin** opens the console — grouped
-  rail *Workspaces* (Clients · Activity · Bin) / *People & access* (Accounts with subtabs Requests ·
-  People · Add new) — all client-side view state, so `?section=`/flash redirects still land on the
-  right pane. The Clients pane shows one card per client (the worked-example `template` client is
+  (`GET /admin/atrium`, gated `is_superadmin()`) is a **focused console** (the old "Your Agora suite"
+  Home hub was removed 2026-07-17 — the console is the only view now). The **app switcher** (Atrium /
+  Sentinel / Website Editor — Skill Mastery lives inside Sentinel, so it is not listed) lives in the
+  **account dropdown under the username** at the bottom of the rail, and the **Agora logo links back
+  to `agoradatadriven.com`**. Grouped rail *Workspaces* (Clients · Activity · Bin) / *People & access*
+  (Accounts with subtabs Requests · People · Add new) — all client-side view state, so `?section=`/flash
+  redirects still land on the right pane. The Clients pane shows one card per client (the worked-example `template` client is
   filtered out) with an attention chip (purple **"N awaiting approval"**, attention-first sort, or
   green **"All caught up"**). **Clicking a card opens that
   client's workspace `/w/<c>/` directly** (where all editing happens in place). Each card also carries
@@ -471,9 +501,13 @@ auto-refresh (see those bullets below). Product name is one constant:
   Google OAuth (`google_oauth.py`, `/auth/google/{login,callback}`) and, on a verified email, mints
   the SAME session + shared `ag_sso` cookie as a password login — so the website editor and every
   dashboard trust a Google login identically. OPT-IN: off unless `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`
-  are set. An unknown email files a **passwordless pending request** (`/auth/request-access`) an admin
-  approves in the console's Access-requests tab via `POST /admin/accounts/grant-google` (assign to a
-  new/existing client OR a role). `/admin/atrium` IS the admin landing (`/` redirects here; the legacy
+  are set. **Sentinel is the source of truth for staff:** on a verified email with no active portal
+  account, the callback defers to Sentinel (`sentinel_directory.py` → Sentinel's HMAC-gated
+  `/api/internal/user-lookup`) and signs in any **active Sentinel user** with no client-dashboard keys
+  — so adding someone in Sentinel (People → Add Employee) enables their Google login with no portal
+  record to maintain, and deactivating them there blocks it. An email authorized nowhere files a
+  **passwordless pending request** (`/auth/request-access`) an admin approves in the console's
+  Access-requests tab via `POST /admin/accounts/grant-google` (assign to a new/existing client OR a role). `/admin/atrium` IS the admin landing (`/` redirects here; the legacy
   `/admin` + `/superadmin` pages now just redirect here too). THE super admin (`info@…` / role
   `superadmin`) can **act as any user** (`/admin/impersonate`; a site-wide "Stop acting as" banner is
   injected by the `after_request` hook). Full details + OAuth/secret setup: `services/portal/dash/CLAUDE.md`.

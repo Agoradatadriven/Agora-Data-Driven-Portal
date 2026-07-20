@@ -353,6 +353,68 @@ def run():
     _check("reranking_configured on when opted in", intel_ai.reranking_configured())
     os.environ.pop("ASSISTANT_RERANK_ENABLED", None)
 
+    # 11. Streaming: SSE from each provider normalises to thinking/answer/usage deltas.
+    class _StreamResp(object):
+        def __init__(self, lines, status=200):
+            self._lines = lines
+            self.status_code = status
+
+        def iter_lines(self):
+            for ln in self._lines:
+                yield ln
+
+        def json(self):
+            return {"error": {"message": "stream boom"}}
+
+    _vertex_lines = [
+        b'data: {"candidates":[{"content":{"parts":[{"text":"Let me think","thought":true}]}}]}',
+        b'',
+        b'data: {"candidates":[{"content":{"parts":[{"text":"Hello "}]}}]}',
+        b'data: {"candidates":[{"content":{"parts":[{"text":"world"}]}}],'
+        b'"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5,"thoughtsTokenCount":3}}',
+    ]
+
+    def _vertex_stream_fetcher(url, headers, payload, timeout):
+        assert "streamGenerateContent" in url and "alt=sse" in url, "must hit the streaming endpoint"
+        return _StreamResp(_vertex_lines)
+
+    evs = list(intel_ai.stream_call(intel_ai.model_meta("gemini-2.5-flash"), "sys", "usr",
+                                    token_fetcher=_token, fetcher=_vertex_stream_fetcher))
+    think = "".join(e["text"] for e in evs if e["type"] == "thinking")
+    answer = "".join(e["text"] for e in evs if e["type"] == "answer")
+    usage = [e for e in evs if e["type"] == "usage"]
+    _check("vertex stream yields reasoning deltas", think == "Let me think")
+    _check("vertex stream yields answer deltas", answer == "Hello world")
+    _check("vertex stream reports usage (thoughts count as output)",
+           usage and usage[-1]["input_tokens"] == 10 and usage[-1]["output_tokens"] == 8)
+
+    _ds_lines = [
+        b'data: {"choices":[{"delta":{"reasoning_content":"hmm"}}]}',
+        b'data: {"choices":[{"delta":{"content":"Hi"}}]}',
+        b'data: {"choices":[{"delta":{"content":" there"}}]}',
+        b'data: {"usage":{"prompt_tokens":7,"completion_tokens":4}}',
+        b'data: [DONE]',
+    ]
+
+    def _ds_stream_fetcher(url, headers, payload, timeout):
+        assert payload.get("stream") is True, "deepseek stream must set stream=true"
+        return _StreamResp(_ds_lines)
+
+    os.environ["DEEPSEEK_API_KEY"] = "sk-test"
+    dse = list(intel_ai.stream_call(intel_ai.model_meta("deepseek-v4-flash"), "s", "u",
+                                    fetcher=_ds_stream_fetcher))
+    _check("deepseek stream splits reasoning vs answer",
+           "".join(e["text"] for e in dse if e["type"] == "thinking") == "hmm"
+           and "".join(e["text"] for e in dse if e["type"] == "answer") == "Hi there")
+
+    def _err_stream_fetcher(url, headers, payload, timeout):
+        return _StreamResp([], status=500)
+
+    ee = list(intel_ai.stream_call(intel_ai.model_meta("gemini-2.5-flash"), "s", "u",
+                                   token_fetcher=_token, fetcher=_err_stream_fetcher))
+    _check("stream transport error -> a single error event",
+           len(ee) == 1 and ee[0]["type"] == "error" and ee[0]["message"])
+
 
 def main():
     try:

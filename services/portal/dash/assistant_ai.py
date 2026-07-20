@@ -44,6 +44,7 @@ embeddings behaves exactly like the old BM25-only path. Every failure degrades t
 """
 
 import base64
+import hashlib
 import json
 import math
 import re
@@ -58,12 +59,27 @@ _STOP = frozenset(
 CHUNK_WORDS = 1000          # transcript chunk size (words)
 TOP_K = 18                  # excerpts handed to the model per question
 MAX_CONTEXT_CHARS = 90000   # hard cap on packed context (stays well inside Gemini's window)
+INDEX_VERSION = 3           # bump to force a one-time rebuild when the index SHAPE changes
+                            # (v3: titles are indexed/embedded, so retrieval finds entities by name)
 
 
 def _tokens(text):
     """Lowercase word tokens minus stopwords (the BM25 vocabulary)."""
     return [t for t in re.findall(r"[a-z0-9']+", (text or "").lower())
             if len(t) > 1 and t not in _STOP]
+
+
+def _searchable(chunk):
+    """What BM25/embeddings actually index for a chunk: its TITLE plus its body.
+
+    The title carries the ENTITY NAME a user searches by -- the creator/channel name ("Fuel Your
+    Wander"), the video title, the campaign name, the email subject -- and that name is usually
+    ABSENT from the body (a transcript rarely says the channel's own name). Indexing the title too
+    is what lets "what would Fuel Your Wander say about ..." retrieve that creator's transcripts;
+    without it the name is invisible to retrieval and the Assistant reports it has no such content."""
+    title = (chunk.get("title") or "").strip()
+    text = chunk.get("text") or ""
+    return (title + "\n" + text) if title else text
 
 
 # --- 1. Flatten the workspace into chunks ---------------------------------------------------------
@@ -223,12 +239,12 @@ def build_index(chunks, fp=""):
     df = {}
     lengths = []
     for c in chunks:
-        toks = _tokens(c["text"])
+        toks = _tokens(_searchable(c))
         lengths.append(len(toks))
         for t in set(toks):
             df[t] = df.get(t, 0) + 1
     from workspace import now_iso
-    return {"v": 2, "fingerprint": fp, "built_at": now_iso(), "chunks": chunks, "df": df,
+    return {"v": INDEX_VERSION, "fingerprint": fp, "built_at": now_iso(), "chunks": chunks, "df": df,
             "n_docs": len(chunks),
             "avgdl": (sum(lengths) / len(lengths)) if lengths else 0.0}
 
@@ -257,8 +273,22 @@ def _unpack_vec(b64, dim):
         return None
 
 
-def embed_index(index, embedder):
+def _emb_sig(chunk):
+    """A short content signature for a chunk's searchable text. Used to decide whether a carried-over
+    vector is still valid: a chunk id can be REUSED with new content (e.g. the 'metrics' snapshot
+    changes every refresh, a transcript chunk is re-fetched), so reuse must key on content, not id."""
+    return hashlib.md5(_searchable(chunk).encode("utf-8")).hexdigest()
+
+
+def embed_index(index, embedder, prev=None):
     """Attach a semantic leg to `index` IN PLACE: embed every chunk's text and store packed vectors.
+
+    INCREMENTAL: when `prev` (this client's previous index) carries a semantic leg, any chunk whose id
+    AND content signature are unchanged REUSES its stored vector instead of re-embedding. So a Watcher
+    fetch that adds a few transcripts embeds only the handful of new chunks, not the whole corpus --
+    the fix for the "was fast, now unusable" stall where every fetch re-embedded thousands of chunks
+    synchronously inside the ask request. With no `prev` (or a `prev` without embeddings) this embeds
+    everything, exactly as before.
 
     `embedder(list_of_texts) -> (list_of_vectors, error)` is injected (the default caller wires it to
     intel_ai.embed_texts). A per-chunk vector may be None (its batch failed) -- those chunks just
@@ -267,20 +297,39 @@ def embed_index(index, embedder):
     chunks = index.get("chunks") or []
     if not chunks or embedder is None:
         return index
-    try:
-        vectors, _err = embedder([c.get("text", "") for c in chunks])
-    except Exception:
-        vectors = None
-    if not vectors:
-        return index
-    emb, dim = {}, 0
-    for c, v in zip(chunks, vectors):
-        if not v:
-            continue
-        dim = dim or len(v)
-        emb[c["id"]] = _pack_vec(v)
+    prev = prev or {}
+    prev_emb = prev.get("emb") or {}
+    prev_sig = prev.get("emb_sig") or {}
+    prev_dim = prev.get("emb_dim") or 0
+
+    emb, sig, dim = {}, {}, 0
+    to_embed = []                     # (chunk_id, searchable_text) for the chunks that actually need it
+    for c in chunks:
+        cid = c["id"]
+        s = _emb_sig(c)
+        packed = prev_emb.get(cid)
+        if packed is not None and prev_dim and prev_sig.get(cid) == s:
+            emb[cid] = packed         # unchanged -> reuse the stored vector, skip the embed call
+            sig[cid] = s
+            dim = dim or prev_dim
+        else:
+            to_embed.append((cid, _searchable(c), s))
+
+    if to_embed:
+        try:
+            vectors, _err = embedder([t for _cid, t, _s in to_embed])
+        except Exception:
+            vectors = None
+        for (cid, _t, s), v in zip(to_embed, vectors or []):
+            if not v:
+                continue
+            dim = dim or len(v)
+            emb[cid] = _pack_vec(v)
+            sig[cid] = s
+
     if emb:
         index["emb"] = emb
+        index["emb_sig"] = sig        # per-embedded-chunk content signature (powers the next reuse)
         index["emb_dim"] = dim
         index["emb_count"] = len(emb)
     return index
@@ -320,6 +369,29 @@ def _infer_kinds(question):
     return matched[0] if len(matched) == 1 else None
 
 
+def _creator_names(chunks):
+    """The lowercased channel/creator names present in the index (the part of a video chunk's title
+    before the ' — <video title>' separator). Cheap; derived from the chunks already in hand."""
+    names = set()
+    for c in chunks:
+        if c.get("kind") == "video":
+            name = (c.get("title") or "").split(" — ", 1)[0].strip().lower()
+            if name:
+                names.add(name)
+    return names
+
+
+def _question_names_creator(question, chunks):
+    """True if `question` mentions a creator/channel this workspace actually watches.
+
+    This is why "what would Fuel Your Wander say about the Colorado Escape Campaign" must NOT be
+    scoped to campaign-only: it names a creator, so it is inherently cross-source. `_infer_kinds`
+    can't know that (it only matches the literal word "creator"), but the watched channels' names
+    are right here in the index."""
+    ql = (question or "").lower()
+    return any(name in ql for name in _creator_names(chunks))
+
+
 def _passes(chunk, date_from, date_to, kinds):
     """Metadata gate: an optional kind scope + a date range (dated chunks only; undated always pass)."""
     if kinds is not None and chunk.get("kind") not in kinds:
@@ -353,7 +425,7 @@ class _Retriever:
             return
         self._tf, self._dl = [], []
         for c in self.chunks:
-            toks = _tokens(c.get("text", ""))
+            toks = _tokens(_searchable(c))
             tf = {}
             for t in toks:
                 tf[t] = tf.get(t, 0) + 1
@@ -471,7 +543,13 @@ _DEPTH_STYLE = {
 }
 
 
-def _system_prompt(client_name, depth=DEFAULT_DEPTH):
+def _system_prompt(client_name, depth=DEFAULT_DEPTH, as_json=True):
+    """The grounded-answer contract. `as_json` picks the OUTPUT shape: True = the `{"answer": ...}`
+    envelope the synchronous path parses; False = PLAIN markdown for the STREAMING path (a JSON
+    wrapper can't be streamed to the user without showing braces)."""
+    tail = (" Answer with JSON only: {\"answer\": \"<your answer>\"}" if as_json else
+            " Answer in clear GitHub-flavored markdown (headings, bold, and lists are welcome). Do "
+            "NOT wrap your answer in JSON or code fences — just write the answer.")
     return (
         "You are the AGORA team's Atrium assistant for the client \"%s\". You answer questions "
         "using ONLY the numbered context excerpts provided — the client's campaigns, metrics, "
@@ -486,8 +564,18 @@ def _system_prompt(client_name, depth=DEFAULT_DEPTH):
         "excerpts truly contain nothing relevant, say so plainly — never invent facts. "
         % client_name
         + _DEPTH_STYLE.get(depth, _DEPTH_STYLE[DEFAULT_DEPTH])
-        + " Answer with JSON only: {\"answer\": \"<your answer>\"}"
+        + tail
     )
+
+
+def _steer_note(steer):
+    """A short prompt suffix carrying the team's mid-flight steer (from the plan checkpoint or a
+    pause). Empty when there is none."""
+    steer = (steer or "").strip()
+    if not steer:
+        return ""
+    return ("\n\nIMPORTANT — the AGORA team reviewed your approach and added this guidance. Follow "
+            "it, and let it override your earlier direction where they conflict:\n%s" % steer[:1000])
 
 
 _PLAN_SYSTEM = (
@@ -617,6 +705,11 @@ def _retrieve(index, question, queries, depth, date_from, date_to, query_embedde
     pool_cap, final = _DEPTH_RETRIEVE.get(depth, _DEPTH_RETRIEVE[DEFAULT_DEPTH])
 
     kinds = _infer_kinds(question)
+    # A named creator makes the question cross-source: keep the watched-video chunks in scope so
+    # "what would <creator> say about <campaign>" retrieves the creator's transcripts, not just the
+    # campaign (a lone 'campaign' keyword otherwise filters every transcript out before scoring).
+    if kinds is not None and "video" not in kinds and _question_names_creator(question, chunks):
+        kinds = set(kinds) | {"video"}
     allowed = [i for i, c in enumerate(chunks) if _passes(c, date_from, date_to, kinds)]
     if not allowed and kinds is not None:                 # scope too tight -> drop the kind filter
         allowed = [i for i, c in enumerate(chunks) if _passes(c, date_from, date_to, None)]
@@ -715,6 +808,82 @@ def ask(client_name, index, question, history=None, date_from="", date_to="", mo
     if not answer:
         return "", sources, "The model returned an empty answer — try again."
     return answer, sources, ""
+
+
+# --- Streaming ask + plan checkpoint --------------------------------------------------------------
+# The chat UI streams: it shows the model's reasoning live and lets the team PAUSE mid-thinking to
+# steer. `plan_stage` is the optional pre-answer checkpoint (Claude-style "plan mode"): it does the
+# retrieval + (deep) query planning and returns what the assistant WILL look at, so the team can
+# approve or redirect BEFORE a single answer token is written. `ask_stream` then streams the answer
+# (reasoning first, then the reply), honouring any `steer` the team added at the checkpoint or a pause.
+def _build_queries(question, depth, history, plan_caller):
+    """The retrieval queries for `question`: just the question, plus (deep) the planned sub-queries."""
+    queries = [question]
+    if depth == "deep" and plan_caller is not None:
+        queries += [q for q in plan_queries(question, history or [], plan_caller)
+                    if q.lower() != question.lower()]
+    return queries
+
+
+def _sources_of(hits):
+    """The de-duplicated citation list (by title) for a set of retrieved chunks."""
+    sources, seen = [], set()
+    for c in hits:
+        key = c["title"]
+        if key not in seen:
+            seen.add(key)
+            sources.append({"title": c["title"], "kind": c["kind"],
+                            "date": c.get("date", ""), "url": c.get("url", "")})
+    return sources
+
+
+def plan_stage(index, question, history=None, depth=DEFAULT_DEPTH, date_from="", date_to="",
+               query_embedder=None, reranker=None, plan_caller=None):
+    """The plan-mode checkpoint. Returns (queries, sources): the sub-questions the assistant will
+    search and the sources it retrieved -- shown to the team to approve or steer BEFORE answering.
+    Never raises; an empty `sources` means nothing matched (the UI says so)."""
+    depth = depth if depth in DEPTHS else DEFAULT_DEPTH
+    queries = _build_queries(question, depth, history, plan_caller)
+    hits = _retrieve(index, question, queries, depth, date_from, date_to, query_embedder, reranker)
+    return queries, _sources_of(hits)
+
+
+def ask_stream(client_name, index, question, history=None, date_from="", date_to="",
+               depth=DEFAULT_DEPTH, steer="", query_embedder=None, reranker=None,
+               plan_caller=None, stream_caller=None):
+    """Stream an answer to `question`. A GENERATOR yielding event dicts (mirrors intel_ai.stream_call):
+      {"type":"sources","sources":[...]}         -- retrieved citations (emitted first)
+      {"type":"thinking","text":<delta>}         -- reasoning delta (the live think panel)
+      {"type":"answer","text":<delta>}           -- answer delta (plain markdown)
+      {"type":"usage", ...}                       -- token counts (from the provider, near the end)
+      {"type":"error","message":<reason>}        -- a short reason; the stream then ends
+
+    `steer` (from the plan checkpoint or a pause-and-restart) is injected so the answer follows the
+    team's redirection. `stream_caller(system, user) -> iterator of intel_ai stream events` is the
+    injected model seam (tests pass a fake); `plan_caller(system,user)->(text,err)` powers deep's
+    query planning. Retrieval reuses the hybrid pipeline (query_embedder/reranker optional)."""
+    depth = depth if depth in DEPTHS else DEFAULT_DEPTH
+    queries = _build_queries(question, depth, history, plan_caller)
+    hits = _retrieve(index, question, queries, depth, date_from, date_to, query_embedder, reranker)
+    if not hits:
+        yield {"type": "error", "message": ("Nothing in this workspace matches that question — try "
+                                            "rephrasing, or fetch more data first.")}
+        return
+    yield {"type": "sources", "sources": _sources_of(hits)}
+    if stream_caller is None:
+        yield {"type": "error", "message": "no streaming model configured"}
+        return
+    system = _system_prompt(client_name, depth, as_json=False)
+    user = _user_prompt(question, hits, history or []) + _steer_note(steer)
+    got_answer = False
+    for ev in stream_caller(system, user):
+        if not isinstance(ev, dict):
+            continue
+        if ev.get("type") == "answer" and ev.get("text"):
+            got_answer = True
+        yield ev
+    if not got_answer:
+        yield {"type": "error", "message": "The model returned an empty answer — try again."}
 
 
 # --- Optional source: the client's dashboard data export ------------------------------------------

@@ -144,19 +144,40 @@
     .nav-item.util .ic { opacity: .6; }
     .nav-item .count.quiet { color: var(--muted); background: var(--canvas); border: 1px solid var(--line); }
     .nav-item.is-active .count.quiet { color: var(--brand-700); background: #dcefdb; border-color: transparent; }
-    .side-foot { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .side-foot { position: relative; border-top: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
     .acct-btn { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; cursor: pointer; border: 0; background: transparent;
       font: inherit; padding: 8px; border-radius: var(--r-md); transition: background .13s; }
-    .acct-btn:hover, .acct-btn.is-active { background: var(--canvas); }
+    .acct-btn:hover, .acct-btn.is-active, .acct-btn[aria-expanded="true"] { background: var(--canvas); }
     .acct-av { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
       font-size: 12.5px; font-weight: 800; color: #fff; background: var(--brand-500); }
     .acct-who { min-width: 0; line-height: 1.25; }
     .acct-who b { display: block; font-size: 13px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .acct-who em { font-style: normal; font-size: 11px; color: var(--muted); }
-    .acct-caret { margin-left: auto; color: var(--muted); }
-    .signout { display: block; text-align: center; padding: 9px; border-radius: var(--r-md); border: 1px solid var(--line);
-      background: var(--surface); color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 700; }
-    .signout:hover { border-color: rgba(192,69,59,.4); color: var(--danger); }
+    .acct-caret { margin-left: auto; width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); transition: transform .13s; }
+    .acct-btn[aria-expanded="true"] .acct-caret { transform: rotate(180deg); }
+    /* App-switcher / account dropdown, anchored above the account button (bottom of the rail). */
+    .acct-menu { position: absolute; left: 12px; right: 12px; bottom: calc(100% - 4px); z-index: 30;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+      box-shadow: 0 12px 32px rgba(16,24,40,.16); padding: 6px; }
+    .acct-menu[hidden] { display: none; }
+    .acct-menu-label { font-size: 10.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+      color: var(--muted); padding: 6px 8px 4px; }
+    .acct-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+      border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+      text-decoration: none; padding: 9px 8px; border-radius: var(--r-sm); transition: background .12s, color .12s; }
+    .acct-menu-item svg { width: 17px; height: 17px; flex: 0 0 auto; color: var(--muted); }
+    .acct-menu-item:hover { background: var(--canvas); color: var(--brand-700); }
+    .acct-menu-item:hover svg { color: var(--brand-600); }
+    .acct-menu-item.is-current { cursor: default; }
+    .acct-menu-item.is-current:hover { background: transparent; color: var(--ink); }
+    .acct-menu-item.is-current:hover svg { color: var(--muted); }
+    .acct-menu-tag { margin-left: auto; font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .3px;
+      color: var(--brand-700); background: var(--canvas); border-radius: 999px; padding: 2px 8px; }
+    .acct-menu-item.danger { color: var(--danger); }
+    .acct-menu-item.danger svg { color: var(--danger); }
+    .acct-menu-item.danger:hover { background: rgba(192,69,59,.08); color: var(--danger); }
+    .acct-menu-item.danger:hover svg { color: var(--danger); }
+    .acct-menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 
     .content { flex: 1 1 auto; min-width: 0; padding: 40px 44px 72px; max-width: 1120px; }
     .pane { display: none; } .pane.is-active { display: block; animation: rise .5s cubic-bezier(.22,1,.36,1); }
@@ -319,7 +340,7 @@
     .tk-hbtn { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; white-space: nowrap; }
     .tk-hbtn svg { width: 15px; height: 15px; flex: 0 0 auto; }
     .tk-hbtn .tnum { font-weight: 800; color: var(--accent-600); background: var(--accent-100); border-radius: 999px; padding: 0 6px; min-width: 17px; text-align: center; }
-    .tk-filters { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0 0 18px; }
+    .tk-filters { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0 0 12px; }
     /* The console gives every <select> width:100% -- force these back to inline, compact widths
        so the filter row matches the prototype (a single row, not stacked full-width dropdowns). */
     .tk-filters select { width: auto; max-width: 220px; flex: 0 1 auto; padding: 8px 11px; background: var(--surface); color: var(--ink);
@@ -327,6 +348,66 @@
     .tk-filters .clear { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 700;
       cursor: pointer; padding: 7px 9px; border-radius: 8px; }
     .tk-filters .clear:hover { color: var(--brand-700); background: var(--tint); }
+    /* Search box (find one service among many) -- matches the select styling, with a leading icon. */
+    .tk-filters .tk-search { position: relative; flex: 1 1 190px; min-width: 160px; max-width: 320px; }
+    .tk-filters .tk-search input { width: 100%; padding: 8px 11px 8px 30px; background: var(--surface); color: var(--ink);
+      border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 12.5px; font-weight: 600; }
+    .tk-filters .tk-search input:focus { outline: 2px solid rgba(79,168,74,.3); border-color: var(--brand-500); }
+    .tk-filters .tk-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted); pointer-events: none; }
+    .tk-filters .tk-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--body); cursor: pointer; user-select: none; padding: 6px 4px; }
+    .tk-filters .tk-chk input { accent-color: var(--brand-500); }
+    /* Display row -- HOW services are shown (view / sort / density / caps), separated from the
+       filter row above by a hairline (not a heavy card), each control behind a small label. */
+    .tk-display { display: flex; align-items: center; flex-wrap: wrap; gap: 11px 22px; margin: 0 0 18px;
+      padding: 13px 2px 0; border-top: 1px solid var(--line); }
+    .tk-dgroup { display: inline-flex; align-items: center; gap: 9px; }
+    .tk-dlabel { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .tk-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+    .tk-seg button { border: 0; background: transparent; color: var(--body); font: inherit; font-size: 12.5px; font-weight: 600;
+      padding: 7px 15px; cursor: pointer; transition: background .12s, color .12s; }
+    .tk-seg button + button { border-left: 1px solid var(--line); }
+    .tk-seg button:not(.on):hover { background: var(--brand-50); color: var(--brand-700); }
+    .tk-seg button.on { background: var(--brand-500); color: #fff; font-weight: 700; }
+    .tk-display select { padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 12.5px;
+      font-weight: 600; background: var(--surface); color: var(--ink); cursor: pointer; }
+    .tk-display .tk-chk { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600;
+      color: var(--body); text-transform: none; letter-spacing: 0; cursor: pointer; user-select: none; padding: 0; }
+    .tk-display .tk-chk input { accent-color: var(--brand-500); width: 15px; height: 15px; }
+    .tk-shown { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 600; }
+    .tk-shown b { color: var(--ink); font-weight: 800; }
+    /* Swimlanes: one row per client, its four stage columns side by side, each a stack of chips. */
+    .tk-swim[hidden] { display: none; }
+    .tk-lane { border: 1px solid var(--line); border-radius: var(--r-lg); margin-bottom: 12px; overflow: hidden; background: var(--surface); }
+    .tk-lane-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--canvas); }
+    .tk-lane-head .nm { font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
+    .tk-lane-head .tot { margin-left: auto; font-size: 11px; color: var(--muted); }
+    .tk-lane-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .tk-lane-col { padding: 10px 12px; border-right: 1px solid var(--line); min-height: 52px; }
+    .tk-lane-col:last-child { border-right: 0; }
+    .tk-lane-ch { display: flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 800; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .tk-lane-ch .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .tk-lane-ch .n { margin-left: auto; color: var(--ink); }
+    .tk-chip { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; padding: 6px 9px; margin-bottom: 6px;
+      border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font: inherit; font-size: 12px; color: var(--ink); cursor: pointer; }
+    .tk-chip:hover { border-color: var(--brand-300); box-shadow: 0 2px 8px rgba(20,36,28,.06); }
+    .tk-chip[data-hold="1"] { opacity: .6; }
+    .tk-chip-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+    .tk-chip-t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tk-lane-empty { font-size: 11px; color: #aeb8b0; }
+    .tk-swim-empty { border: 1px dashed var(--line); border-radius: var(--r-md); color: var(--muted); font-size: 12.5px;
+      font-weight: 700; padding: 20px; text-align: center; }
+    /* Cap long columns: overflow cards past the cap are hidden behind a "Show all" toggle. */
+    .tk-showmore { width: 100%; border: 1px dashed var(--line); background: transparent; color: var(--brand-700); font: inherit;
+      font-size: 12px; font-weight: 700; padding: 8px; border-radius: var(--r-md); cursor: pointer; }
+    .tk-showmore:hover { background: var(--tint); border-color: var(--brand-300); }
+    .tk-card.tk-capped { display: none; }
+    /* Compact density: trim padding/type and drop the footer so ~2x more cards fit per screen. */
+    .tk-board.tk-compact .tk-list { gap: 7px; }
+    .tk-board.tk-compact .tk-card { padding: 8px 11px; }
+    .tk-board.tk-compact .tk-title { font-size: 12.5px; margin: 3px 0 5px; }
+    .tk-board.tk-compact .tk-meta { margin: 0; }
+    .tk-board.tk-compact .tk-foot { display: none; }
     .tk-board { display: flex; gap: 14px; align-items: flex-start; overflow-x: auto; padding: 2px 2px 16px; }
     .tk-col { flex: 0 0 300px; width: 300px; }
     .tk-colhead { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
@@ -421,17 +502,34 @@
     .tk-nudge { display: flex; align-items: center; gap: 8px; background: var(--tint); border: 1px solid var(--brand-200); color: var(--brand-700);
       border-radius: var(--r-md); padding: 8px 11px; font-size: 12px; font-weight: 700; margin-top: 10px; }
     .tk-nudge form { margin: 0; }
-    .tk-subrow { display: flex; align-items: center; gap: 8px; padding: 5px 2px; font-size: 13px; }
+    .tk-subrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 2px; font-size: 13px; }
     .tk-subrow form { margin: 0; display: flex; align-items: center; gap: 6px; }
     .tk-subrow input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--brand-600); cursor: pointer; }
     .tk-subrow .txt { flex: 1 1 auto; min-width: 0; color: var(--body); }
     .tk-subrow.done .txt { color: var(--muted); text-decoration: line-through; }
+    /* "Done when" -- internal definition of done; wraps to its own line under the step text. */
+    .tk-dod { display: block; flex-basis: 100%; font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .tk-subrow.done .tk-dod { text-decoration: none; }
+    .tk-dod-in { max-width: 190px; }
     .tk-subrow select { max-width: 118px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 11px; background: var(--surface); color: var(--body); }
     .tk-subrow .rm { border: 0; background: transparent; color: #c2c7c2; font-size: 15px; cursor: pointer; padding: 1px 6px; border-radius: 6px; }
     .tk-subrow .rm:hover { color: var(--danger); background: var(--danger-bg); }
     .tk-addsub { display: flex; gap: 7px; margin-top: 8px; }
     .tk-addsub input[type=text] { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 12.5px; }
     .tk-addsub select { max-width: 118px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 11.5px; background: var(--surface); }
+    /* ---- New-Service: service-type picker + params + ad-production ---- */
+    .svc-block { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+    .svc-params { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    .svc-param-field { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+    .svc-param-field label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .svc-param-field input, .svc-param-field select { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 13px; background: var(--surface); color: var(--body); }
+    .svc-adprod { margin-top: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: var(--r-md); background: var(--canvas); }
+    .svc-adprod-h { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-700); margin-bottom: 8px; }
+    .svc-adprod-add { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
+    .svc-adprod-add select { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 13px; background: var(--surface); }
+    .svc-ad-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); }
+    .svc-ad-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 13px; }
+    .svc-ad-qty { width: 74px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-md); font: inherit; font-size: 13px; }
     .tk-progress { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 7px 0 9px; }
     .tk-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand-500), var(--brand-400)); }
     .tk-thread { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 10px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
@@ -538,12 +636,15 @@
     .tk-main-check { width: 16px; height: 16px; flex: 0 0 auto; color: var(--brand-600); display: inline-flex; align-items: center; justify-content: center; }
     .tk-main-check svg { width: 14px; height: 14px; }
     .tk-main-title { font-weight: 700; font-size: 13.5px; color: var(--ink); }
-    /* Rename-in-place: the main-task title is an input that looks like plain text until focused. */
+    /* Rename-in-place: the main-task title is an editable input. A faint dashed underline at rest
+       signals "you can rename this" (the old fully-transparent border read as static text and users
+       didn't realise they could name/rename it); it firms up on hover and boxes in on focus. */
     .tk-main-rename { flex: 1 1 auto; min-width: 80px; }
-    .tk-main-rename input[type=text] { width: 100%; border: 1px solid transparent; background: transparent; font: inherit;
-      font-weight: 700; font-size: 13.5px; color: var(--ink); padding: 2px 6px; border-radius: 6px; }
-    .tk-main-rename input[type=text]:hover { border-color: var(--line); }
-    .tk-main-rename input[type=text]:focus { border-color: var(--brand-500); background: var(--surface); outline: none;
+    .tk-main-rename input[type=text] { width: 100%; border: 1px solid transparent; border-bottom: 1px dashed var(--brand-300);
+      background: transparent; font: inherit; font-weight: 700; font-size: 13.5px; color: var(--ink);
+      padding: 2px 6px; border-radius: 6px; cursor: text; }
+    .tk-main-rename input[type=text]:hover { border-color: var(--line); border-bottom-style: solid; }
+    .tk-main-rename input[type=text]:focus { border: 1px solid var(--brand-500); background: var(--surface); outline: none;
       box-shadow: 0 0 0 3px rgba(79,168,74,.14); }
     .tk-main-count { font-size: 10.5px; font-weight: 800; color: var(--muted); background: var(--canvas); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
     .tk-main-head select { max-width: 118px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 11px; background: var(--surface); color: var(--body); }
@@ -672,7 +773,9 @@
       .nav-group { display: none; }
       .nav-item { width: auto; flex: 0 0 auto; white-space: nowrap; }
       .side-foot { flex-direction: row; align-items: center; justify-content: space-between; }
-      .acct-btn { width: auto; } .signout { flex: 0 0 auto; }
+      .acct-btn { width: auto; }
+      /* Sidebar is a strip at the TOP on mobile -> the account menu drops DOWN, not up. */
+      .acct-menu { top: calc(100% + 4px); bottom: auto; }
       .content { padding: 22px 16px 44px; max-width: none; }
     }
     @media (max-width: 520px) {
@@ -699,63 +802,12 @@
     </select>
   {% endmacro %}
 
-  <!-- ===================== HOME HUB (landing) ===================== -->
-  <div class="view" data-view="hub">
-    <div class="hub">
-      <div class="aurora" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
-      <header class="hub-top">
-        <span class="ag-logo">{{ agora_logo|safe }}</span>
-        <div class="hub-acct">
-          {% if user %}<span class="who"><b>{{ profile.name|default(user, true) }}</b> &middot; {{ 'Super admin' if profile.role == 'superadmin' else 'Administrator' }}</span>{% endif %}
-          <span class="hub-av">{{ (profile.name|default(user, true)|default('?', true))[:1]|upper }}</span>
-        </div>
-      </header>
-      <main class="hub-main">
-        <p class="eyebrow">Welcome back{% if profile.name %}, {{ profile.name.split()[0] }}{% endif %}</p>
-        <h1 class="hub-h1">Your <span class="g">Agora</span> suite.</h1>
-        <p class="hub-lead">One login opens everything. Pick a product to jump in &mdash; your session
-          carries across, no second sign-in.</p>
-        <div class="suite">
-          <a class="app primary" href="#" data-open-console>
-            <span class="app-cta"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
-            <div class="app-name">Atrium Admin</div>
-            <div class="app-desc">Client workspaces, accounts, access requests and activity &mdash; your day-to-day console.</div>
-            <div class="app-meta"><span class="app-stat tnum">{{ clients|length }} client workspace{{ '' if clients|length == 1 else 's' }}</span>{% if awaiting_total %}<span class="app-flag tnum">{{ awaiting_total }} awaiting approval</span>{% endif %}</div>
-          </a>
-          <a class="app info" href="{{ skill_mastery_url }}" target="_blank" rel="noopener">
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-            <div class="app-name">Skill Mastery</div>
-            <div class="app-desc">The spaced-repetition mastery engine &mdash; quizzes, priority drills and progress.</div>
-            <div class="app-meta"><span class="app-open">Open Skill Mastery &rarr;</span></div>
-          </a>
-          <a class="app plain" href="{{ website_editor_url }}" target="_blank" rel="noopener">
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
-            <div class="app-name">Website Editor</div>
-            <div class="app-desc">Edit the public site in place &mdash; swap images and text, save to publish live.</div>
-            <div class="app-meta"><span class="app-open">Open the site &rarr;</span></div>
-          </a>
-          <a class="app amber" href="{{ sentinel_url }}" target="_blank" rel="noopener">
-            <div class="app-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-            <div class="app-name">Sentinel</div>
-            <div class="app-desc">The internal operations command center &mdash; attendance, tasks, leave and team reporting.</div>
-            <div class="app-meta"><span class="app-open">Open Sentinel &rarr;</span></div>
-          </a>
-        </div>
-      </main>
-    </div>
-  </div>
-
-  <!-- ===================== CONSOLE ===================== -->
+  <!-- ===================== CONSOLE (the only landing) ===================== -->
   <div class="view" data-view="console">
     <div class="layout">
       <aside class="side">
         <div class="side-top">
-          <button type="button" class="home-link" data-go-hub>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>
-            All apps
-          </button>
-          <span class="ag-logo">{{ agora_logo|safe }}</span>
+          <a class="ag-logo-link" href="https://agoradatadriven.com" title="Agora Data Driven website" aria-label="Back to the Agora Data Driven website"><span class="ag-logo">{{ agora_logo|safe }}</span></a>
         </div>
         <nav class="nav" id="side-nav">
           {#- Rail ordered by frequency of use: daily work on top (Clients, Task Board, Calendar),
@@ -800,14 +852,41 @@
           </button>
         </nav>
         <div class="side-foot">
-          <button type="button" class="acct-btn" data-section="profile" title="Your profile">
+          {#- The account block doubles as the app switcher: one login carries across Atrium /
+              Sentinel / the Website Editor, so the dropdown jumps between them (no second sign-in).
+              Skill Mastery lives inside Sentinel now, so it is not listed here. -#}
+          <button type="button" class="acct-btn" id="acct-toggle" aria-haspopup="true" aria-expanded="false" title="Switch app / your account">
             <span class="acct-av">{{ (profile.name|default(user, true)|default('?', true))[:1]|upper }}</span>
             <span class="acct-who">
               <b>{{ profile.name|default(user, true) }}</b>
               <em>{{ 'Super admin' if profile.role == 'superadmin' else 'Administrator' }}</em>
             </span>
+            <svg class="acct-caret" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"/></svg>
           </button>
-          <a class="signout" href="/logout" data-signout>Sign out</a>
+          <div class="acct-menu" id="acct-menu" hidden>
+            <div class="acct-menu-label">Switch app</div>
+            <button type="button" class="acct-menu-item is-current" data-section="clients">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              <span>Atrium</span><em class="acct-menu-tag">Current</em>
+            </button>
+            <a class="acct-menu-item" href="{{ sentinel_url }}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Sentinel</span>
+            </a>
+            <a class="acct-menu-item" href="{{ website_editor_url }}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              <span>Website Editor</span>
+            </a>
+            <div class="acct-menu-sep"></div>
+            <button type="button" class="acct-menu-item" data-section="profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Your profile</span>
+            </button>
+            <a class="acct-menu-item danger" href="/logout" data-signout>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+              <span>Sign out</span>
+            </a>
+          </div>
         </div>
       </aside>
 
@@ -1204,15 +1283,27 @@
             campaigns); the label auto-follows the department; optional fields live in a
             collapsible "Additional details" section, auto-open when an edited task uses them.
             Support people render ONLY on Edit (is_edit) -- they're assigned after creation. -#}
-        {% macro tk_fields(t, is_edit) -%}
+        {#- The New/Edit service form is split into small field groups so the two forms can arrange
+            them differently: the New form slots the Service-type picker between Dept/Lead and
+            Campaign (so you pick the template that drives the tasks BEFORE the details it fills in),
+            while Edit — which never regenerates the breakdown — just stacks them in reading order. -#}
+        {% macro tk_deptlead(t) -%}
           <div class="tk-formgrid">
-            <div class="full"><label>Campaign <span class="tk-titletag">TITLE</span></label><input type="text" name="title" value="{{ t.title|default('', true) }}" placeholder="Campaign or service name — shown as the title" required></div>
             <div><label>Department</label><select name="department">
               <option value="">—</option>
               {% for dk, dl in task_departments %}<option value="{{ dk }}" {{ 'selected' if t.department|default('') == dk else '' }}>{{ dl }}</option>{% endfor %}
             </select></div>
             <div><label>Lead (main)</label><select name="lead_id">{{ tk_people(t.lead_id|default('', true), 'Unassigned') }}</select></div>
             <div class="full"><div class="tk-hint">The card label follows the department automatically — Acquisition → <b>Paid Media</b>, Lifecycle → <b>Organic</b>, everything else → <b>Website</b>.</div></div>
+          </div>
+        {%- endmacro %}
+        {% macro tk_campaign(t) -%}
+          <div class="tk-formgrid" style="margin-top:12px">
+            <div class="full"><label>Campaign name</label><input type="text" name="title" value="{{ t.title|default('', true) }}" placeholder="Unique campaign or service name" required></div>
+          </div>
+        {%- endmacro %}
+        {% macro tk_meta(t) -%}
+          <div class="tk-formgrid" style="margin-top:12px">
             <div><label>Priority</label><select name="priority">
               {% for pr in ['Low','Medium','High','Urgent'] %}<option {{ 'selected' if t.priority|default('Medium') == pr else '' }}>{{ pr }}</option>{% endfor %}
             </select></div>
@@ -1220,6 +1311,8 @@
             <div><label>Start date</label><input type="date" name="start_date" value="{{ t.start_date|default('', true) }}"></div>
             <div><label>Launch date</label><input type="date" name="due_date" value="{{ t.due_date|default('', true) }}"></div>
           </div>
+        {%- endmacro %}
+        {% macro tk_extra(t, is_edit) -%}
           {% set has_extra = is_edit and (t.client_facing|default(false) or t.deliverable_url|default('') or t.client_note|default('') or t.internal_notes|default('') or (t.support_ids|default([], true))|length) %}
           <details class="tk-extra" {{ 'open' if has_extra else '' }}>
             <summary>Additional details{{ '' if has_extra else ' (optional)' }}</summary>
@@ -1240,6 +1333,14 @@
               <div class="full"><label>🔒 Internal notes (never shown to the client)</label><textarea name="internal_notes">{{ t.internal_notes|default('', true) }}</textarea></div>
             </div>
           </details>
+        {%- endmacro %}
+        {#- Edit form: no service-type picker (edits never regenerate the breakdown), so the groups
+            just stack — Dept/Lead → Campaign → Priority/charge/dates → Additional details. -#}
+        {% macro tk_fields(t, is_edit) -%}
+          {{ tk_deptlead(t) }}
+          {{ tk_campaign(t) }}
+          {{ tk_meta(t) }}
+          {{ tk_extra(t, is_edit) }}
         {%- endmacro %}
         <section class="pane" data-pane="tasks">
           <div class="tk-pagehead">
@@ -1272,6 +1373,10 @@
           </div>
 
           <div class="tk-filters">
+            <label class="tk-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input id="tk-f-search" type="search" placeholder="Search services…" aria-label="Search services by title, client or lead">
+            </label>
             <select id="tk-f-client" aria-label="Filter by client"><option value="">All clients</option>
               {% for c in clients %}{% if c.has_workspace %}<option value="{{ c.key }}">{{ c.name|default(c.key, true) }}</option>{% endif %}{% endfor %}
             </select>
@@ -1281,15 +1386,36 @@
             <select id="tk-f-person" aria-label="Filter by person"><option value="">Anyone (lead or support)</option>
               {% for p in task_roster %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
             </select>
-            <select id="tk-f-priority" aria-label="Filter by priority"><option value="">All priority</option>
-              {% for pr in ['Low','Medium','High','Urgent'] %}<option>{{ pr }}</option>{% endfor %}
-            </select>
-            <select id="tk-f-sort" aria-label="Order cards within each column" title="Order cards within each column">
-              <option value="priority">Sort: Priority (urgent first)</option>
-              <option value="due">Sort: Launch date</option>
-              <option value="client">Sort: Client</option>
-            </select>
             <button type="button" class="clear" id="tk-f-clear">Clear filters</button>
+          </div>
+
+          {#- Display row: HOW the matching services are shown (view / sort / density / caps) — kept
+              separate from the filter row above so neither feels crowded. VIEW + DENSITY are
+              segmented toggles; density + caps only apply to the flat board (hidden in Swimlanes). -#}
+          <div class="tk-display">
+            <div class="tk-dgroup"><span class="tk-dlabel">View</span>
+              <div class="tk-seg" id="tk-view-seg">
+                <button type="button" data-view="flat" class="on">Flat board</button>
+                <button type="button" data-view="swim">Swimlanes</button>
+              </div>
+            </div>
+            <div class="tk-dgroup"><span class="tk-dlabel">Sort</span>
+              <select id="tk-f-sort" aria-label="Order cards within each column">
+                <option value="priority">Priority (urgent first)</option>
+                <option value="due">Launch date</option>
+                <option value="client">Client</option>
+              </select>
+            </div>
+            <div class="tk-dgroup" data-flatonly><span class="tk-dlabel">Density</span>
+              <div class="tk-seg" id="tk-dens-seg">
+                <button type="button" data-dens="comfortable" class="on">Comfortable</button>
+                <button type="button" data-dens="compact">Compact</button>
+              </div>
+            </div>
+            <label class="tk-chk" data-flatonly title="Show the first few per column with a “Show all”, and collapse Closed">
+              <input type="checkbox" id="tk-f-cap" checked> Cap long columns
+            </label>
+            <span class="tk-shown"><b id="tk-shown-n">0</b> shown</span>
           </div>
 
           <div class="tk-board" id="tk-board">
@@ -1339,6 +1465,11 @@
             </div>
             {% endfor %}
           </div>
+
+          {#- Swimlanes view: built client-side from the SAME cards (their data-* attrs), grouped by
+              client into per-stage chips. Hidden until VIEW=Swimlanes. Chips reuse the board's detail
+              overlay via data-open + tkOpen, so nothing is re-rendered server-side. -#}
+          <div class="tk-swim" id="tk-swim" hidden></div>
 
           <!-- Hidden store: each task's detail + edit overlay, and the shared New-task overlay.
                JS moves one node into the veil to show it (server-rendered; no JSON, no Jinja-in-JS). -->
@@ -1461,7 +1592,7 @@
                         {{ tk_back(t, 'tasks') }}
                         <input type="checkbox" name="done" value="1" {{ 'checked' if s.done else '' }} aria-label="Done">
                       </form>
-                      <span class="txt">{{ s.text }}</span>
+                      <span class="txt">{{ s.text }}{% if s.dod %}<span class="tk-dod" title="Definition of done — internal, never shown to the client">Done when: {{ s.dod }}</span>{% endif %}</span>
                       <form method="post" action="/w/{{ t.client_key }}/admin/task/subtask" data-autosubmit>
                         <input type="hidden" name="redirect" value="console"><input type="hidden" name="op" value="assign">
                         <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="subtask_id" value="{{ s.id }}">
@@ -1484,6 +1615,7 @@
                       <input type="hidden" name="task_id" value="{{ t.id }}"><input type="hidden" name="maintask_id" value="{{ m.id }}">
                       {{ tk_back(t, 'tasks') }}
                       <input type="text" name="text" placeholder="Add a sub-task…">
+                      <input type="text" name="dod" placeholder="Done when… (optional, internal)" class="tk-dod-in">
                       <select name="assignee_id" aria-label="Assign">{{ tk_people('', 'Assign…') }}</select>
                       <button type="submit" class="btn small">Add</button>
                     </form>
@@ -1626,7 +1758,54 @@
                       {% for c in clients %}{% if c.has_workspace %}<option value="{{ c.key }}">{{ c.name|default(c.key, true) }}</option>{% endif %}{% endfor %}
                     </select></div>
                   </div>
-                  {{ tk_fields({}, false) }}
+                  {{ tk_deptlead({}) }}
+                  {#- Service type -> auto-built work breakdown, placed UP HERE (right after Dept/Lead)
+                      so you choose the template that builds the tasks BEFORE the details it fills in.
+                      The department select (tk_deptlead) filters the list; the picker + campaign +
+                      params + ad-production drive service_templates.py server-side. The catalog is
+                      rendered as hidden DOM the JS reads (no Jinja in a script block, per the house
+                      rule). -#}
+                  <div class="svc-block">
+                    <div class="tk-formgrid">
+                      <div class="full"><label>Service type</label>
+                        <select name="service_key" id="svc-type" disabled>
+                          <option value="">Choose a department first…</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="tk-hint" style="margin-top:8px">Pick a department, then a service type &mdash; the phases and steps (with a &ldquo;done when&rdquo; on each) are created for you. Choose <b>Custom (blank)</b> to start empty.</div>
+                    {{ tk_campaign({}) }}
+                    <div id="svc-params" class="svc-params"></div>
+                    <div id="svc-adprod" class="svc-adprod" hidden>
+                      <div class="svc-adprod-h">Ad production tasks</div>
+                      <div class="tk-hint">Add the creative work this campaign needs &mdash; each drops in its own task group on top of the automatic launch tasks. Add as many as you like.</div>
+                      <div class="svc-adprod-add">
+                        <select id="svc-adprod-pick" aria-label="Choose a set of tasks"></select>
+                        <button type="button" class="btn small" id="svc-adprod-add-btn">+ Add</button>
+                      </div>
+                      <div id="svc-adprod-list" class="svc-adprod-list"></div>
+                    </div>
+                  </div>
+                  {{ tk_meta({}) }}
+                  {#- Hidden service catalog (data only; no form inputs, so it never submits). -#}
+                  <div id="svc-catalog" hidden>
+                    {% for s in task_services %}
+                    <div class="svc" data-key="{{ s.key }}" data-dept="{{ s.dept }}" data-label="{{ s.label }}"
+                         data-content="{{ s.content_type }}" data-camptype="{{ s.camp_type }}"
+                         data-adprod="{{ '1' if s.ad_production else '' }}">
+                      {% for p in s.params %}
+                      <div class="svc-param" data-k="{{ p.k }}" data-kind="{{ p.kind }}" data-label="{{ p.label }}"
+                           data-def="{{ p.def }}" data-opts="{{ p.opts|join('|') }}"></div>
+                      {% endfor %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <div id="adprod-catalog" hidden>
+                    {% for a in task_adprod %}
+                    <div class="ad" data-key="{{ a.key }}" data-label="{{ a.label }}" data-qlabel="{{ a.qty_label }}" data-def="{{ a.def }}"></div>
+                    {% endfor %}
+                  </div>
+                  {{ tk_extra({}, false) }}
                 </div>
                 <div class="tkd-foot"><span class="spacer"></span>
                   <button type="button" class="btn-ghost" data-tkclose>Cancel</button>
@@ -1729,7 +1908,7 @@
   <div class="modal-veil" id="signout-veil" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="signout-title">
       <h3 id="signout-title">Sign out?</h3>
-      <p>You'll be signed out of the Agora suite &mdash; Atrium, Skill Mastery and the Website Editor
+      <p>You'll be signed out of the Agora suite &mdash; Atrium, Sentinel and the Website Editor
         all share this login.</p>
       <div class="modal-actions">
         <button type="button" class="btn-ghost" id="signout-cancel">Cancel</button>
@@ -1809,14 +1988,13 @@
         };
       })();
 
-      // ---- Top-level view switch: Home hub <-> console. ----
+      // ---- Show the console (the only top-level view now the Home hub is gone). ----
       function showView(v) {
         qsa(".view").forEach(function (el) { el.classList.toggle("is-view", el.getAttribute("data-view") === v); });
         window.scrollTo(0, 0);
       }
 
-      // ---- Keep the URL's ?section= in sync with the open pane, so a RELOAD stays put instead of
-      //      bouncing back to the Home hub (the server reads ?section into data-initial-section).
+      // ---- Keep the URL's ?section= in sync with the open pane, so a RELOAD stays put.
       //      Also makes each pane a shareable/bookmarkable link. Accounts encodes its sub-tab. ----
       var SUB_TO_SECTION = { requests: "requests", people: "accounts", add: "create" };
       function setSectionParam(value) {
@@ -1838,12 +2016,32 @@
       }
       function syncUrl() { setSectionParam(currentSectionParam()); }
 
-      qsa("[data-open-console]").forEach(function (b) {
-        b.addEventListener("click", function (e) { e.preventDefault(); showView("console"); syncUrl(); });
-      });
-      qsa("[data-go-hub]").forEach(function (b) {
-        b.addEventListener("click", function () { showView("hub"); setSectionParam(null); });
-      });
+      // ---- Account / app-switcher dropdown (bottom of the rail, under the username). ----
+      var acctToggle = document.getElementById("acct-toggle");
+      var acctMenu = document.getElementById("acct-menu");
+      function closeAcctMenu() {
+        if (acctMenu) { acctMenu.hidden = true; }
+        if (acctToggle) { acctToggle.setAttribute("aria-expanded", "false"); }
+      }
+      if (acctToggle && acctMenu) {
+        acctToggle.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var open = acctMenu.hidden;
+          acctMenu.hidden = !open;
+          acctToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+        // Switching to a console pane from the menu (Atrium / Your profile) closes the popover.
+        qsa("#acct-menu [data-section]").forEach(function (b) {
+          b.addEventListener("click", closeAcctMenu);
+        });
+        document.addEventListener("click", function (e) {
+          if (acctMenu.hidden) { return; }
+          if (!acctToggle.contains(e.target) && !acctMenu.contains(e.target)) { closeAcctMenu(); }
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") { closeAcctMenu(); }
+        });
+      }
 
       // ---- Console pane switching (a nav button shows its matching pane). ----
       function showSection(name) {
@@ -1987,7 +2185,6 @@
       // Server sections that map into the merged Accounts page:
       var SUB_FOR = { requests: "requests", create: "add", accounts: "people" };
       var want = body.getAttribute("data-initial-section") || "clients";
-      var hasMsg = body.getAttribute("data-has-msg") === "1";
 
       // Default sub for the Accounts page, and resolve the section a redirect asked for.
       var sub = SUB_FOR[want] || "requests";
@@ -1995,16 +2192,13 @@
       var section = SUB_FOR[want] ? "accounts" : want;
       if (!showSection(section)) { showSection("clients"); }
 
-      // Fresh visit (no ?section= and no flash) opens the HUB; an explicit ?section= (e.g. the
-      // workspace Back button's ?section=clients) or any flash message opens the CONSOLE in place.
-      var hasSection = body.getAttribute("data-has-section") === "1";
-      var startConsole = hasMsg || hasSection || (want !== "clients");
-      showView(startConsole ? "console" : "hub");
+      // The console is the only view now (the Home hub was removed) -- always land on it; the
+      // resolved section above decides which pane opens.
+      showView("console");
 
       // ---- Flash = transient toast, NOT a banner stuck at the top. ----
       // Auto-dismiss the flash, then strip ?msg/?err from the URL so reloading or switching panes
-      // (client-side view state) can never re-surface the same notification. (startConsole above
-      // already read data-has-msg from the server-rendered body, so clearing the URL is safe.)
+      // (client-side view state) can never re-surface the same notification.
       var flashEl = document.querySelector(".flash");
       if (flashEl) {
         setTimeout(function () { flashEl.classList.add("flash-out"); }, 3600);
@@ -2199,6 +2393,143 @@
         });
       }
 
+      // ---- New service: the service-type picker drives the auto-built task breakdown. ----
+      // Department (in tk_fields) filters the service list; picking a service renders its params +
+      // (Acquisition) the ad-production picker. Everything is plain named inputs, so the server
+      // rebuilds the maintasks from service_key + p_* + ad_type/ad_qty. Catalog read from hidden DOM.
+      (function () {
+        var form = document.getElementById("tk-new-form");
+        if (!form) { return; }
+        var deptSel = form.querySelector("select[name=department]");
+        var typeSel = document.getElementById("svc-type");
+        var paramsBox = document.getElementById("svc-params");
+        var adWrap = document.getElementById("svc-adprod");
+        var adPick = document.getElementById("svc-adprod-pick");
+        var adAdd = document.getElementById("svc-adprod-add-btn");
+        var adList = document.getElementById("svc-adprod-list");
+        if (!deptSel || !typeSel) { return; }
+
+        var CAT = [];
+        qsa("#svc-catalog .svc").forEach(function (n) {
+          var params = [];
+          qsa(".svc-param", n).forEach(function (p) {
+            var opts = p.getAttribute("data-opts") || "";
+            params.push({ k: p.getAttribute("data-k"), kind: p.getAttribute("data-kind"),
+              label: p.getAttribute("data-label"), def: p.getAttribute("data-def") || "",
+              opts: opts ? opts.split("|") : [] });
+          });
+          CAT.push({ key: n.getAttribute("data-key"), dept: n.getAttribute("data-dept"),
+            label: n.getAttribute("data-label"), adprod: !!n.getAttribute("data-adprod"),
+            params: params });
+        });
+        var ADCAT = [];
+        qsa("#adprod-catalog .ad").forEach(function (n) {
+          ADCAT.push({ key: n.getAttribute("data-key"), label: n.getAttribute("data-label"),
+            qlabel: n.getAttribute("data-qlabel"), def: n.getAttribute("data-def") || "1" });
+        });
+
+        function svcByKey(k) {
+          for (var i = 0; i < CAT.length; i++) { if (CAT[i].key === k) { return CAT[i]; } }
+          return null;
+        }
+        function adByKey(k) {
+          for (var i = 0; i < ADCAT.length; i++) { if (ADCAT[i].key === k) { return ADCAT[i]; } }
+          return null;
+        }
+        function emptyAdHint() {
+          if (!adList.children.length) {
+            var hint = document.createElement("div");
+            hint.className = "tk-hint svc-ad-empty";
+            hint.textContent = "No ad production added yet — the campaign still ships with its automatic launch tasks.";
+            adList.appendChild(hint);
+          }
+        }
+        function addAdRow(type) {
+          var a = adByKey(type);
+          if (!a) { return; }
+          var empty = adList.querySelector(".svc-ad-empty");
+          if (empty) { empty.parentNode.removeChild(empty); }
+          var row = document.createElement("div");
+          row.className = "svc-ad-row";
+          var hid = document.createElement("input");
+          hid.type = "hidden"; hid.name = "ad_type"; hid.value = a.key;
+          var name = document.createElement("span");
+          name.className = "svc-ad-name"; name.textContent = a.label;
+          var qty = document.createElement("input");
+          qty.type = "number"; qty.name = "ad_qty"; qty.min = "1"; qty.max = "50";
+          qty.value = a.def; qty.title = a.qlabel; qty.className = "svc-ad-qty";
+          var rm = document.createElement("button");
+          rm.type = "button"; rm.className = "btn-ghost small"; rm.textContent = "Remove";
+          rm.addEventListener("click", function () { row.parentNode.removeChild(row); emptyAdHint(); });
+          row.appendChild(hid); row.appendChild(name); row.appendChild(qty); row.appendChild(rm);
+          adList.appendChild(row);
+        }
+        function renderService() {
+          paramsBox.innerHTML = "";
+          adList.innerHTML = "";
+          var s = svcByKey(typeSel.value);
+          if (!s) { adWrap.hidden = true; return; }
+          for (var i = 0; i < s.params.length; i++) {
+            var p = s.params[i];
+            var wrap = document.createElement("div");
+            wrap.className = "svc-param-field";
+            var lab = document.createElement("label");
+            lab.textContent = p.label; wrap.appendChild(lab);
+            var input;
+            if (p.kind === "choice") {
+              input = document.createElement("select");
+              for (var j = 0; j < p.opts.length; j++) {
+                var o = document.createElement("option");
+                o.value = p.opts[j]; o.textContent = p.opts[j];
+                if (p.opts[j] === p.def) { o.selected = true; }
+                input.appendChild(o);
+              }
+            } else if (p.kind === "qty") {
+              input = document.createElement("input");
+              input.type = "number"; input.min = "1"; input.max = "50"; input.value = p.def || "1";
+            } else {
+              input = document.createElement("input");
+              input.type = "text"; input.value = p.def || "";
+            }
+            input.name = "p_" + p.k;
+            wrap.appendChild(input); paramsBox.appendChild(wrap);
+          }
+          if (s.adprod) {
+            adWrap.hidden = false;
+            adPick.innerHTML = "";
+            for (var a = 0; a < ADCAT.length; a++) {
+              var ao = document.createElement("option");
+              ao.value = ADCAT[a].key; ao.textContent = ADCAT[a].label; adPick.appendChild(ao);
+            }
+            emptyAdHint();
+          } else {
+            adWrap.hidden = true;
+          }
+        }
+        function fillTypes() {
+          var dept = deptSel.value;
+          typeSel.innerHTML = "";
+          var here = [];
+          for (var i = 0; i < CAT.length; i++) { if (CAT[i].dept === dept) { here.push(CAT[i]); } }
+          var first = document.createElement("option");
+          first.value = "";
+          first.textContent = dept ? "Custom (blank — no auto tasks)" : "Choose a department first…";
+          typeSel.appendChild(first);
+          for (var k = 0; k < here.length; k++) {
+            var o = document.createElement("option");
+            o.value = here[k].key; o.textContent = here[k].label; typeSel.appendChild(o);
+          }
+          typeSel.disabled = !dept;
+          if (here.length === 1) { typeSel.value = here[0].key; }  // one-service dept auto-selects
+          renderService();
+        }
+
+        deptSel.addEventListener("change", fillTypes);
+        typeSel.addEventListener("change", renderService);
+        if (adAdd) { adAdd.addEventListener("click", function () { addAdRow(adPick.value); }); }
+        fillTypes();
+      })();
+
       // ---- Export: download the whole board as a JSON backup. ----
       var exportBtn = document.getElementById("tk-export-btn");
       if (exportBtn) {
@@ -2339,43 +2670,54 @@
         });
       });
 
-      // ---- Filters (client / department / person / priority) — hide non-matching cards. ----
+      // ---- Board controls: filters (client/dept/person + search), plus the display row
+      // (view / sort / density / caps). All client-side. ----
       var fClient = document.getElementById("tk-f-client");
       var fDept = document.getElementById("tk-f-dept");
       var fPerson = document.getElementById("tk-f-person");
-      var fPriority = document.getElementById("tk-f-priority");
       var fClear = document.getElementById("tk-f-clear");
-      function applyFilters() {
-        var c = fClient ? fClient.value : "";
-        var d = fDept ? fDept.value : "";
-        var p = fPerson ? fPerson.value : "";
-        var pr = fPriority ? fPriority.value : "";
-        qsa(".tk-card").forEach(function (card) {
-          var people = " " + (card.getAttribute("data-people") || "") + " ";
-          var show = (!c || card.getAttribute("data-client") === c)
-            && (!d || card.getAttribute("data-dept") === d)
-            && (!p || people.indexOf(" " + p + " ") >= 0)
-            && (!pr || card.getAttribute("data-priority") === pr);
-          card.style.display = show ? "" : "none";
-        });
-        qsa(".tk-col").forEach(function (col) {
-          var visible = qsa(".tk-card", col).filter(function (x) { return x.style.display !== "none"; }).length;
-          var count = col.querySelector("[data-colcount]");
-          if (count) { count.textContent = visible; }
-        });
-      }
+      var fSearch = document.getElementById("tk-f-search");
       var fSort = document.getElementById("tk-f-sort");
+      var fCap = document.getElementById("tk-f-cap");
+      var tkBoard = document.getElementById("tk-board");
+      var swimEl = document.getElementById("tk-swim");
+      var shownN = document.getElementById("tk-shown-n");
+      var viewSeg = document.getElementById("tk-view-seg");
+      var densSeg = document.getElementById("tk-dens-seg");
       var PRIO_RANK = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 
-      // Persist filter + sort across the page reloads that every task action triggers, so the
-      // board keeps YOUR context when the modal reopens. localStorage, per-browser.
+      // Segmented-control helpers (VIEW / DENSITY): the active button carries the value.
+      function segGet(seg, attr) {
+        if (!seg) { return ""; }
+        var b = seg.querySelector("button.on");
+        return b ? b.getAttribute(attr) : "";
+      }
+      function segSet(seg, attr, val) {
+        if (!seg || !val) { return; }
+        qsa("button", seg).forEach(function (b) { b.classList.toggle("on", b.getAttribute(attr) === val); });
+      }
+      function segWire(seg, attr, onChange) {
+        if (!seg) { return; }
+        seg.addEventListener("click", function (e) {
+          var b = e.target.closest("button");
+          if (!b || !seg.contains(b)) { return; }
+          qsa("button", seg).forEach(function (x) { x.classList.toggle("on", x === b); });
+          onChange();
+        });
+      }
+
+      // Persist filter + view prefs across the page reloads every task action triggers, so the board
+      // keeps YOUR context when the modal reopens. localStorage, per-browser (search text excluded).
       var TK_PREFS = "agora.tkprefs";
       function savePrefs() {
         try {
           window.localStorage.setItem(TK_PREFS, JSON.stringify({
             c: fClient ? fClient.value : "", d: fDept ? fDept.value : "",
-            p: fPerson ? fPerson.value : "", pr: fPriority ? fPriority.value : "",
-            sort: fSort ? fSort.value : "priority"
+            p: fPerson ? fPerson.value : "",
+            sort: fSort ? fSort.value : "priority",
+            view: segGet(viewSeg, "data-view") || "flat",
+            dens: segGet(densSeg, "data-dens") || "comfortable",
+            cap: fCap ? (fCap.checked ? 1 : 0) : 1
           }));
         } catch (e) { /* private mode / disabled -- prefs just won't persist */ }
       }
@@ -2387,42 +2729,46 @@
           if (fClient) { fClient.value = s.c || ""; }
           if (fDept) { fDept.value = s.d || ""; }
           if (fPerson) { fPerson.value = s.p || ""; }
-          if (fPriority) { fPriority.value = s.pr || ""; }
           if (fSort && s.sort) { fSort.value = s.sort; }
+          segSet(viewSeg, "data-view", s.view || "flat");
+          segSet(densSeg, "data-dens", s.dens || "comfortable");
+          if (fCap && s.cap != null) { fCap.checked = !!s.cap; }
         } catch (e) { /* ignore malformed prefs */ }
       }
 
+      // ---- Filter matching (client / dept / person / search). Sets each card's display, the column
+      // counts, and the "N shown" total. Search matches title, client name and lead. ----
       function applyFilters() {
         var c = fClient ? fClient.value : "";
         var d = fDept ? fDept.value : "";
         var p = fPerson ? fPerson.value : "";
-        var pr = fPriority ? fPriority.value : "";
+        var q = fSearch ? fSearch.value.trim().toLowerCase() : "";
         qsa(".tk-card").forEach(function (card) {
           var people = " " + (card.getAttribute("data-people") || "") + " ";
           var show = (!c || card.getAttribute("data-client") === c)
             && (!d || card.getAttribute("data-dept") === d)
-            && (!p || people.indexOf(" " + p + " ") >= 0)
-            && (!pr || card.getAttribute("data-priority") === pr);
+            && (!p || people.indexOf(" " + p + " ") >= 0);
+          if (show && q) {
+            var titleEl = card.querySelector(".tk-title");
+            var leadEl = card.querySelector(".tk-lead-nm");
+            var hay = ((titleEl ? titleEl.textContent : "") + " "
+              + (card.getAttribute("data-cname") || "") + " "
+              + (leadEl ? leadEl.textContent : "")).toLowerCase();
+            show = hay.indexOf(q) >= 0;
+          }
           card.style.display = show ? "" : "none";
         });
+        var shown = 0;
         qsa(".tk-col").forEach(function (col) {
           var visible = qsa(".tk-card", col).filter(function (x) { return x.style.display !== "none"; }).length;
+          shown += visible;
           var count = col.querySelector("[data-colcount]");
           if (count) { count.textContent = visible; }
         });
-      }
-      [fClient, fDept, fPerson, fPriority].forEach(function (sel) {
-        if (sel) { sel.addEventListener("change", function () { savePrefs(); applyFilters(); }); }
-      });
-      if (fClear) {
-        fClear.addEventListener("click", function () {
-          [fClient, fDept, fPerson, fPriority].forEach(function (sel) { if (sel) { sel.value = ""; } });
-          savePrefs(); applyFilters();
-        });
+        if (shownN) { shownN.textContent = shown; }
       }
 
-      // ---- Sort selector: reorder cards inside each column, client-side. The default matches the
-      // server render (Urgent first, active before on-hold, then launch date). ----
+      // ---- Sort: reorder cards inside each column, client-side (Urgent always floats first). ----
       function applySort() {
         var mode = fSort ? fSort.value : "priority";
         qsa(".tk-list").forEach(function (list) {
@@ -2434,8 +2780,6 @@
             var db = b.getAttribute("data-due") || "9999-99-99";
             var ha = a.getAttribute("data-hold") === "1" ? 1 : 0;
             var hb = b.getAttribute("data-hold") === "1" ? 1 : 0;
-            // URGENT (and not on hold) ALWAYS floats to the top of its column, in EVERY sort mode —
-            // the whole point of "urgent" is that it can't be buried by a date/client sort.
             var ua = (pa === 0 && ha === 0) ? 0 : 1;
             var ub = (pb === 0 && hb === 0) ? 0 : 1;
             if (ua !== ub) { return ua - ub; }
@@ -2456,12 +2800,142 @@
           cards.forEach(function (c) { list.appendChild(c); });
         });
       }
-      if (fSort) { fSort.addEventListener("change", function () { savePrefs(); applySort(); }); }
 
-      // Restore saved filter + sort on load, then apply both.
+      // ---- Density: Comfortable / Compact card layout (flat board only). ----
+      function applyDensity() {
+        if (tkBoard) { tkBoard.classList.toggle("tk-compact", segGet(densSeg, "data-dens") === "compact"); }
+      }
+
+      // ---- Cap long columns: show the first N MATCHING cards per column + a "Show all" toggle, so
+      // no column scrolls forever. Closed caps harder. "Show all" is per-column + session-only. ----
+      var TK_CAP = 8, TK_CAP_CLOSED = 3;
+      var capExpanded = {};
+      function applyCap() {
+        var on = fCap ? fCap.checked : true;
+        qsa(".tk-col").forEach(function (col) {
+          var stage = col.getAttribute("data-stage") || "";
+          var list = col.querySelector(".tk-list");
+          if (!list) { return; }
+          var old = list.querySelector(".tk-showmore");
+          if (old) { list.removeChild(old); }
+          var vis = qsa(".tk-card", list).filter(function (x) { return x.style.display !== "none"; });
+          vis.forEach(function (x) { x.classList.remove("tk-capped"); });
+          var cap = (stage === "closed") ? TK_CAP_CLOSED : TK_CAP;
+          if (!on || capExpanded[stage] || vis.length <= cap) { return; }
+          vis.forEach(function (x, i) { if (i >= cap) { x.classList.add("tk-capped"); } });
+          var btn = document.createElement("button");
+          btn.type = "button"; btn.className = "tk-showmore";
+          btn.textContent = "Show all " + vis.length + " →";
+          btn.addEventListener("click", function () { capExpanded[stage] = true; applyCap(); });
+          list.appendChild(btn);
+        });
+      }
+
+      // ---- Swimlanes: build per-client rows from the SAME cards (their data-* attrs), grouped into
+      // the four stage columns as chips. Respects the current filters/search (skips hidden cards);
+      // chips reuse the board's detail overlay via data-open + tkOpen. ----
+      var SWIM_STAGES = [["in_process", "In Process", "#2f6ecc"], ["for_launch", "For Launch", "#c77d16"],
+        ["launched", "Launched", "#4fa84a"], ["closed", "Closed", "#8b8f8c"]];
+      function swEsc(s) {
+        return String(s).replace(/[&<>"]/g, function (ch) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch];
+        });
+      }
+      function swColor(p) {
+        return p === "Urgent" ? "#c0453b" : p === "High" ? "#c77d16" : p === "Medium" ? "#2f6ecc" : "#8b8f8c";
+      }
+      function renderSwim() {
+        if (!swimEl) { return; }
+        var order = [], groups = {};
+        qsa(".tk-col").forEach(function (col) {
+          var stage = col.getAttribute("data-stage") || "";
+          qsa(".tk-card", col).forEach(function (card) {
+            if (card.style.display === "none") { return; }
+            var cname = card.getAttribute("data-cname") || "—";
+            if (!groups[cname]) { groups[cname] = {}; order.push(cname); }
+            if (!groups[cname][stage]) { groups[cname][stage] = []; }
+            var titleEl = card.querySelector(".tk-title");
+            var leadEl = card.querySelector(".tk-lead-nm");
+            groups[cname][stage].push({
+              key: card.getAttribute("data-open") || "",
+              title: titleEl ? titleEl.textContent : "",
+              prio: card.getAttribute("data-priority") || "",
+              hold: card.getAttribute("data-hold") === "1",
+              lead: leadEl ? leadEl.textContent : ""
+            });
+          });
+        });
+        swimEl.innerHTML = "";
+        if (!order.length) {
+          swimEl.innerHTML = '<div class="tk-swim-empty">No services match.</div>';
+          return;
+        }
+        order.forEach(function (cname) {
+          var byStage = groups[cname], total = 0, grid = "";
+          for (var si = 0; si < SWIM_STAGES.length; si++) {
+            var st = SWIM_STAGES[si], here = byStage[st[0]] || [], chips = "";
+            total += here.length;
+            for (var i = 0; i < here.length; i++) {
+              var t = here[i];
+              chips += '<button type="button" class="tk-chip" data-open="' + swEsc(t.key) + '"'
+                + (t.hold ? ' data-hold="1"' : '') + ' title="' + swEsc(t.title + (t.lead ? " · " + t.lead : "")) + '">'
+                + '<span class="tk-chip-dot" style="background:' + swColor(t.prio) + '"></span>'
+                + '<span class="tk-chip-t">' + swEsc(t.title) + '</span></button>';
+            }
+            if (!here.length) { chips = '<div class="tk-lane-empty">—</div>'; }
+            grid += '<div class="tk-lane-col"><div class="tk-lane-ch"><span class="dot" style="background:'
+              + st[2] + '"></span>' + st[1] + '<span class="n">' + here.length + '</span></div>' + chips + '</div>';
+          }
+          var lane = document.createElement("div");
+          lane.className = "tk-lane";
+          lane.innerHTML = '<div class="tk-lane-head"><span class="nm">' + swEsc(cname) + '</span>'
+            + '<span class="tot">' + total + ' service' + (total !== 1 ? "s" : "") + '</span></div>'
+            + '<div class="tk-lane-grid">' + grid + '</div>';
+          swimEl.appendChild(lane);
+        });
+        qsa(".tk-chip", swimEl).forEach(function (chip) {
+          chip.addEventListener("click", function () { tkOpen(findNode("data-tkd", chip.getAttribute("data-open"))); });
+        });
+      }
+
+      // ---- One refresh path: filter, then lay out either the flat board (sort + caps) or the
+      // swimlanes. Density + caps apply only to the flat board, so their controls hide in Swimlanes.
+      function refresh() {
+        var view = segGet(viewSeg, "data-view") || "flat";
+        applyDensity();
+        applyFilters();
+        qsa("[data-flatonly]").forEach(function (el) { el.style.display = (view === "flat") ? "" : "none"; });
+        if (view === "swim") {
+          if (tkBoard) { tkBoard.style.display = "none"; }
+          if (swimEl) { swimEl.hidden = false; }
+          renderSwim();
+        } else {
+          if (swimEl) { swimEl.hidden = true; }
+          if (tkBoard) { tkBoard.style.display = ""; }
+          applySort();
+          applyCap();
+        }
+      }
+
+      [fClient, fDept, fPerson].forEach(function (sel) {
+        if (sel) { sel.addEventListener("change", function () { savePrefs(); refresh(); }); }
+      });
+      if (fSearch) { fSearch.addEventListener("input", function () { refresh(); }); }
+      if (fClear) {
+        fClear.addEventListener("click", function () {
+          [fClient, fDept, fPerson].forEach(function (sel) { if (sel) { sel.value = ""; } });
+          if (fSearch) { fSearch.value = ""; }
+          savePrefs(); refresh();
+        });
+      }
+      if (fSort) { fSort.addEventListener("change", function () { savePrefs(); refresh(); }); }
+      if (fCap) { fCap.addEventListener("change", function () { capExpanded = {}; savePrefs(); refresh(); }); }
+      segWire(viewSeg, "data-view", function () { savePrefs(); refresh(); });
+      segWire(densSeg, "data-dens", function () { savePrefs(); refresh(); });
+
+      // Restore saved prefs on load, then render (filters -> view -> sort/caps or swimlanes).
       restorePrefs();
-      applyFilters();
-      applySort();
+      refresh();
 
       // ---- Reopen after an action: forms carry back_task/back_tab, the redirect returns
       // ?task=<client>:<id>&tab=<tab>, and we land the user back INSIDE the same overlay

@@ -23,24 +23,36 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   trust a Google login identically. Authorization-code flow, confidential client, **no new dependency**
   (token exchange via `requests`; the id_token came over TLS so we decode it + re-check iss/aud/exp/
   email_verified, no JWKS). OFF unless `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` are set (login page hides the
-  button; routes fall back to password). An **unknown** email is routed to `request_access.html` -> `POST
-  /auth/request-access` files a **passwordless pending** account that lands in the console's Access
-  requests tab. Redirect URI: `${PORTAL_BASE_URL}/auth/google/callback` (or `GOOGLE_OAUTH_REDIRECT_URI`).
-- **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a **Home hub + focused console**
-  (Concept B, see `ATRIUM_CONSOLE_REDESIGN_PLAN.md`), styled to the website design system (green
-  `#4FA84A` primary + purple `#6A6AEA` informational). A fresh visit lands on the branded **Home hub**
-  (Agora logo + greeting + the suite as cards: Atrium Admin · Skill Mastery · Website Editor ·
-  Sentinel); **Atrium Admin** enters the console, **← All apps** returns. The switch is client-side
-  view state only (`data-view` divs; a `?section=`/flash redirect opens the console directly, so every
-  deep-link and POST redirect still lands on its pane). Inside: the rail is ordered by frequency of
-  use (2026-07-14 IA pass) — **Workspaces** (Clients) / **Delivery** (Task Board · Calendar) /
-  **People & access** (**Accounts** — one pane with inner subtabs Requests · People · Add new) /
-  **System** (Activity · Mailboxes · **Bin**, restorable soft-deletes; utility items render muted
-  via `.nav-item.util`, and the Bin count uses the neutral `.count.quiet` — purple badges are
-  reserved for ACTIONABLE counts) — and the operator account block at the bottom (opens
-  Profile; themed sign-out confirm). Client cards carry an attention chip — purple **"N awaiting
-  approval"** (count computed in `admin_atrium()` from each already-loaded workspace, cards needing
-  attention sorted first; total shown on the hub's Atrium Admin card) or green **"All caught up"**.
+  button; routes fall back to password). Redirect URI: `${PORTAL_BASE_URL}/auth/google/callback` (or
+  `GOOGLE_OAUTH_REDIRECT_URI`).
+  - **Authorization = `_resolve_login_email` (main.py), resolve order:** THE super admin -> `["*"]`;
+    an **active portal account** (`store.resolve_google_login`) -> its client keys; else **defer to
+    Sentinel** — `sentinel_directory.is_active_user(email)` asks Sentinel (the source of truth for
+    staff) whether the email is an active user and, if so, authorizes them with `[]` (a valid session
+    + `ag_sso`, no client dashboards). So **adding someone in Sentinel (People -> Add Employee) is all
+    it takes to enable their Google login**, with no copy duplicated into `platform.json`; deactivating
+    them in Sentinel blocks it immediately. A grant may legitimately be `[]`, so the callback tests
+    `granted is None` (authorized nowhere -> `request_access.html` / `POST /auth/request-access` files a
+    **passwordless pending** account in the console's Access-requests tab), NOT falsiness.
+  - **`sentinel_directory.py`** is the client: it HMAC-signs `"user-lookup:{ts}"` with `SSO_SECRET`
+    (the shared `platform-sso-key`) and GETs `${SENTINEL_API_URL||SENTINEL_URL sans /login}/api/internal/
+    user-lookup`. Same HMAC pattern the mastery engine uses against `/api/internal/people`; **no new
+    secret**. Best-effort + gated: unset secret/URL, a non-200, a timeout, or an outage all return
+    `None` (login falls through to its old behavior) so a Sentinel outage can never break portal login.
+- **Operator console (`/admin/atrium`, `admin_atrium.html`)** = a **focused console** styled to the
+  website design system (green `#4FA84A` primary + purple `#6A6AEA` informational). The old Home-hub
+  landing (the "Your Agora suite" card grid) was **removed 2026-07-17** — the console is now the ONLY
+  view (`showView("console")` on load); the app switcher (Atrium / Sentinel / Website Editor — Skill
+  Mastery lives inside Sentinel, so it is NOT listed) lives in the **account dropdown under the
+  username** (`#acct-toggle`/`#acct-menu` in `.side-foot`, opens upward, also holds Your profile +
+  Sign out) and the **Agora logo (top of the rail) links back to `agoradatadriven.com`**. Inside: the
+  rail is ordered by frequency of use (2026-07-14 IA pass) — **Workspaces** (Clients) / **Delivery**
+  (Task Board · Calendar) / **People & access** (**Accounts** — one pane with inner subtabs Requests ·
+  People · Add new) / **System** (Activity · Mailboxes · **Bin**, restorable soft-deletes; utility
+  items render muted via `.nav-item.util`, and the Bin count uses the neutral `.count.quiet` — purple
+  badges are reserved for ACTIONABLE counts). Client cards carry an attention chip — purple **"N
+  awaiting approval"** (count computed in `admin_atrium()` from each already-loaded workspace, cards
+  needing attention sorted first) or green **"All caught up"**.
   It IS the admin landing: `/` redirects a super-admin here and the legacy `/admin` + `/superadmin`
   routes now just redirect here too (their client-add / password-reveal
   functions live in the console). Account routes
@@ -72,12 +84,18 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   Channels are classified: `platform` / `industry` (auto-labeled via `intel_ai.classify_text`,
   hand-editable) / `kind` creator|competitor. Registry in `ws["watcher"]`; each channel's
   transcripts in its own `workspace/watcher/<c>/<id>.json` object. `POST /w/<c>/admin/watcher`
-  (op add|add_video|fetch|safe_pull|refresh|meta|label|delete; fetch = MISSING-only batches of 8, page JS
-  loops it; a rate-limit reports `blocked` and never marks videos failed) +
-  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards).
+  (op add|add_video|fetch|safe_pull|refresh|meta|label|delete; fetch = MISSING-only batches (parallel
+  `FETCH_WORKERS`/`FETCH_BATCH` waves behind a proxy, else serial), page JS loops it and AUTO-RETRIES
+  with backoff on a `blocked` rate-limit / network error instead of stopping (button toggles to Stop);
+  a rate-limit reports `blocked` and never marks videos failed) +
+  `GET /w/<c>/watcher/video/<id>/<vid>` (full transcript behind the click-to-expand cards) +
+  `GET /w/<c>/watcher/safe-pull-status` (live Safe-pull progress the tab polls; see Safe pull below).
   **Single-video scraper (`op=add_video`):** paste ONE video link → `watcher.resolve_video`
   (`extract_video_id` handles watch/youtu.be/shorts/embed/live + a bare id; keyless oEmbed for the
-  title) → fetch transcript inline → save under the per-client "Saved videos" pseudo-channel
+  title, then a watch-page `og:title` scrape via `_scrape_video_meta` when oEmbed 401s — lots of
+  videos block oEmbed but still carry a real title, so the archive shows the actual name, not
+  "Video <id>"; re-adding heals an entry that saved before a title resolved) → fetch transcript
+  inline → save under the per-client "Saved videos" pseudo-channel
   (`workspace.ensure_loose_channel`, marked `loose`, `channel_id=""`); the response carries the
   transcript so the reader pops immediately (the tab's 2nd add-card; on success it reloads + auto-
   opens the modal). A rate-limit saves the video pending + reports `blocked` (Fetch missing / Safe
@@ -91,17 +109,36 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   machine's scheduled task (`install_safe_pull_task.ps1` → `safe_pull_agent.vbs`, 5-min tick,
   hidden) runs `safe_scrape_local.py --queue` — slow residential-IP scrape (12–20s pacing,
   5→60 min ladder, %TEMP% PID lock, syncs to the bucket every 5 transcripts, clears the queue
-  entry per finished channel; no args = full sweep). Test: `python _watcher_localtest.py`.
+  entry per finished channel; no args = full sweep). **Why it's slow (by design):** up to a 5-min
+  wait for the next scheduled tick + ~15s/video pacing + a 5→60 min cooldown on any YouTube
+  rate-limit — deliberately gentle so the home IP never gets blocked. **Live status:** the scraper
+  writes ONE global heartbeat object `workspace/watcher_safe_pull_status.json` per video (phase /
+  current video / done-total / cooldown-until; `write_status` in `safe_scrape_local.py`, read by
+  `workspace.read_safe_pull_status`). `GET /w/<c>/watcher/safe-pull-status` (team-only) fuses that
+  heartbeat with the queued channels' registry counts; the Watcher tab polls it every ~12s while a
+  card is queued and shows what's happening ("Fetching now: …", "cooling down ~10 min", "idle, last
+  active 3 min ago", counts + a progress bar) instead of a static "check back later", auto-refreshing
+  once a channel clears the queue. Test: `python _watcher_localtest.py`.
 - **`assistant_ai.py`** — the team-only Assistant tab: RAG chat over EVERY workspace source
   (watcher transcripts, intel, campaigns/content, metrics, calendar, conversations, health, plus
   the opt-in client dashboard export — grant via `enable_assistant_dash_data.ps1`). Index stored as
-  `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change). **HYBRID retrieval:**
+  `workspace/assistant/<c>/index.json` (lazy rebuild on `fingerprint` change OR an `INDEX_VERSION`
+  bump — the index shape is versioned so a chunking/indexing change forces a one-time rebuild).
+  **Each chunk is indexed + embedded by its TITLE + body** (`_searchable`), so the ENTITY NAME a
+  user searches by — the creator/channel name, campaign name, email subject — is retrievable even
+  though it never appears in the body (a transcript never says its own channel name; that was the
+  2026-07 "no Fuel Your Wander content" miss). **HYBRID retrieval:**
   BM25 (pure-Python, precomputed once per ask — the old per-query re-tokenisation is gone) + a
   SEMANTIC leg (`embed_index` → Vertex `text-embedding-005`, unit vectors packed as base64 float16
-  into the same object; same SA auth as the Gemini brain, NO new API/IAM) are fused with **RRF**
+  into the same object; same SA auth as the Gemini brain, NO new API/IAM — **INCREMENTAL: a rebuild
+  reuses the stored vector of any chunk whose id+content signature (`emb_sig`) is unchanged and
+  embeds only new/changed chunks, so a Watcher fetch no longer re-embeds the whole corpus on the ask
+  request's critical path**) are fused with **RRF**
   (`_rrf`, rank-only), the pool optionally **reranked** by a cross-encoder (Vertex Ranking API,
   `intel_ai.rerank` → `semantic-ranker-fast-004`), and a **metadata pre-filter** (`_infer_kinds`,
-  single-source questions only) + date range narrow first. Transport lives in `intel_ai`
+  single-source questions only — but a question that NAMES a watched creator, `_question_names_creator`,
+  keeps `video` in scope so "what would <creator> say about <campaign>" stays cross-source instead of
+  being scoped campaign-only) + date range narrow first. Transport lives in `intel_ai`
   (`embed_texts`/`embed_query`/`rerank`, gated by `embeddings_configured()`/`reranking_configured()`)
   and is INJECTED into `ask` as `query_embedder`/`reranker` — omit them (default deploy / tests) and
   it is exactly the old BM25 path. Gates: `ASSISTANT_EMBED_ENABLED=1` + `VERTEX_EMBED_LOCATION`
@@ -115,8 +152,24 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   newlines — so the UI is never handed a raw JSON envelope) with cited sources. Bot bubbles render
   the model's markdown via `mdToHtml` in `atrium.html` (headings/bold/lists; HTML-escaped first,
   esprima-safe).
-  `POST /w/<c>/admin/assistant` (op ask|settings|reindex). Dev: `VERTEX_ACCESS_TOKEN` env runs
-  Vertex off-cloud. Test: `python _assistant_localtest.py`. UI: the team-only floating bubble
+  `POST /w/<c>/admin/assistant` (op ask|settings|reindex — the non-streamed path, still used by
+  tests). **STREAMING chat (the live UI path):** `POST /w/<c>/admin/assistant/stream` returns
+  **Server-Sent Events** (`text/event-stream`, `stream_with_context`) so the reasoning + answer
+  arrive as deltas. `intel_ai.stream_call` normalises each provider's SSE (Vertex
+  `:streamGenerateContent?alt=sse` with `includeThoughts`; DeepSeek `stream:true`) to flat events
+  `{thinking|answer|usage|error}`; `assistant_ai.ask_stream` retrieves (hybrid) then streams the
+  answer as **plain markdown** (NOT the `{"answer":...}` envelope — a wrapper can't stream), honouring
+  a `steer` string. `stage=plan` (`assistant_ai.plan_stage`) is the Claude-style **plan-mode
+  checkpoint**: retrieve + (deep) plan the sub-queries and return them + the sources WITHOUT
+  answering, so the team approves/steers BEFORE any token is written. Frame types: `plan`, `sources`,
+  `thinking`, `answer`, `usage`, `error`, `done`. Frontend (`wireAssistantChat` in `atrium.html`,
+  esprima-safe): a `fetch` + `ReadableStream` reader parses the SSE; a collapsible **thinking panel**
+  streams live; **Pause & steer** aborts the stream (`AbortController`) and restarts with the steer;
+  **Plan first** (a per-browser localStorage toggle, `.ax-as-planmode` in both surfaces) switches on
+  the checkpoint. Conversations are now **session-scoped** (`sessionStorage`, fresh each new
+  session/tab; the old localStorage design persisted forever). Dev: `VERTEX_ACCESS_TOKEN` env runs
+  Vertex off-cloud (verified the full stream live via `run_local.ps1` + a real token).
+  Test: `python _assistant_localtest.py`. UI: the team-only floating bubble
   (`ax-asfab` FAB + `ax-aspanel` pop-up in `atrium.html`, inside `.atrium` so the vars/font
   inherit; brand-green 72px since 2026-07-13) is the PRIMARY surface, available on every tab; the
   Assistant tab pane still exists but is no longer in the nav (reach `/w/<c>/assistant` by URL for
@@ -194,6 +247,20 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   are open). Work is TWO-LEVEL: `maintasks[]` (named groups, each with an `assignee_id` + its own
   `subs[]` of owner-carrying sub-tasks); legacy flat `subtasks[]` migrates in place via
   `normalize_task` (called by `_find_task`) and `task_subtasks()` flattens for counts/guards.
+  **Service templates auto-build the breakdown (`service_templates.py`):** the New-Service form's
+  **Service type** picker (a department filter — **Acquisition = ONE type, "Google / Meta
+  Campaign"**, whose creative work is chosen from the Video/Static/Carousel **ad-production picker**;
+  Lifecycle/Data/Dev are fixed recipes, some with qty/platform/tool params) drives
+  `build_maintasks(key, params, added, id_factory=workspace._new_id)`, which seeds the whole
+  `maintasks[]` (per-unit `{n}` steps multiplied by their qty) + sets `content_type` +
+  auto-derives the department/label. `_task_template_seed()` in `main.py` reads `service_key` /
+  `p_<param>` / `ad_type`+`ad_qty` and injects it — **ONLY on op=add** (edits never regenerate).
+  "Custom (blank)" = the old empty-card path. The catalog reaches the page as hidden DOM
+  (`#svc-catalog`/`#adprod-catalog`, no Jinja in `<script>`); passed via `task_services` /
+  `task_adprod`. Templates are a SEED, not a lock — the maintasks are ordinary data afterwards.
+  Each sub-task carries an optional **`dod`** ("done when") — an INTERNAL definition of done shown
+  in the team subrow only; `_progress_tasks` strips steps to text+done so it NEVER reaches the
+  client. `add_subtask(..., dod=)` + the manual add-sub form's "Done when…" input persist it.
   Tasks also carry `start_date` + `due_date` (LAUNCH date — UI says "Launch date"), an
   internal-only `service_charge`, a boolean **`on_hold`** + internal `hold_reason`
   (`workspace.set_task_hold`, ongoing = not held; `POST /w/<c>/admin/task/hold`; a held
@@ -203,7 +270,27 @@ You are in the **`platform-dash`** Cloud Run service: the portal/CRM front-door 
   so op=add never clears). Team board = the console's Delivery → Task Board pane in
   `admin_atrium.html` (tasks collected in `admin_atrium()` from the workspaces it already loads;
   columns sort Urgent-first, active-before-held, then launch date; filter+sort persist in
-  localStorage `agora.tkprefs`; overlays server-rendered into `#tk-store`, forms post
+  localStorage `agora.tkprefs`. **Board-scaling controls (all client-side, in `agora.tkprefs`):** a
+  **text search** (`#tk-f-search`, matches title/client/lead — folded into `applyFilters`); a
+  **density toggle** (DENSITY segment Comfortable/Compact → `.tk-board.tk-compact`, trims padding/type
+  + hides the card foot for ~2× density); and **Cap columns** (`#tk-f-cap`, ON by default →
+  `applyCap`: shows the first `TK_CAP`=8 MATCHING cards/column + a "Show all N" button, Closed caps
+  harder at `TK_CAP_CLOSED`=3; overflow hidden via `.tk-card.tk-capped`, "Show all" per-column +
+  session-only so a reload re-caps). `applyCap` runs after filter/sort (order-dependent). **Two-row
+  control area (2026-07-20):** a **filter row** (`.tk-filters`: Search + Client/Department/Person +
+  Clear) and a separate **display row** (`.tk-display`) with labelled **segmented toggles** — **VIEW**
+  (`#tk-view-seg` Flat board / Swimlanes) + **DENSITY** (`#tk-dens-seg` Comfortable / Compact) — plus
+  the **Sort** select, the **Cap** checkbox, and an **"N shown"** count (`#tk-shown-n`). The **Priority
+  filter was removed** (Urgent auto-floats + Sort-by-priority covers it). Everything runs through ONE
+  `refresh()` (filter → then flat-board sort+caps OR swimlanes); prefs (`view`/`dens`/`sort`/`cap` +
+  filters) persist in `agora.tkprefs` (search text excluded); `segGet`/`segSet`/`segWire` drive the
+  segmented controls. **Swimlanes (`#tk-swim`, VIEW=Swimlanes)** is built CLIENT-SIDE from the same
+  `.tk-card` nodes' `data-*` (grouped per client → the 4 stage columns as chips); it respects the
+  active filters/search (skips hidden cards) and chips reuse the board's detail overlay via
+  `data-open`+`tkOpen` — no server render. `[data-flatonly]` controls (Density/Cap) hide in Swimlanes.
+  The main-task rename input (`.tk-main-rename`) carries a faint dashed underline at rest so it reads
+  as editable (was fully transparent → looked like static text).
+  Overlays server-rendered into `#tk-store`, forms post
   `redirect=console` + `back_task`/`back_tab` so the overlay REOPENS on the same tab after the
   reload). The detail overlay is TABBED: persistent glance chips (priority/hold/start/launch/charge/progress) above
   Details | Tasks | Comments panels (`data-tktab`); the New/Edit form's optional fields live in a

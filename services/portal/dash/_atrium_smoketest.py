@@ -209,13 +209,16 @@ def run():
         _check("old console POST /%s removed" % path,
                c.post("/admin/atrium/%s/%s" % (CLIENT, path), data={}).status_code in (404, 405))
 
-    # The console landing opens on the Home hub (the "Your Agora suite" welcome), links each client
-    # card straight to the workspace, and hides the worked-example `template` client.
+    # The console is the only landing now (the Home hub was removed): it lands straight on the
+    # Clients pane, exposes the account/app-switcher dropdown (Switch app -> Sentinel / Website
+    # Editor), links each client card straight to the workspace, and hides the `template` client.
     store.add_client(CLIENT, "Riverdance RV Resort")
     store.add_client("template", "Template")
     landing = c.get("/admin/atrium").get_data(as_text=True)
-    _check("console landing renders the suite hub welcome",
-           "Welcome back" in landing and "Atrium Admin" in landing)
+    _check("console landing renders the Clients console",
+           "Atrium Admin" in landing and 'data-view="hub"' not in landing)
+    _check("console exposes the app-switcher dropdown",
+           "Switch app" in landing and 'id="acct-menu"' in landing)
     _check("console card opens the workspace directly", ('href="/w/%s/"' % CLIENT) in landing)
     _check("template client hidden from console", '<div class="name">Template</div>' not in landing)
     store.remove_client("template")
@@ -715,6 +718,28 @@ def run():
     _check("internal-only task created",
            c.post("/w/%s/admin/task" % CLIENT,
                   data={"op": "add", "title": "HIDDEN-INTERNAL-TASK"}).get_json().get("ok") is True)
+    # A service TYPE auto-builds the whole work breakdown (main tasks + sub-tasks with "done when").
+    rseed = c.post("/w/%s/admin/task" % CLIENT, data={
+        "op": "add", "title": "Seeded G/M Campaign", "department": "acquisition",
+        "service_key": "google_meta_campaign", "client_facing": "1",
+        "ad_type": "video", "ad_qty": "3", "due_date": "2026-08-01"})
+    seeded_id = rseed.get_json()["task_id"]
+    seeded_task = workspace._find_task(workspace.load_workspace(CLIENT), seeded_id)
+    _check("service type auto-built the breakdown (build + launch + 1 ad-production group)",
+           len(seeded_task["maintasks"]) == 3)
+    _check("service type set content_type from the template",
+           seeded_task["content_type"] == "Campaign")
+    _check("qty=3 expanded the per-video step",
+           len([s for s in seeded_task["maintasks"][2]["subs"] if "draft edit" in s["text"]]) == 3)
+    _check("seeded sub-tasks carry an internal 'done when'",
+           all(s.get("dod") for m in seeded_task["maintasks"] for s in m["subs"]))
+    # The dod is INTERNAL: it must NOT reach the client Progress render.
+    with c.session_transaction() as s:
+        s.update({"ok": True, "user": "owner@riverdanceresort.com", "clients": [CLIENT]})
+    prog = c.get("/w/%s/progress" % CLIENT).get_data(as_text=True)
+    _check("client Progress never shows a 'done when' definition", "Done when" not in prog)
+    with c.session_transaction() as s:
+        s.update(SUPER)
     # Main tasks + sub-tasks + a team comment (the two-level breakdown, via the routes).
     _check("main task added",
            c.post("/w/%s/admin/task/maintask" % CLIENT,
